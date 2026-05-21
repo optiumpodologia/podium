@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#534AB7">
+<title>Podología</title>
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<div class="app">
+
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <div class="sidebar-logo-icon">⚕</div>
+    <div class="sidebar-logo-text">Podología</div>
+  </div>
+
+  <nav class="sidebar-nav" id="nav">
+  </nav>
+
+  <div class="sidebar-user">
+    <div class="user-avatar" id="user-avatar">--</div>
+    <div class="user-info">
+      <div class="user-name" id="user-name">...</div>
+      <div class="user-role" id="user-role">...</div>
+    </div>
+    <button class="btn-logout" onclick="cerrarSesion()" title="Cerrar sesión">⏏</button>
+  </div>
+</aside>
+
+<main class="main" id="main">
+  <div class="vacio">
+    <div class="vacio-icon">⏳</div>
+    Cargando...
+  </div>
+</main>
+
+</div>
+
+<div id="modal-container"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js"></script>
+<script src="js/supabase.js"></script>
+<script src="js/dashboard.js"></script>
+<script src="js/agenda.js"></script>
+<script src="js/pacientes.js"></script>
+<script src="js/turnos.js"></script>
+<script src="js/profesionales.js"></script>
+<script src="js/tipos_atencion.js"></script>
+<script src="js/productos.js"></script>
+<script src="js/ficha_paciente.js"></script>
+<script>
+let usuarioActual = null;
+
+const MODULOS = {
+  recepcion: [
+    { id: 'dashboard', label: 'Inicio', icon: '⌂', render: renderDashboard },
+    { id: 'agenda', label: 'Agenda', icon: '📅', render: renderAgenda },
+    { id: 'pacientes', label: 'Pacientes', icon: '👥', render: renderPacientes },
+    { id: 'profesionales', label: 'Profesionales', icon: '👨‍⚕', render: renderProfesionales },
+    { id: 'tipos_atencion', label: 'Atenciones', icon: '🩺', render: renderTiposAtencion },
+    { id: 'productos', label: 'Productos', icon: '📦', render: renderProductos }
+  ],
+  profesional: [
+    { id: 'dashboard', label: 'Inicio', icon: '⌂', render: renderDashboard },
+    { id: 'agenda', label: 'Mi agenda', icon: '📅', render: renderAgenda },
+    { id: 'pacientes', label: 'Pacientes', icon: '👥', render: renderPacientes }
+  ]
+};
+
+(async () => {
+  usuarioActual = await protegerPagina();
+  if (!usuarioActual) return;
+
+  document.getElementById('user-name').textContent = usuarioActual.nombre;
+  document.getElementById('user-role').textContent =
+    usuarioActual.rol === 'recepcion' ? 'Recepción' : 'Profesional';
+  document.getElementById('user-avatar').textContent =
+    usuarioActual.nombre.split(' ').map(p => p[0]).slice(0,2).join('').toUpperCase();
+
+  renderNav();
+  navegar('dashboard');
+})();
+
+function renderNav() {
+  const nav = document.getElementById('nav');
+  const modulos = MODULOS[usuarioActual.rol] || [];
+  nav.innerHTML = modulos.map(m => `
+    <button class="nav-item" data-modulo="${m.id}" onclick="navegar('${m.id}')">
+      <span class="nav-item-icon">${m.icon}</span>
+      <span>${m.label}</span>
+    </button>
+  `).join('');
+}
+
+function navegar(moduloId) {
+  document.querySelectorAll('.nav-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.modulo === moduloId);
+  });
+
+  const modulo = (MODULOS[usuarioActual.rol] || []).find(m => m.id === moduloId);
+  if (modulo && typeof modulo.render === 'function') {
+    modulo.render(document.getElementById('main'));
+  } else {
+    document.getElementById('main').innerHTML = '<div class="vacio">Módulo no disponible</div>';
+  }
+}
+
+// Modal helpers globales
+function abrirModal(html) {
+  const cont = document.getElementById('modal-container');
+  cont.innerHTML = `
+    <div class="modal-overlay" onclick="if(event.target===this) cerrarModal()">
+      <div class="modal">${html}</div>
+    </div>
+  `;
+}
+
+function cerrarModal() {
+  document.getElementById('modal-container').innerHTML = '';
+}
+</script>
+</body>
+</html>
