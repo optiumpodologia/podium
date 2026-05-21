@@ -1,5 +1,5 @@
 async function renderUsuarios(container) {
-  if (usuarioActual.rol !== 'recepcion' && usuarioActual.rol !== 'super_admin') {
+  if (!['super_admin', 'admin_consultorio'].includes(usuarioActual.rol)) {
     container.innerHTML = '<div class="vacio">Acceso restringido</div>';
     return;
   }
@@ -10,7 +10,7 @@ async function renderUsuarios(container) {
     <div class="page-header">
       <div>
         <div class="page-title">Usuarios</div>
-        <div class="page-subtitle">Gestión de accesos al sistema</div>
+        <div class="page-subtitle">${esSuperAdmin ? 'Gestión global de accesos' : 'Empleados que pueden entrar al sistema'}</div>
       </div>
       <button class="btn btn-primary-sm" onclick="abrirModalNuevoUsuario()">
         <span>+</span> Nuevo usuario
@@ -41,10 +41,7 @@ async function renderUsuarios(container) {
 
 async function cargarUsuarios() {
   const esSuperAdmin = usuarioActual.rol === 'super_admin';
-
-  let query = sb.from('usuarios').select('*, negocios(nombre)').order('nombre');
-
-  const { data, error } = await query;
+  const { data, error } = await sb.from('usuarios').select('*, negocios(nombre)').order('nombre');
   if (error) { mostrarMensaje('Error al cargar', 'error'); console.error(error); return; }
 
   const tbody = document.getElementById('tabla-usuarios');
@@ -56,6 +53,7 @@ async function cargarUsuarios() {
   tbody.innerHTML = data.map(u => {
     const rolBadge = {
       'super_admin': '<span class="badge" style="background:#26215C; color:white;">Super Admin</span>',
+      'admin_consultorio': '<span class="badge" style="background:#534AB7; color:white;">Admin</span>',
       'recepcion': '<span class="badge badge-llego">Recepción</span>',
       'profesional': '<span class="badge badge-en_atencion">Profesional</span>'
     }[u.rol] || u.rol;
@@ -96,9 +94,10 @@ async function abrirModalNuevoUsuario() {
 
   const rolOptions = esSuperAdmin
     ? `
+      <option value="admin_consultorio">Admin Consultorio (dueño)</option>
       <option value="recepcion">Recepción</option>
       <option value="profesional">Profesional</option>
-      <option value="super_admin">Super Admin</option>
+      <option value="super_admin">Super Admin (uso interno Optium)</option>
     `
     : `
       <option value="profesional">Profesional</option>

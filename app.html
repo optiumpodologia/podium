@@ -54,6 +54,7 @@
 <script src="js/configuracion.js"></script>
 <script src="js/usuarios.js"></script>
 <script src="js/negocios.js"></script>
+<script src="js/consultorios.js"></script>
 <script>
 let usuarioActual = null;
 
@@ -61,6 +62,7 @@ const MODULOS = {
   super_admin: [
     { id: 'negocios', label: 'Negocios', icon: '🏢', render: renderNegocios },
     { id: 'usuarios', label: 'Usuarios', icon: '🔑', render: renderUsuarios },
+    { id: 'consultorios', label: 'Consultorios', icon: '📍', render: renderConsultorios },
     { id: 'dashboard', label: 'Inicio', icon: '⌂', render: renderDashboard },
     { id: 'agenda', label: 'Agenda', icon: '📅', render: renderAgenda },
     { id: 'pacientes', label: 'Pacientes', icon: '👥', render: renderPacientes },
@@ -69,15 +71,21 @@ const MODULOS = {
     { id: 'productos', label: 'Productos', icon: '📦', render: renderProductos },
     { id: 'configuracion', label: 'Configuración', icon: '⚙', render: renderConfiguracion }
   ],
-  recepcion: [
+  admin_consultorio: [
     { id: 'dashboard', label: 'Inicio', icon: '⌂', render: renderDashboard },
     { id: 'agenda', label: 'Agenda', icon: '📅', render: renderAgenda },
     { id: 'pacientes', label: 'Pacientes', icon: '👥', render: renderPacientes },
+    { id: 'consultorios', label: 'Consultorios', icon: '📍', render: renderConsultorios },
     { id: 'profesionales', label: 'Profesionales', icon: '👨‍⚕', render: renderProfesionales },
     { id: 'tipos_atencion', label: 'Atenciones', icon: '🩺', render: renderTiposAtencion },
     { id: 'productos', label: 'Productos', icon: '📦', render: renderProductos },
     { id: 'usuarios', label: 'Usuarios', icon: '🔑', render: renderUsuarios },
     { id: 'configuracion', label: 'Configuración', icon: '⚙', render: renderConfiguracion }
+  ],
+  recepcion: [
+    { id: 'dashboard', label: 'Inicio', icon: '⌂', render: renderDashboard },
+    { id: 'agenda', label: 'Agenda', icon: '📅', render: renderAgenda },
+    { id: 'pacientes', label: 'Pacientes', icon: '👥', render: renderPacientes }
   ],
   profesional: [
     { id: 'dashboard', label: 'Inicio', icon: '⌂', render: renderDashboard },
@@ -93,6 +101,7 @@ const MODULOS = {
   document.getElementById('user-name').textContent = usuarioActual.nombre;
   document.getElementById('user-role').textContent =
     usuarioActual.rol === 'super_admin' ? 'Super Admin' :
+    usuarioActual.rol === 'admin_consultorio' ? 'Admin Consultorio' :
     usuarioActual.rol === 'recepcion' ? 'Recepción' : 'Profesional';
   document.getElementById('user-avatar').textContent =
     usuarioActual.nombre.split(' ').map(p => p[0]).slice(0,2).join('').toUpperCase();

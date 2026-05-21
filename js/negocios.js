@@ -8,7 +8,7 @@ async function renderNegocios(container) {
     <div class="page-header">
       <div>
         <div class="page-title">Negocios</div>
-        <div class="page-subtitle">Gestión de consultorios / clientes del sistema</div>
+        <div class="page-subtitle">Clientes del sistema Podium SaaS</div>
       </div>
       <button class="btn btn-primary-sm" onclick="abrirModalNegocio()">
         <span>+</span> Nuevo negocio
@@ -21,13 +21,15 @@ async function renderNegocios(container) {
           <tr>
             <th>Nombre</th>
             <th>Plan</th>
+            <th>Consultorios</th>
+            <th>Profesionales</th>
             <th>Alta</th>
             <th>Estado</th>
             <th style="text-align:right;">Acciones</th>
           </tr>
         </thead>
         <tbody id="tabla-negocios">
-          <tr><td colspan="5" class="vacio">Cargando...</td></tr>
+          <tr><td colspan="7" class="vacio">Cargando...</td></tr>
         </tbody>
       </table>
     </div>
@@ -37,27 +39,33 @@ async function renderNegocios(container) {
 }
 
 async function cargarNegocios() {
-  const { data, error } = await sb.from('negocios').select('*').order('nombre');
-  if (error) { mostrarMensaje('Error al cargar', 'error'); return; }
+  const { data, error } = await sb.from('vista_uso_negocios').select('*').order('nombre');
+  if (error) { mostrarMensaje('Error al cargar', 'error'); console.error(error); return; }
 
   const tbody = document.getElementById('tabla-negocios');
   if (!data || data.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="5" class="vacio">No hay negocios</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" class="vacio">No hay negocios</td></tr>';
     return;
   }
 
   tbody.innerHTML = data.map(n => {
     const planBadge = {
-      'free': '<span class="badge" style="background:#f1efe8; color:#444;">Free</span>',
-      'pro': '<span class="badge badge-llego">Pro</span>',
+      'free': '<span class="badge" style="background:#F1EFE8; color:#444;">Free</span>',
+      'plan_1': '<span class="badge badge-llego">Plan 1</span>',
+      'plan_2': '<span class="badge" style="background:#FAEEDA; color:#854F0B;">Plan 2</span>',
+      'plan_3': '<span class="badge" style="background:#FBEAF0; color:#993556;">Plan 3</span>',
       'premium': '<span class="badge" style="background:#CECBF6; color:#3C3489;">Premium</span>'
     }[n.plan] || n.plan;
+
+    const consultoriosTexto = `${n.consultorios_actuales}/${n.limite_total_consultorios}`;
 
     return `
     <tr>
       <td><strong>${n.nombre}</strong></td>
       <td>${planBadge}</td>
-      <td>${new Date(n.fecha_alta).toLocaleDateString('es-AR')}</td>
+      <td>${consultoriosTexto}</td>
+      <td>${n.profesionales_actuales}</td>
+      <td style="font-size: 12px; color: var(--texto-secundario);">—</td>
       <td>${n.activo ? '<span class="badge badge-llego">Activo</span>' : '<span class="badge badge-cancelado">Inactivo</span>'}</td>
       <td>
         <div class="tabla-acciones">
@@ -70,11 +78,13 @@ async function cargarNegocios() {
 }
 
 async function abrirModalNegocio(id) {
-  let negocio = { nombre:'', plan:'free', activo:true, notas:'' };
+  let negocio = { nombre:'', plan:'free', activo:true, notas:'', consultorios_extras:0 };
   if (id) {
     const { data } = await sb.from('negocios').select('*').eq('id', id).single();
     if (data) negocio = data;
   }
+
+  const { data: planes } = await sb.from('planes').select('*').eq('activo', true).order('orden');
 
   abrirModal(`
     <div class="modal-header">
@@ -87,14 +97,18 @@ async function abrirModalNegocio(id) {
           <label>Nombre del negocio *</label>
           <input type="text" name="nombre" value="${negocio.nombre}" required>
         </div>
+        <div class="input-group">
+          <label>Plan</label>
+          <select name="plan">
+            ${(planes || []).map(p => `
+              <option value="${p.id}" ${negocio.plan===p.id?'selected':''}>${p.nombre} - ${p.descripcion}</option>
+            `).join('')}
+          </select>
+        </div>
         <div class="form-row">
           <div class="input-group">
-            <label>Plan</label>
-            <select name="plan">
-              <option value="free" ${negocio.plan==='free'?'selected':''}>Free</option>
-              <option value="pro" ${negocio.plan==='pro'?'selected':''}>Pro</option>
-              <option value="premium" ${negocio.plan==='premium'?'selected':''}>Premium</option>
-            </select>
+            <label>Consultorios extras (adicionales al plan)</label>
+            <input type="number" name="consultorios_extras" value="${negocio.consultorios_extras || 0}" min="0">
           </div>
           <div class="input-group">
             <label>Estado</label>
@@ -110,7 +124,11 @@ async function abrirModalNegocio(id) {
         </div>
         ${!id ? `
           <div style="background: var(--info-claro); color: var(--info); padding: 10px 12px; border-radius: var(--radio); font-size: 12px; margin-top: 1rem;">
-            Después de crear el negocio, andá a "Usuarios" y creá la cuenta de recepción para este negocio.
+            <strong>Importante:</strong> después de crear el negocio:
+            <ol style="margin: 6px 0 0 16px;">
+              <li>Andá a "Usuarios" y creá el admin del consultorio</li>
+              <li>El admin va a entrar y crear su primer consultorio</li>
+            </ol>
           </div>
         ` : ''}
       </div>
@@ -126,6 +144,7 @@ async function abrirModalNegocio(id) {
     const fd = new FormData(e.target);
     const d = Object.fromEntries(fd.entries());
     d.activo = d.activo === 'true';
+    d.consultorios_extras = parseInt(d.consultorios_extras) || 0;
     if (!d.notas) d.notas = null;
 
     let res;
