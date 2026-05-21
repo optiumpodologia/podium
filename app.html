@@ -51,6 +51,7 @@
 <script src="js/tipos_atencion.js"></script>
 <script src="js/productos.js"></script>
 <script src="js/ficha_paciente.js"></script>
+<script src="js/configuracion.js"></script>
 <script>
 let usuarioActual = null;
 
@@ -61,7 +62,8 @@ const MODULOS = {
     { id: 'pacientes', label: 'Pacientes', icon: '👥', render: renderPacientes },
     { id: 'profesionales', label: 'Profesionales', icon: '👨‍⚕', render: renderProfesionales },
     { id: 'tipos_atencion', label: 'Atenciones', icon: '🩺', render: renderTiposAtencion },
-    { id: 'productos', label: 'Productos', icon: '📦', render: renderProductos }
+    { id: 'productos', label: 'Productos', icon: '📦', render: renderProductos },
+    { id: 'configuracion', label: 'Configuración', icon: '⚙', render: renderConfiguracion }
   ],
   profesional: [
     { id: 'dashboard', label: 'Inicio', icon: '⌂', render: renderDashboard },
