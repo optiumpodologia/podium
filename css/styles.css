@@ -386,6 +386,25 @@ input, select, textarea {
 }
 
 /* ===== AGENDA / CALENDARIO ===== */
+.agenda-layout {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 1rem;
+  align-items: start;
+}
+
+.agenda-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  position: sticky;
+  top: 1rem;
+}
+
+.agenda-sidebar .card {
+  margin-bottom: 0;
+}
+
 .agenda-wrap {
   background: white;
   border: 1px solid var(--borde);
@@ -534,13 +553,16 @@ input, select, textarea {
   cursor: pointer;
   overflow: hidden;
   z-index: 2;
-  background: var(--primario-claro);
-  border-left-color: var(--primario);
+  background: #F1EFE8;
+  border-left-color: #888780;
+  color: #2C2C2A;
+  transition: all 0.2s;
 }
 
 .turno-card:hover {
   z-index: 3;
   box-shadow: var(--sombra-fuerte);
+  transform: scale(1.02);
 }
 
 .turno-card-nombre {
@@ -558,27 +580,35 @@ input, select, textarea {
 }
 
 .turno-card.estado-llego {
-  background: var(--exito-claro);
-  border-left-color: var(--exito);
+  background: #9FE1CB;
+  border-left-color: #0F6E56;
+  color: #04342C;
+  animation: pulso-llego 1.5s ease-in-out infinite;
 }
 
 .turno-card.estado-en_atencion {
-  background: var(--advertencia-claro);
-  border-left-color: var(--advertencia);
+  background: #FAC775;
+  border-left-color: #854F0B;
+  color: #412402;
 }
 
 .turno-card.estado-finalizado {
-  background: #f0f0f0;
-  border-left-color: var(--texto-tenue);
-  opacity: 0.7;
+  background: #B5D4F4;
+  border-left-color: #0C447C;
+  color: #042C53;
 }
 
 .turno-card.estado-cancelado,
 .turno-card.estado-ausente {
   background: var(--peligro-claro);
   border-left-color: var(--peligro);
-  opacity: 0.7;
+  opacity: 0.65;
   text-decoration: line-through;
+}
+
+@keyframes pulso-llego {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(15, 110, 86, 0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(15, 110, 86, 0); }
 }
 
 .leyenda {
@@ -650,10 +680,10 @@ input, select, textarea {
   letter-spacing: 0.3px;
 }
 
-.badge-agendado { background: var(--info-claro); color: var(--info); }
-.badge-llego { background: var(--exito-claro); color: var(--exito); }
-.badge-en_atencion { background: var(--advertencia-claro); color: var(--advertencia); }
-.badge-finalizado { background: #ececec; color: #555; }
+.badge-agendado { background: #F1EFE8; color: #444441; }
+.badge-llego { background: #9FE1CB; color: #04342C; }
+.badge-en_atencion { background: #FAC775; color: #412402; }
+.badge-finalizado { background: #B5D4F4; color: #042C53; }
 .badge-cancelado, .badge-ausente { background: var(--peligro-claro); color: var(--peligro); }
 
 /* ===== MODAL ===== */
@@ -827,6 +857,8 @@ input, select, textarea {
   .main { padding: 1rem; }
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
   .grid-2 { grid-template-columns: 1fr; }
+  .agenda-layout { grid-template-columns: 1fr; }
+  .agenda-sidebar { position: static; flex-direction: row; overflow-x: auto; }
   .agenda-grid { grid-template-columns: 50px repeat(6, minmax(80px, 1fr)); overflow-x: auto; }
   .form-row { grid-template-columns: 1fr; }
 }
