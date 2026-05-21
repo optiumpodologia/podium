@@ -8,7 +8,7 @@ async function renderTiposAtencion(container) {
     <div class="page-header">
       <div>
         <div class="page-title">Tipos de atención</div>
-        <div class="page-subtitle">Catálogo de servicios que ofrecés</div>
+        <div class="page-subtitle">Catálogo de servicios (el profesional los elige al cerrar la ficha)</div>
       </div>
       <button class="btn btn-primary-sm" onclick="abrirModalTipoAtencion()">
         <span>+</span> Nuevo tipo
@@ -20,7 +20,6 @@ async function renderTiposAtencion(container) {
         <thead>
           <tr>
             <th>Nombre</th>
-            <th>Duración</th>
             <th>Precio</th>
             <th>Color</th>
             <th>Estado</th>
@@ -28,7 +27,7 @@ async function renderTiposAtencion(container) {
           </tr>
         </thead>
         <tbody id="tabla-tipos">
-          <tr><td colspan="6" class="vacio">Cargando...</td></tr>
+          <tr><td colspan="5" class="vacio">Cargando...</td></tr>
         </tbody>
       </table>
     </div>
@@ -43,14 +42,13 @@ async function cargarTiposAtencion() {
 
   const tbody = document.getElementById('tabla-tipos');
   if (data.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="6" class="vacio">No hay tipos cargados</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" class="vacio">No hay tipos cargados</td></tr>';
     return;
   }
 
   tbody.innerHTML = data.map(t => `
     <tr>
       <td><strong>${t.nombre}</strong></td>
-      <td>${t.duracion_minutos} min</td>
       <td>${formatearPrecio(t.precio)}</td>
       <td><span style="display:inline-block; width:18px; height:18px; background:${t.color}; border-radius:4px; vertical-align:middle;"></span></td>
       <td>${t.activo ? '<span class="badge badge-llego">Activo</span>' : '<span class="badge badge-cancelado">Inactivo</span>'}</td>
@@ -65,7 +63,7 @@ async function cargarTiposAtencion() {
 }
 
 async function abrirModalTipoAtencion(id) {
-  let tipo = { nombre:'', duracion_minutos:30, precio:0, color:'#534AB7', activo:true };
+  let tipo = { nombre:'', precio:0, color:'#534AB7', activo:true };
   if (id) {
     const { data } = await sb.from('tipos_atencion').select('*').eq('id', id).single();
     if (data) tipo = data;
@@ -84,18 +82,8 @@ async function abrirModalTipoAtencion(id) {
         </div>
         <div class="form-row">
           <div class="input-group">
-            <label>Duración (minutos) *</label>
-            <input type="number" name="duracion_minutos" value="${tipo.duracion_minutos}" min="5" max="240" required>
-          </div>
-          <div class="input-group">
             <label>Precio</label>
             <input type="number" name="precio" value="${tipo.precio}" step="0.01" min="0">
-          </div>
-        </div>
-        <div class="form-row">
-          <div class="input-group">
-            <label>Color en agenda</label>
-            <input type="color" name="color" value="${tipo.color}">
           </div>
           <div class="input-group">
             <label>Estado</label>
@@ -104,6 +92,10 @@ async function abrirModalTipoAtencion(id) {
               <option value="false" ${!tipo.activo?'selected':''}>Inactivo</option>
             </select>
           </div>
+        </div>
+        <div class="input-group">
+          <label>Color (para reportes)</label>
+          <input type="color" name="color" value="${tipo.color}">
         </div>
       </div>
       <div class="modal-footer">
@@ -118,7 +110,6 @@ async function abrirModalTipoAtencion(id) {
     const fd = new FormData(e.target);
     const d = Object.fromEntries(fd.entries());
     d.activo = d.activo === 'true';
-    d.duracion_minutos = parseInt(d.duracion_minutos);
     d.precio = parseFloat(d.precio) || 0;
 
     let res;
@@ -136,7 +127,7 @@ async function eliminarTipoAtencion(id) {
   if (!confirm('¿Eliminar este tipo de atención?')) return;
   const { error } = await sb.from('tipos_atencion').delete().eq('id', id);
   if (error) {
-    mostrarMensaje('No se puede eliminar: tiene turnos asociados', 'error');
+    mostrarMensaje('No se puede eliminar: tiene fichas asociadas', 'error');
     return;
   }
   mostrarMensaje('Eliminado', 'exito');

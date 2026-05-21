@@ -6,14 +6,11 @@ async function abrirModalNuevoTurno(fechaHoraInicial) {
 
   const { data: pacientes } = await sb.from('pacientes').select('id, nombre, apellido').order('apellido');
   const { data: profesionales } = await sb.from('profesionales').select('id, nombre').eq('activo', true).order('nombre');
-  const { data: tipos } = await sb.from('tipos_atencion').select('*').eq('activo', true).order('nombre');
+  const { data: config } = await sb.from('configuracion').select('duracion_turno_minutos').eq('id', 1).single();
+  const duracionDefault = config?.duracion_turno_minutos || 45;
 
   if (!profesionales || profesionales.length === 0) {
     mostrarMensaje('Primero cargá un profesional', 'advertencia');
-    return;
-  }
-  if (!tipos || tipos.length === 0) {
-    mostrarMensaje('Primero cargá tipos de atención', 'advertencia');
     return;
   }
 
@@ -56,14 +53,6 @@ async function abrirModalNuevoTurno(fechaHoraInicial) {
           </select>
         </div>
 
-        <div class="input-group">
-          <label>Tipo de atención *</label>
-          <select name="tipo_atencion_id" required id="select-tipo-atencion" onchange="actualizarDuracion()">
-            <option value="">Seleccionar...</option>
-            ${tipos.map(t => `<option value="${t.id}" data-duracion="${t.duracion_minutos}">${t.nombre} (${t.duracion_minutos} min)</option>`).join('')}
-          </select>
-        </div>
-
         <div class="form-row">
           <div class="input-group">
             <label>Fecha *</label>
@@ -76,13 +65,8 @@ async function abrirModalNuevoTurno(fechaHoraInicial) {
         </div>
 
         <div class="input-group">
-          <label>Duración (minutos)</label>
-          <input type="number" name="duracion_minutos" value="30" min="10" max="240" required id="input-duracion">
-        </div>
-
-        <div class="input-group">
-          <label>Notas</label>
-          <textarea name="notas" rows="2"></textarea>
+          <label>Notas (opcional)</label>
+          <textarea name="notas" rows="2" placeholder="Ej: viene por primera vez, necesita silla, etc."></textarea>
         </div>
       </div>
       <div class="modal-footer">
@@ -102,9 +86,8 @@ async function abrirModalNuevoTurno(fechaHoraInicial) {
     const turno = {
       paciente_id: d.paciente_id,
       profesional_id: d.profesional_id,
-      tipo_atencion_id: d.tipo_atencion_id,
       fecha_hora: fechaHora.toISOString(),
-      duracion_minutos: parseInt(d.duracion_minutos),
+      duracion_minutos: duracionDefault,
       notas: d.notas || null,
       creado_por: usuarioActual.id
     };
@@ -124,17 +107,9 @@ async function abrirModalNuevoTurno(fechaHoraInicial) {
   });
 }
 
-function actualizarDuracion() {
-  const select = document.getElementById('select-tipo-atencion');
-  const opt = select.selectedOptions[0];
-  if (opt && opt.dataset.duracion) {
-    document.getElementById('input-duracion').value = opt.dataset.duracion;
-  }
-}
-
 async function abrirModalTurno(turnoId) {
   const { data: turno, error } = await sb.from('turnos')
-    .select('*, pacientes(nombre, apellido, telefono, dni), tipos_atencion(nombre, precio), profesionales(nombre)')
+    .select('*, pacientes(nombre, apellido, telefono, dni), tipos_atencion(nombre, precio, color), profesionales(nombre)')
     .eq('id', turnoId)
     .single();
 
@@ -143,25 +118,31 @@ async function abrirModalTurno(turnoId) {
     return;
   }
 
-  const fechaTurno = new Date(turno.fecha_hora);
   const esRecepcion = usuarioActual.rol === 'recepcion';
   const esProfesional = usuarioActual.rol === 'profesional';
 
   let accionesEstado = '';
   if (turno.estado === 'agendado' && esRecepcion) {
     accionesEstado = `
-      <button class="btn btn-primary-sm" onclick="cambiarEstadoTurno('${turno.id}','llego')">Marcar llegó</button>
-      <button class="btn" onclick="cambiarEstadoTurno('${turno.id}','cancelado')">Cancelar</button>
+      <button class="btn btn-primary-sm" onclick="cambiarEstadoTurno('${turno.id}','llego')">✓ Marcar que llegó</button>
+      <button class="btn" onclick="cambiarEstadoTurno('${turno.id}','cancelado')">Cancelar turno</button>
       <button class="btn" onclick="cambiarEstadoTurno('${turno.id}','ausente')">No vino</button>
     `;
   } else if (turno.estado === 'llego' && esProfesional) {
     accionesEstado = `
-      <button class="btn btn-primary-sm" onclick="cambiarEstadoTurno('${turno.id}','en_atencion')">Pasar al consultorio</button>
+      <button class="btn btn-primary-sm" onclick="iniciarAtencion('${turno.id}')">▶ Iniciar atención</button>
+    `;
+  } else if (turno.estado === 'llego' && esRecepcion) {
+    accionesEstado = `
+      <div style="color: var(--exito); font-size: 13px;">⏳ Esperando que el profesional inicie la atención</div>
     `;
   } else if (turno.estado === 'en_atencion' && esProfesional) {
     accionesEstado = `
-      <button class="btn btn-primary-sm" onclick="cambiarEstadoTurno('${turno.id}','finalizado')">Finalizar atención</button>
-      <button class="btn" onclick="abrirFichaAtencion('${turno.id}')">Cargar ficha</button>
+      <button class="btn btn-primary-sm" onclick="abrirFichaAtencion('${turno.id}')">📋 Cerrar ficha y finalizar</button>
+    `;
+  } else if (turno.estado === 'en_atencion' && esRecepcion) {
+    accionesEstado = `
+      <div style="color: var(--advertencia); font-size: 13px;">⚙ Paciente en consultorio</div>
     `;
   } else if (turno.estado === 'finalizado' && esProfesional) {
     accionesEstado = `
@@ -194,10 +175,12 @@ async function abrirModalTurno(turnoId) {
           <td style="color: var(--texto-secundario); padding: 6px 0;">Profesional</td>
           <td>${turno.profesionales?.nombre || '—'}</td>
         </tr>
+        ${turno.tipos_atencion ? `
         <tr>
-          <td style="color: var(--texto-secundario); padding: 6px 0;">Atención</td>
-          <td>${turno.tipos_atencion?.nombre || '—'}${turno.tipos_atencion?.precio ? ' · ' + formatearPrecio(turno.tipos_atencion.precio) : ''}</td>
+          <td style="color: var(--texto-secundario); padding: 6px 0;">Atención realizada</td>
+          <td>${turno.tipos_atencion.nombre}${turno.tipos_atencion.precio ? ' · ' + formatearPrecio(turno.tipos_atencion.precio) : ''}</td>
         </tr>
+        ` : ''}
         <tr>
           <td style="color: var(--texto-secundario); padding: 6px 0;">Fecha</td>
           <td>${formatearFecha(turno.fecha_hora)}</td>
@@ -227,6 +210,23 @@ async function abrirModalTurno(turnoId) {
       <button class="btn" onclick="cerrarModal()">Cerrar</button>
     </div>
   `);
+}
+
+async function iniciarAtencion(turnoId) {
+  const ahora = new Date().toISOString();
+  const { error } = await sb.from('turnos').update({
+    estado: 'en_atencion',
+    hora_inicio_atencion: ahora
+  }).eq('id', turnoId);
+
+  if (error) {
+    mostrarMensaje('Error: ' + error.message, 'error');
+    return;
+  }
+
+  mostrarMensaje('Atención iniciada', 'exito');
+  cerrarModal();
+  setTimeout(() => abrirFichaAtencion(turnoId), 200);
 }
 
 async function cambiarEstadoTurno(turnoId, nuevoEstado) {

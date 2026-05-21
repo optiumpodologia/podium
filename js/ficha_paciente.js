@@ -14,7 +14,7 @@ async function verFichaPaciente(pacienteId) {
   let fichas = [];
   if (usuarioActual.rol === 'profesional') {
     const { data } = await sb.from('fichas_atencion')
-      .select('*, turnos(fecha_hora)')
+      .select('*, turnos(fecha_hora), tipos_atencion(nombre)')
       .eq('paciente_id', pacienteId)
       .order('creado_en', { ascending: false });
     fichas = data || [];
@@ -53,7 +53,7 @@ async function verFichaPaciente(pacienteId) {
             <div class="turno-row" onclick="cerrarModal(); setTimeout(() => abrirModalTurno('${t.id}'), 100);">
               <div class="turno-row-hora">${new Date(t.fecha_hora).toLocaleDateString('es-AR')}</div>
               <div class="turno-row-info">
-                <div class="turno-row-nombre">${t.tipos_atencion?.nombre || 'Sin tipo'}</div>
+                <div class="turno-row-nombre">${t.tipos_atencion?.nombre || 'Pendiente'}</div>
                 <div class="turno-row-tipo">${t.profesionales?.nombre || ''} · ${formatearHora(t.fecha_hora)}</div>
               </div>
               <span class="badge badge-${t.estado}">${etiquetaEstado(t.estado)}</span>
@@ -70,6 +70,7 @@ async function verFichaPaciente(pacienteId) {
               <div style="padding: 12px; background: var(--fondo); border-radius: var(--radio);">
                 <div style="font-size: 12px; color: var(--texto-secundario); margin-bottom: 4px;">
                   ${f.turnos ? new Date(f.turnos.fecha_hora).toLocaleDateString('es-AR') : new Date(f.creado_en).toLocaleDateString('es-AR')}
+                  ${f.tipos_atencion ? ' · ' + f.tipos_atencion.nombre : ''}
                 </div>
                 ${f.motivo_consulta ? `<div style="margin-bottom: 4px;"><strong>Motivo:</strong> ${f.motivo_consulta}</div>` : ''}
                 ${f.diagnostico ? `<div style="margin-bottom: 4px;"><strong>Diagnóstico:</strong> ${f.diagnostico}</div>` : ''}
@@ -104,10 +105,12 @@ async function abrirFichaAtencion(turnoId) {
     return;
   }
 
+  const { data: tipos } = await sb.from('tipos_atencion').select('*').eq('activo', true).order('nombre');
   const { data: fichaExistente } = await sb.from('fichas_atencion')
     .select('*').eq('turno_id', turnoId).maybeSingle();
 
   const ficha = fichaExistente || {
+    tipo_atencion_id: turno.tipo_atencion_id || '',
     motivo_consulta: '', diagnostico: '', tratamiento: '',
     observaciones: '', proxima_visita: ''
   };
@@ -122,6 +125,16 @@ async function abrirFichaAtencion(turnoId) {
         <div style="background: var(--fondo); padding: 10px 12px; border-radius: var(--radio); margin-bottom: 1rem; font-size: 13px;">
           <strong>${turno.pacientes?.apellido}, ${turno.pacientes?.nombre}</strong>
           <span style="color: var(--texto-secundario);"> · ${new Date(turno.fecha_hora).toLocaleDateString('es-AR')}</span>
+        </div>
+
+        <div class="input-group">
+          <label>Tipo de atención realizada *</label>
+          <select name="tipo_atencion_id" required>
+            <option value="">Seleccionar...</option>
+            ${(tipos||[]).map(t => `
+              <option value="${t.id}" ${ficha.tipo_atencion_id === t.id ? 'selected' : ''}>${t.nombre}</option>
+            `).join('')}
+          </select>
         </div>
 
         <div class="input-group">
@@ -151,7 +164,7 @@ async function abrirFichaAtencion(turnoId) {
       </div>
       <div class="modal-footer">
         <button type="button" class="btn" onclick="cerrarModal()">Cancelar</button>
-        <button type="submit" class="btn btn-primary-sm">${fichaExistente ? 'Actualizar ficha' : 'Guardar ficha'}</button>
+        <button type="submit" class="btn btn-primary-sm">Cerrar ficha y finalizar turno</button>
       </div>
     </form>
   `);
@@ -177,7 +190,17 @@ async function abrirFichaAtencion(turnoId) {
     }
 
     if (res.error) { mostrarMensaje('Error: ' + res.error.message, 'error'); return; }
-    mostrarMensaje('Ficha guardada', 'exito');
+
+    await sb.from('turnos').update({
+      estado: 'finalizado',
+      tipo_atencion_id: d.tipo_atencion_id,
+      hora_fin_atencion: new Date().toISOString()
+    }).eq('id', turnoId);
+
+    mostrarMensaje('Ficha guardada y turno finalizado', 'exito');
     cerrarModal();
+    const moduloActivo = document.querySelector('.nav-item.active')?.dataset.modulo;
+    if (moduloActivo === 'agenda') dibujarAgenda();
+    else if (moduloActivo === 'dashboard') renderDashboard(document.getElementById('main'));
   });
 }
