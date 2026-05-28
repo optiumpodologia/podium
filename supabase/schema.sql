@@ -217,13 +217,26 @@ CREATE TABLE feriados (
 -- VISTAS
 -- ============================================================
 -- vista_uso_negocios: calcula el uso real de cada negocio
--- (consultorios y profesionales actuales vs. límites del plan).
--- La definición real (el SELECT) hay que exportarla aparte con:
---   select pg_get_viewdef('vista_uso_negocios', true);
---
--- Columnas que devuelve:
---   id, nombre, plan, consultorios_extras,
---   max_consultorios, limite_total_consultorios,
---   max_profesionales_por_consultorio,
---   consultorios_actuales, profesionales_actuales, activo
+-- (consultorios y profesionales activos vs. límites del plan).
+-- Usada por la capa SaaS para controlar que cada negocio no supere
+-- los límites de su plan (ver consultorios.js).
 -- ============================================================
+
+CREATE VIEW vista_uso_negocios AS
+  SELECT
+    n.id,
+    n.nombre,
+    n.plan,
+    n.consultorios_extras,
+    p.max_consultorios,
+    p.max_consultorios + COALESCE(n.consultorios_extras, 0) AS limite_total_consultorios,
+    p.max_profesionales_por_consultorio,
+    ( SELECT count(*)
+        FROM consultorios c
+       WHERE c.negocio_id = n.id AND c.activo ) AS consultorios_actuales,
+    ( SELECT count(*)
+        FROM profesionales pr
+       WHERE pr.negocio_id = n.id AND pr.activo ) AS profesionales_actuales,
+    n.activo
+  FROM negocios n
+  LEFT JOIN planes p ON p.id = n.plan;
