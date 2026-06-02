@@ -1,5 +1,5 @@
 async function renderNegocios(container) {
-  if (usuarioActual.rol !== 'super_admin') {
+  if (!puedeVerModulo(usuarioActual, 'negocios')) {
     container.innerHTML = '<div class="vacio">Acceso restringido (solo Super Admin)</div>';
     return;
   }

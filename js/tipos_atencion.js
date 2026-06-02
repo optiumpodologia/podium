@@ -1,5 +1,5 @@
 async function renderTiposAtencion(container) {
-  if (usuarioActual.rol !== 'recepcion') {
+  if (!puedeVerModulo(usuarioActual, 'tipos_atencion')) {
     container.innerHTML = '<div class="vacio">Acceso restringido</div>';
     return;
   }

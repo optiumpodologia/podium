@@ -1,5 +1,5 @@
 async function renderConfiguracion(container) {
-  if (usuarioActual.rol !== 'recepcion') {
+  if (!puedeVerModulo(usuarioActual, 'configuracion')) {
     container.innerHTML = '<div class="vacio">Acceso restringido</div>';
     return;
   }

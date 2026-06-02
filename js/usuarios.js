@@ -1,5 +1,5 @@
 async function renderUsuarios(container) {
-  if (!['super_admin', 'admin_consultorio'].includes(usuarioActual.rol)) {
+  if (!puedeVerModulo(usuarioActual, 'usuarios')) {
     container.innerHTML = '<div class="vacio">Acceso restringido</div>';
     return;
   }
@@ -53,7 +53,7 @@ async function cargarUsuarios() {
   tbody.innerHTML = data.map(u => {
     const rolBadge = {
       'super_admin': '<span class="badge" style="background:#26215C; color:white;">Super Admin</span>',
-      'admin_consultorio': '<span class="badge" style="background:#534AB7; color:white;">Admin</span>',
+      'negocio': '<span class="badge" style="background:#534AB7; color:white;">Negocio</span>',
       'recepcion': '<span class="badge badge-llego">Recepción</span>',
       'profesional': '<span class="badge badge-en_atencion">Profesional</span>'
     }[u.rol] || u.rol;
@@ -94,7 +94,7 @@ async function abrirModalNuevoUsuario() {
 
   const rolOptions = esSuperAdmin
     ? `
-      <option value="admin_consultorio">Admin Consultorio (dueño)</option>
+      <option value="negocio">Negocio (dueño)</option>
       <option value="recepcion">Recepción</option>
       <option value="profesional">Profesional</option>
       <option value="super_admin">Super Admin (uso interno Optium)</option>

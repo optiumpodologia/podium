@@ -1,5 +1,5 @@
 async function renderConsultorios(container) {
-  if (!['super_admin', 'admin_consultorio'].includes(usuarioActual.rol)) {
+  if (!puedeVerModulo(usuarioActual, 'consultorios')) {
     container.innerHTML = '<div class="vacio">Acceso restringido</div>';
     return;
   }

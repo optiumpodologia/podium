@@ -1,5 +1,5 @@
 async function renderProductos(container) {
-  if (usuarioActual.rol !== 'recepcion') {
+  if (!puedeVerModulo(usuarioActual, 'productos')) {
     container.innerHTML = '<div class="vacio">Acceso restringido</div>';
     return;
   }

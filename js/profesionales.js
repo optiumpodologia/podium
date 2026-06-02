@@ -1,5 +1,5 @@
 async function renderProfesionales(container) {
-  if (usuarioActual.rol !== 'recepcion') {
+  if (!puedeVerModulo(usuarioActual, 'profesionales')) {
     container.innerHTML = '<div class="vacio">Acceso restringido</div>';
     return;
   }
