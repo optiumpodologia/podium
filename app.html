@@ -43,6 +43,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/config.js"></script>
 <script src="js/supabase.js"></script>
+<script src="js/permisos.js"></script>
 <script src="js/dashboard.js"></script>
 <script src="js/agenda.js"></script>
 <script src="js/pacientes.js"></script>
@@ -58,33 +59,21 @@
 <script>
 let usuarioActual = null;
 
-const MODULOS = {
-  super_admin: [
-    { id: 'negocios', label: 'Negocios', icon: '🏢', render: renderNegocios },
-    { id: 'usuarios', label: 'Usuarios', icon: '🔑', render: renderUsuarios }
-  ],
-  admin_consultorio: [
-    { id: 'dashboard', label: 'Inicio', icon: '⌂', render: renderDashboard },
-    { id: 'agenda', label: 'Agenda', icon: '📅', render: renderAgenda },
-    { id: 'pacientes', label: 'Pacientes', icon: '👥', render: renderPacientes },
-    { id: 'consultorios', label: 'Consultorios', icon: '📍', render: renderConsultorios },
-    { id: 'profesionales', label: 'Profesionales', icon: '👨‍⚕', render: renderProfesionales },
-    { id: 'tipos_atencion', label: 'Atenciones', icon: '🩺', render: renderTiposAtencion },
-    { id: 'productos', label: 'Productos', icon: '📦', render: renderProductos },
-    { id: 'usuarios', label: 'Usuarios', icon: '🔑', render: renderUsuarios },
-    { id: 'configuracion', label: 'Configuración', icon: '⚙', render: renderConfiguracion }
-  ],
-  recepcion: [
-    { id: 'dashboard', label: 'Inicio', icon: '⌂', render: renderDashboard },
-    { id: 'agenda', label: 'Agenda', icon: '📅', render: renderAgenda },
-    { id: 'pacientes', label: 'Pacientes', icon: '👥', render: renderPacientes }
-  ],
-  profesional: [
-    { id: 'dashboard', label: 'Inicio', icon: '⌂', render: renderDashboard },
-    { id: 'agenda', label: 'Mi agenda', icon: '📅', render: renderAgenda },
-    { id: 'pacientes', label: 'Pacientes', icon: '👥', render: renderPacientes }
-  ]
-};
+// Catálogo ÚNICO de módulos (id, etiqueta, ícono, función que lo dibuja).
+// Quién ve cada uno lo decide permisos.js (MODULOS_ACCESO), no este archivo.
+// El orden de acá es el orden en que aparecen en el menú.
+const MODULOS = [
+  { id: 'negocios',       label: 'Negocios',       icon: '🏢',   render: renderNegocios },
+  { id: 'dashboard',      label: 'Inicio',         icon: '⌂',    render: renderDashboard },
+  { id: 'agenda',         label: 'Agenda',         icon: '📅',   render: renderAgenda },
+  { id: 'pacientes',      label: 'Pacientes',      icon: '👥',   render: renderPacientes },
+  { id: 'consultorios',   label: 'Consultorios',   icon: '📍',   render: renderConsultorios },
+  { id: 'profesionales',  label: 'Profesionales',  icon: '👨‍⚕', render: renderProfesionales },
+  { id: 'tipos_atencion', label: 'Atenciones',     icon: '🩺',   render: renderTiposAtencion },
+  { id: 'productos',      label: 'Productos',       icon: '📦',   render: renderProductos },
+  { id: 'usuarios',       label: 'Usuarios',        icon: '🔑',   render: renderUsuarios },
+  { id: 'configuracion',  label: 'Configuración',   icon: '⚙',    render: renderConfiguracion }
+];
 
 (async () => {
   usuarioActual = await protegerPagina();
@@ -93,32 +82,41 @@ const MODULOS = {
   document.getElementById('user-name').textContent = usuarioActual.nombre;
   document.getElementById('user-role').textContent =
     usuarioActual.rol === 'super_admin' ? 'Super Admin' :
-    usuarioActual.rol === 'admin_consultorio' ? 'Admin Consultorio' :
+    usuarioActual.rol === 'negocio' ? 'Negocio' :
     usuarioActual.rol === 'recepcion' ? 'Recepción' : 'Profesional';
   document.getElementById('user-avatar').textContent =
     usuarioActual.nombre.split(' ').map(p => p[0]).slice(0,2).join('').toUpperCase();
 
   renderNav();
-  navegar('dashboard');
+
+  // Aterriza en el primer módulo que el usuario tenga permitido ver.
+  const primerModulo = MODULOS.find(m => puedeVerModulo(usuarioActual, m.id));
+  navegar(primerModulo ? primerModulo.id : 'dashboard');
 })();
 
 function renderNav() {
   const nav = document.getElementById('nav');
-  const modulos = MODULOS[usuarioActual.rol] || [];
-  nav.innerHTML = modulos.map(m => `
-    <button class="nav-item" data-modulo="${m.id}" onclick="navegar('${m.id}')">
-      <span class="nav-item-icon">${m.icon}</span>
-      <span>${m.label}</span>
-    </button>
-  `).join('');
+  nav.innerHTML = MODULOS
+    .filter(m => puedeVerModulo(usuarioActual, m.id))
+    .map(m => `
+      <button class="nav-item" data-modulo="${m.id}" onclick="navegar('${m.id}')">
+        <span class="nav-item-icon">${m.icon}</span>
+        <span>${m.label}</span>
+      </button>
+    `).join('');
 }
 
 function navegar(moduloId) {
+  if (!puedeVerModulo(usuarioActual, moduloId)) {
+    document.getElementById('main').innerHTML = '<div class="vacio">No tenés acceso a este módulo</div>';
+    return;
+  }
+
   document.querySelectorAll('.nav-item').forEach(el => {
     el.classList.toggle('active', el.dataset.modulo === moduloId);
   });
 
-  const modulo = (MODULOS[usuarioActual.rol] || []).find(m => m.id === moduloId);
+  const modulo = MODULOS.find(m => m.id === moduloId);
   if (modulo && typeof modulo.render === 'function') {
     modulo.render(document.getElementById('main'));
   } else {
