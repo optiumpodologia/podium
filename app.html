@@ -55,6 +55,7 @@
 <script src="js/configuracion.js"></script>
 <script src="js/usuarios.js"></script>
 <script src="js/negocios.js"></script>
+<script src="js/planes.js"></script>
 <script src="js/consultorios.js"></script>
 <script>
 let usuarioActual = null;
@@ -64,6 +65,7 @@ let usuarioActual = null;
 // El orden de acá es el orden en que aparecen en el menú.
 const MODULOS = [
   { id: 'negocios',       label: 'Negocios',       icon: '🏢',   render: renderNegocios },
+  { id: 'planes',         label: 'Planes',          icon: '🏷️',  render: renderPlanes },
   { id: 'dashboard',      label: 'Inicio',         icon: '⌂',    render: renderDashboard },
   { id: 'agenda',         label: 'Agenda',         icon: '📅',   render: renderAgenda },
   { id: 'pacientes',      label: 'Pacientes',      icon: '👥',   render: renderPacientes },
