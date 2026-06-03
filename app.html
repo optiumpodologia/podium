@@ -127,10 +127,15 @@ function navegar(moduloId) {
 }
 
 // Modal helpers globales
+//
+// El modal NO se cierra al tocar fuera de la ventana, a propósito: así no
+// se pierde lo que estás cargando/editando por un toque al costado (pasa
+// fácil en el celular). Se cierra solo con la × del encabezado o con el
+// botón Cancelar/Cerrar de cada formulario.
 function abrirModal(html) {
   const cont = document.getElementById('modal-container');
   cont.innerHTML = `
-    <div class="modal-overlay" onclick="if(event.target===this) cerrarModal()">
+    <div class="modal-overlay">
       <div class="modal">${html}</div>
     </div>
   `;
