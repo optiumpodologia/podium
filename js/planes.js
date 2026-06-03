@@ -2,17 +2,20 @@
 // planes.js — ABM de Planes de suscripción (solo Super Admin)
 // ============================================================
 //
-// Permite cargar y editar los planes del SaaS desde la pantalla,
-// en vez de hacerlo por SQL. Trabaja sobre la tabla `planes` que
-// ya existe en Supabase.
+// Perillas del plan (lo que se "vende" y se limita):
+//   - max_consultorios            : espacios físicos
+//   - max_profesionales           : TOTAL de profesionales por negocio
+//                                   (no por consultorio; cuenta registros
+//                                    de la agenda, incluido el full sin login)
+//   - max_recepcion               : usuarios de recepción
+//   Admin (dueño) es SIEMPRE 1: es estructural, no es una perilla.
 //
-// IMPORTANTE — antes de usar este módulo hay que correr UNA vez el
-// SQL que agrega la columna `max_usuarios` a la tabla `planes`
-// (te lo paso aparte). Sin esa columna, crear/editar un plan da error.
+// El `id` es TEXTO (ej: 'free', 'plan_1'), no uuid. En el ALTA se define
+// (autocompletado desde el nombre); en la EDICIÓN queda fijo, porque lo
+// referencian los negocios.
 //
-// El `id` de un plan es TEXTO (ej: 'free', 'plan_1'), no un uuid.
-// Es el identificador que usan los negocios para saber qué plan tienen.
-// Por eso: en el ALTA se puede definir/ajustar; en la EDICIÓN queda fijo.
+// Requiere en la base las columnas max_profesionales y max_recepcion
+// (te paso el SQL aparte). El cobro/cortesía NO vive acá: vive en el negocio.
 // ============================================================
 
 async function renderPlanes(container) {
@@ -37,9 +40,9 @@ async function renderPlanes(container) {
         <thead>
           <tr>
             <th>Nombre</th>
-            <th>Usuarios</th>
             <th>Consultorios</th>
-            <th>Prof. / consult.</th>
+            <th>Profesionales</th>
+            <th>Recepción</th>
             <th>Precio mensual</th>
             <th>Estado</th>
             <th style="text-align:right;">Acciones</th>
@@ -65,7 +68,7 @@ async function cargarPlanes() {
     return;
   }
 
-  // Muestra un número, o "—" si está vacío (null = sin límite).
+  // Muestra un número, o "sin límite" si está vacío (null).
   const num = (n) => (n === null || n === undefined || n === '') ? '<span style="color:var(--texto-tenue);">sin límite</span>' : n;
 
   tbody.innerHTML = data.map(p => `
@@ -76,9 +79,9 @@ async function cargarPlanes() {
           ${p.id}${p.descripcion ? ' · ' + p.descripcion : ''}
         </div>
       </td>
-      <td>${num(p.max_usuarios)}</td>
       <td>${num(p.max_consultorios)}</td>
-      <td>${num(p.max_profesionales_por_consultorio)}</td>
+      <td>${num(p.max_profesionales)}</td>
+      <td>${num(p.max_recepcion)}</td>
       <td>${formatearPrecio(p.precio_mensual)}</td>
       <td>${p.activo ? '<span class="badge badge-llego">Activo</span>' : '<span class="badge badge-cancelado">Inactivo</span>'}</td>
       <td>
@@ -93,7 +96,7 @@ async function cargarPlanes() {
 async function abrirModalPlan(id) {
   let plan = {
     id: '', nombre: '', descripcion: '',
-    max_usuarios: '', max_consultorios: '', max_profesionales_por_consultorio: '',
+    max_consultorios: '', max_profesionales: '', max_recepcion: '',
     precio_mensual: 0, precio_consultorio_extra: 0,
     orden: 0, activo: true
   };
@@ -126,26 +129,34 @@ async function abrirModalPlan(id) {
             placeholder="ej: plan_1">
           <small style="color: var(--texto-tenue); display:block; margin-top: 4px;">
             ${esNuevo
-              ? 'Se completa solo a partir del nombre. Podés ajustarlo (sin espacios ni acentos). Es el identificador interno y no se podrá cambiar después.'
+              ? 'Se completa solo a partir del nombre. Podés ajustarlo (sin espacios ni acentos). No se podrá cambiar después.'
               : 'Identifica al plan en la base y en los negocios que ya lo usan; por eso queda fijo.'}
           </small>
         </div>
 
         <div class="form-row">
           <div class="input-group">
-            <label>Máx. usuarios</label>
-            <input type="number" name="max_usuarios" value="${plan.max_usuarios ?? ''}" min="0" placeholder="Sin límite">
+            <label>Máx. consultorios *</label>
+            <input type="number" name="max_consultorios" value="${plan.max_consultorios ?? ''}" min="0" required
+              ${esNuevo ? 'oninput="sugerirProfesionales(this.value)"' : ''}>
           </div>
           <div class="input-group">
-            <label>Máx. consultorios *</label>
-            <input type="number" name="max_consultorios" value="${plan.max_consultorios ?? ''}" min="0" required>
+            <label>Máx. profesionales (total)</label>
+            <input type="number" name="max_profesionales" id="input-max-prof" value="${plan.max_profesionales ?? ''}" min="0"
+              ${esNuevo ? 'oninput="this.dataset.editadoManual=\'1\'"' : ''} placeholder="Sin límite">
+            <small style="color: var(--texto-tenue); display:block; margin-top: 4px;">
+              Total por negocio. Se sugiere 4 por consultorio (editable).
+            </small>
           </div>
         </div>
 
         <div class="form-row">
           <div class="input-group">
-            <label>Máx. profesionales por consultorio *</label>
-            <input type="number" name="max_profesionales_por_consultorio" value="${plan.max_profesionales_por_consultorio ?? ''}" min="0" required>
+            <label>Máx. usuarios de recepción</label>
+            <input type="number" name="max_recepcion" value="${plan.max_recepcion ?? ''}" min="0" placeholder="1">
+            <small style="color: var(--texto-tenue); display:block; margin-top: 4px;">
+              El admin (dueño) es siempre 1 y no se configura.
+            </small>
           </div>
           <div class="input-group">
             <label>Orden en la lista</label>
@@ -195,9 +206,9 @@ async function abrirModalPlan(id) {
     const datos = {
       nombre: d.nombre.trim(),
       descripcion: d.descripcion ? d.descripcion.trim() : null,
-      max_usuarios: aEnteroONull(d.max_usuarios),
       max_consultorios: aEnteroONull(d.max_consultorios),
-      max_profesionales_por_consultorio: aEnteroONull(d.max_profesionales_por_consultorio),
+      max_profesionales: aEnteroONull(d.max_profesionales),
+      max_recepcion: aEnteroONull(d.max_recepcion),
       precio_mensual: aDecimalOCero(d.precio_mensual),
       precio_consultorio_extra: aDecimalOCero(d.precio_consultorio_extra),
       orden: aEnteroONull(d.orden) ?? 0,
@@ -207,12 +218,12 @@ async function abrirModalPlan(id) {
     let res;
     if (id) {
       // En edición el id queda fijo: no lo mandamos.
-      res = await sb.from('planes').update(datos).eq('id', id);
+      res = await sb.from('planes').update(datos).eq('id', id).select();
     } else {
       const codigo = normalizarCodigoPlan(d.codigo);
       if (!codigo) { mostrarMensaje('El código interno no puede quedar vacío', 'error'); return; }
       datos.id = codigo;
-      res = await sb.from('planes').insert(datos);
+      res = await sb.from('planes').insert(datos).select();
     }
 
     if (res.error) {
@@ -221,6 +232,13 @@ async function abrirModalPlan(id) {
         ? 'Ya existe un plan con ese código interno. Cambiá el código.'
         : res.error.message;
       mostrarMensaje('Error: ' + msg, 'error');
+      return;
+    }
+
+    // Sin error pero sin filas devueltas = la base no aplicó el cambio
+    // (típicamente permisos/RLS en la tabla planes). Avisamos de verdad.
+    if (!res.data || res.data.length === 0) {
+      mostrarMensaje('No se pudo guardar: la base no aplicó el cambio. Revisá permisos/RLS de la tabla planes.', 'error');
       return;
     }
 
@@ -242,10 +260,19 @@ function normalizarCodigoPlan(texto) {
 }
 
 // Mientras se escribe el nombre (solo en el alta), propone el código.
-// Si el usuario ya tocó el campo código a mano, lo respeta y no lo pisa.
 function sugerirCodigoPlan(nombre) {
   const input = document.getElementById('input-codigo-plan');
   if (input && !input.dataset.editadoManual) {
     input.value = normalizarCodigoPlan(nombre);
+  }
+}
+
+// Mientras se cargan los consultorios (solo en el alta), sugiere el tope de
+// profesionales = 4 por consultorio. Si el usuario ya tocó el campo, no lo pisa.
+function sugerirProfesionales(consultorios) {
+  const input = document.getElementById('input-max-prof');
+  if (input && !input.dataset.editadoManual) {
+    const n = parseInt(consultorios);
+    input.value = (Number.isFinite(n) && n > 0) ? n * 4 : '';
   }
 }
