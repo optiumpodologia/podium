@@ -4,15 +4,21 @@ async function renderProfesionales(container) {
     return;
   }
 
+  // Crear un profesional ahora crea también su login, así que el alta es del
+  // dueño (rol 'negocio'). Recepción ve la lista y puede editar, pero no crear.
+  const puedeCrear = usuarioActual.rol === 'negocio';
+
   container.innerHTML = `
     <div class="page-header">
       <div>
         <div class="page-title">Profesionales</div>
         <div class="page-subtitle" id="prof-count">Cargando...</div>
       </div>
-      <button class="btn btn-primary-sm" onclick="abrirModalProfesional()">
-        <span>+</span> Nuevo profesional
-      </button>
+      ${puedeCrear ? `
+        <button class="btn btn-primary-sm" onclick="abrirModalProfesional()">
+          <span>+</span> Nuevo profesional
+        </button>
+      ` : ''}
     </div>
 
     <div class="card">
@@ -70,24 +76,35 @@ async function cargarProfesionales() {
 }
 
 async function abrirModalProfesional(id) {
-  // Tope del plan: solo al CREAR uno nuevo. Si ya llegó al máximo, ni abrimos.
-  if (!id) {
+  const esAlta = !id;
+
+  // El alta de profesional (login + registro) es solo del dueño.
+  if (esAlta && usuarioActual.rol !== 'negocio') {
+    mostrarMensaje('Solo el dueño puede dar de alta profesionales.', 'advertencia');
+    return;
+  }
+
+  // Tope del plan: solo al CREAR. Si ya llegó al máximo, ni abrimos.
+  // De paso nos quedamos con el plan, para saber si mostrar el tilde "full".
+  let planNegocio = null;
+  if (esAlta) {
     const tope = await topeProfesionalesNegocio();
     if (tope && tope.alcanzado) {
       mostrarMensaje(`Llegaste al límite de tu plan: ${tope.max} profesionales (tenés ${tope.actual}). Para sumar más, cambiá de plan.`, 'error');
       return;
     }
+    planNegocio = tope?.plan || null;
   }
 
-  let prof = { nombre:'', matricula:'', telefono:'', color:'#534AB7', activo:true, usuario_id:'' };
+  let prof = { nombre:'', matricula:'', telefono:'', color:'#534AB7', activo:true };
   if (id) {
     const { data } = await sb.from('profesionales').select('*').eq('id', id).single();
     if (data) prof = data;
   }
 
-  const { data: usuarios } = await sb.from('usuarios')
-    .select('id, nombre, email')
-    .eq('rol', 'profesional');
+  // El "full (sin login)" solo tiene sentido al crear y en Plan 1.
+  // (Si algún día el full se habilita en otro plan o por prueba, se cambia acá.)
+  const mostrarFull = esAlta && planNegocio === 'plan_1';
 
   abrirModal(`
     <div class="modal-header">
@@ -98,7 +115,7 @@ async function abrirModalProfesional(id) {
       <div class="modal-body">
         <div class="input-group">
           <label>Nombre completo *</label>
-          <input type="text" name="nombre" value="${prof.nombre}" required>
+          <input type="text" name="nombre" value="${prof.nombre || ''}" required>
         </div>
         <div class="form-row">
           <div class="input-group">
@@ -113,7 +130,7 @@ async function abrirModalProfesional(id) {
         <div class="form-row">
           <div class="input-group">
             <label>Color en agenda</label>
-            <input type="color" name="color" value="${prof.color}">
+            <input type="color" name="color" value="${prof.color || '#534AB7'}">
           </div>
           <div class="input-group">
             <label>Estado</label>
@@ -123,20 +140,38 @@ async function abrirModalProfesional(id) {
             </select>
           </div>
         </div>
-        <div class="input-group">
-          <label>Usuario vinculado (opcional)</label>
-          <select name="usuario_id">
-            <option value="">Sin usuario</option>
-            ${(usuarios||[]).map(u => `<option value="${u.id}" ${prof.usuario_id===u.id?'selected':''}>${u.nombre} (${u.email})</option>`).join('')}
-          </select>
-          <small style="color: var(--texto-tenue); display:block; margin-top: 4px;">
-            Si el profesional va a usar la app, vinculá su usuario acá.
-          </small>
-        </div>
+
+        ${esAlta ? `
+          ${mostrarFull ? `
+            <label style="display:flex; align-items:flex-start; gap:8px; padding:10px 12px; border:1px solid var(--borde); border-radius:var(--radio); margin-bottom:1rem; cursor:pointer;">
+              <input type="checkbox" name="es_full" id="check-full" onchange="toggleFullProfesional(this.checked)" style="margin-top:2px;">
+              <span>
+                <strong>Soy yo (sin login propio)</strong>
+                <div style="font-size:12px; color:var(--texto-secundario);">
+                  Te suma a la agenda atendiendo con tu propia cuenta de dueño. No crea un usuario nuevo, pero igual cuenta para el tope del plan.
+                </div>
+              </span>
+            </label>
+          ` : ''}
+
+          <div id="bloque-credenciales">
+            <div class="input-group">
+              <label>Email (para que entre a la app) *</label>
+              <input type="email" name="email" placeholder="profesional@email.com">
+            </div>
+            <div class="input-group">
+              <label>Contraseña *</label>
+              <input type="text" name="password" minlength="6" placeholder="Mínimo 6 caracteres">
+              <small style="color: var(--texto-tenue); display:block; margin-top: 4px;">
+                Anotala bien: se la pasás al profesional para que entre la primera vez.
+              </small>
+            </div>
+          </div>
+        ` : ''}
       </div>
       <div class="modal-footer">
         <button type="button" class="btn" onclick="cerrarModal()">Cancelar</button>
-        <button type="submit" class="btn btn-primary-sm">${id ? 'Guardar' : 'Crear'}</button>
+        <button type="submit" class="btn btn-primary-sm" id="btn-guardar-prof">${id ? 'Guardar' : 'Crear profesional'}</button>
       </div>
     </form>
   `);
@@ -145,33 +180,130 @@ async function abrirModalProfesional(id) {
     e.preventDefault();
     const fd = new FormData(e.target);
     const d = Object.fromEntries(fd.entries());
-    d.activo = d.activo === 'true';
-    if (!d.usuario_id) d.usuario_id = null;
-    if (!d.matricula) d.matricula = null;
-    if (!d.telefono) d.telefono = null;
+    const activo = d.activo === 'true';
+    const btn = document.getElementById('btn-guardar-prof');
 
-    let res;
+    // ---------- EDICIÓN: solo datos de agenda, el login NO se toca ----------
     if (id) {
-      res = await sb.from('profesionales').update(d).eq('id', id);
-    } else {
-      // Al crear, dejamos el profesional atado a su negocio (necesario para
-      // contar el tope del plan y, más adelante, para la seguridad por RLS).
-      d.negocio_id = usuarioActual.negocio_id;
-      res = await sb.from('profesionales').insert(d);
-    }
-
-    if (res.error) {
-      mostrarMensaje('Error: ' + res.error.message, 'error');
+      const datos = {
+        nombre: d.nombre.trim(),
+        matricula: d.matricula || null,
+        telefono: d.telefono || null,
+        color: d.color,
+        activo
+      };
+      btn.disabled = true; btn.textContent = 'Guardando...';
+      const res = await sb.from('profesionales').update(datos).eq('id', id);
+      if (res.error) {
+        mostrarMensaje('Error: ' + res.error.message, 'error');
+        btn.disabled = false; btn.textContent = 'Guardar';
+        return;
+      }
+      mostrarMensaje('Actualizado', 'exito');
+      cerrarModal();
+      await cargarProfesionales();
       return;
     }
-    mostrarMensaje(id ? 'Actualizado' : 'Creado', 'exito');
-    cerrarModal();
-    await cargarProfesionales();
+
+    // ---------- ALTA ----------
+    const esFullNuevo = d.es_full === 'on';
+
+    // Caso full (Plan 1): el dueño aparece en la agenda con su propia cuenta.
+    // No crea login nuevo; el registro queda atado a usuarioActual.id.
+    if (esFullNuevo) {
+      const { data: yaExiste } = await sb.from('profesionales')
+        .select('id')
+        .eq('negocio_id', usuarioActual.negocio_id)
+        .eq('usuario_id', usuarioActual.id)
+        .maybeSingle();
+      if (yaExiste) {
+        mostrarMensaje('Ya figurás como profesional en la agenda.', 'advertencia');
+        return;
+      }
+
+      btn.disabled = true; btn.textContent = 'Creando...';
+      const datos = {
+        nombre: d.nombre.trim(),
+        matricula: d.matricula || null,
+        telefono: d.telefono || null,
+        color: d.color,
+        activo,
+        usuario_id: usuarioActual.id,           // el dueño es quien atiende
+        negocio_id: usuarioActual.negocio_id
+      };
+      const res = await sb.from('profesionales').insert(datos);
+      if (res.error) {
+        mostrarMensaje('Error: ' + res.error.message, 'error');
+        btn.disabled = false; btn.textContent = 'Crear profesional';
+        return;
+      }
+      mostrarMensaje('Listo, ya figurás en la agenda', 'exito');
+      cerrarModal();
+      await cargarProfesionales();
+      return;
+    }
+
+    // Caso normal: profesional CON login. Lo crea la Edge Function,
+    // que arma el login Y el registro de agenda juntos (atómico).
+    const email = (d.email || '').trim().toLowerCase();
+    const password = d.password || '';
+    if (!email || password.length < 6) {
+      mostrarMensaje('Poné email y una contraseña de al menos 6 caracteres.', 'advertencia');
+      return;
+    }
+
+    btn.disabled = true; btn.textContent = 'Creando...';
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) throw new Error('Sesión expirada');
+
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/crear-usuario`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          email,
+          password,
+          nombre: d.nombre.trim(),
+          rol: 'profesional',
+          // Datos del registro de agenda: los crea la MISMA función.
+          profesional: {
+            matricula: d.matricula || null,
+            telefono: d.telefono || null,
+            color: d.color,
+            activo
+          }
+        })
+      });
+
+      const result = await response.json();
+      if (!response.ok || result.error) throw new Error(result.error || 'Error desconocido');
+
+      mostrarMensaje('Profesional creado (entra a la app y ya aparece en la agenda)', 'exito');
+      cerrarModal();
+      await cargarProfesionales();
+    } catch (error) {
+      mostrarMensaje('Error: ' + error.message, 'error');
+      btn.disabled = false; btn.textContent = 'Crear profesional';
+    }
   });
 }
 
+// Muestra/oculta email+contraseña según el tilde "full", y de paso
+// completa el nombre con el del dueño si quedó vacío.
+function toggleFullProfesional(checked) {
+  const bloque = document.getElementById('bloque-credenciales');
+  if (bloque) bloque.style.display = checked ? 'none' : 'block';
+  if (checked) {
+    const nombre = document.querySelector('#form-profesional [name="nombre"]');
+    if (nombre && !nombre.value.trim()) nombre.value = usuarioActual.nombre || '';
+  }
+}
+
 async function eliminarProfesional(id) {
-  if (!confirm('¿Eliminar este profesional?')) return;
+  if (!confirm('¿Eliminar este profesional? (Lo saca de la agenda. Si tiene login propio, esa cuenta queda viva: la desactivás desde Usuarios.)')) return;
   const { error } = await sb.from('profesionales').delete().eq('id', id);
   if (error) {
     mostrarMensaje('No se puede eliminar: tiene turnos asociados', 'error');
@@ -182,7 +314,7 @@ async function eliminarProfesional(id) {
 }
 
 // Calcula el tope de profesionales del plan del negocio actual.
-// Devuelve { max, actual, alcanzado } o null si no aplica / sin negocio.
+// Devuelve { max, actual, alcanzado, plan } o null si no aplica / sin negocio.
 // max = null significa "sin límite" (no frena).
 async function topeProfesionalesNegocio() {
   const negId = usuarioActual.negocio_id;
@@ -202,8 +334,9 @@ async function topeProfesionalesNegocio() {
     .single();
 
   const max = plan?.max_profesionales;
-  if (max === null || max === undefined) return { max: null, actual: vista.profesionales_actuales || 0, alcanzado: false };
-
   const actual = vista.profesionales_actuales || 0;
-  return { max, actual, alcanzado: actual >= max };
+  if (max === null || max === undefined) {
+    return { max: null, actual, alcanzado: false, plan: vista.plan };
+  }
+  return { max, actual, alcanzado: actual >= max, plan: vista.plan };
 }

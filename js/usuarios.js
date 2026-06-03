@@ -92,15 +92,15 @@ async function abrirModalNuevoUsuario() {
     ).join('');
   }
 
+  // Nota: "profesional" ya NO se crea acá. El profesional se da de alta en la
+  // pantalla Profesionales, en un solo paso (login + registro de agenda juntos).
   const rolOptions = esSuperAdmin
     ? `
       <option value="negocio">Negocio (dueño)</option>
       <option value="recepcion">Recepción</option>
-      <option value="profesional">Profesional</option>
       <option value="super_admin">Super Admin (uso interno Optium)</option>
     `
     : `
-      <option value="profesional">Profesional</option>
       <option value="recepcion">Recepción</option>
     `;
 
@@ -111,6 +111,12 @@ async function abrirModalNuevoUsuario() {
     </div>
     <form id="form-nuevo-usuario">
       <div class="modal-body">
+        ${!esSuperAdmin ? `
+          <div style="background: var(--info-claro); color: var(--info); padding: 10px 12px; border-radius: var(--radio); font-size: 12px; margin-bottom: 1rem;">
+            ¿Vas a sumar un <strong>profesional</strong>? Se da de alta en la pantalla <strong>Profesionales</strong> (ahí se crea su acceso y su lugar en la agenda de una sola vez). Acá creás solo la recepción.
+          </div>
+        ` : ''}
+
         <div class="input-group">
           <label>Nombre completo *</label>
           <input type="text" name="nombre" required placeholder="Ej: María González">
