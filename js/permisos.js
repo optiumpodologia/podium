@@ -22,6 +22,7 @@ const ROLES = ['super_admin', 'negocio', 'recepcion', 'profesional'];
 // El ORDEN de las claves es el orden en que aparecen en el menú.
 const MODULOS_ACCESO = {
   negocios:       ['super_admin'],                          // clientes del SaaS
+  planes:         ['super_admin'],                          // planes de suscripción del SaaS
   dashboard:      ['negocio', 'recepcion', 'profesional'],  // Inicio
   agenda:         ['negocio', 'recepcion', 'profesional'],
   pacientes:      ['negocio', 'recepcion', 'profesional'],
