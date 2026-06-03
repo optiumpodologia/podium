@@ -23,7 +23,7 @@ async function renderNegocios(container) {
             <th>Plan</th>
             <th>Consultorios</th>
             <th>Profesionales</th>
-            <th>Alta</th>
+            <th>Cobro</th>
             <th>Estado</th>
             <th style="text-align:right;">Acciones</th>
           </tr>
@@ -39,6 +39,7 @@ async function renderNegocios(container) {
 }
 
 async function cargarNegocios() {
+  // La pantalla lee de la vista (uso real: consultorios/profesionales vs límites del plan).
   const { data, error } = await sb.from('vista_uso_negocios').select('*').order('nombre');
   if (error) { mostrarMensaje('Error al cargar', 'error'); console.error(error); return; }
 
@@ -47,6 +48,12 @@ async function cargarNegocios() {
     tbody.innerHTML = '<tr><td colspan="7" class="vacio">No hay negocios</td></tr>';
     return;
   }
+
+  // La vista no trae la info de cobro (sin_cobro / gratis_hasta), así que la pedimos
+  // aparte de la tabla `negocios` y la cruzamos por id. Evita tener que editar la vista.
+  const { data: cobros } = await sb.from('negocios').select('id, sin_cobro, gratis_hasta');
+  const mapaCobro = {};
+  (cobros || []).forEach(c => { mapaCobro[c.id] = c; });
 
   tbody.innerHTML = data.map(n => {
     const planBadge = {
@@ -65,7 +72,7 @@ async function cargarNegocios() {
       <td>${planBadge}</td>
       <td>${consultoriosTexto}</td>
       <td>${n.profesionales_actuales}</td>
-      <td style="font-size: 12px; color: var(--texto-secundario);">—</td>
+      <td>${estadoCobroBadge(mapaCobro[n.id])}</td>
       <td>${n.activo ? '<span class="badge badge-llego">Activo</span>' : '<span class="badge badge-cancelado">Inactivo</span>'}</td>
       <td>
         <div class="tabla-acciones">
@@ -77,8 +84,35 @@ async function cargarNegocios() {
   }).join('');
 }
 
+// Devuelve el "chip" de cobro para la tabla:
+//   - sin cortesía           -> Paga
+//   - cortesía sin fecha     -> Cortesía (indefinida)
+//   - cortesía con fecha futura -> Cortesía hasta DD/MM/AAAA
+//   - cortesía con fecha pasada -> Cortesía vencida (en rojo)
+function estadoCobroBadge(cobro) {
+  if (!cobro || !cobro.sin_cobro) {
+    return '<span class="badge" style="background:#E1F5EE; color:#0F6E56;">Paga</span>';
+  }
+
+  if (!cobro.gratis_hasta) {
+    return '<span class="badge" style="background:#EEEDFE; color:#534AB7;">Cortesía</span>';
+  }
+
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+  const hasta = new Date(cobro.gratis_hasta + 'T00:00');
+  const fechaTxt = hasta.toLocaleDateString('es-AR');
+
+  if (hasta < hoy) {
+    return `<span class="badge badge-cancelado">Cortesía vencida</span>
+            <div style="font-size:11px; color:var(--peligro); margin-top:2px;">venció ${fechaTxt}</div>`;
+  }
+
+  return `<span class="badge" style="background:#EEEDFE; color:#534AB7;">Cortesía</span>
+          <div style="font-size:11px; color:var(--texto-secundario); margin-top:2px;">hasta ${fechaTxt}</div>`;
+}
+
 async function abrirModalNegocio(id) {
-  let negocio = { nombre:'', plan:'free', activo:true, notas:'', consultorios_extras:0 };
+  let negocio = { nombre:'', plan:'free', activo:true, notas:'', consultorios_extras:0, sin_cobro:false, gratis_hasta:'' };
   if (id) {
     const { data } = await sb.from('negocios').select('*').eq('id', id).single();
     if (data) negocio = data;
@@ -118,6 +152,25 @@ async function abrirModalNegocio(id) {
             </select>
           </div>
         </div>
+
+        <div class="input-group" style="border-top: 1px solid var(--borde-tenue); padding-top: 1rem; margin-top: 0.5rem;">
+          <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+            <input type="checkbox" name="sin_cobro" ${negocio.sin_cobro ? 'checked' : ''} onchange="toggleCortesiaFecha(this.checked)">
+            <span>Cortesía (sin cobro)</span>
+          </label>
+          <small style="color: var(--texto-tenue); display:block; margin-top: 4px;">
+            El negocio usa su plan completo, pero no paga.
+          </small>
+        </div>
+
+        <div class="input-group" id="grupo-gratis-hasta" style="display:${negocio.sin_cobro ? 'block' : 'none'};">
+          <label>Gratis hasta</label>
+          <input type="date" name="gratis_hasta" value="${negocio.gratis_hasta || ''}">
+          <small style="color: var(--texto-tenue); display:block; margin-top: 4px;">
+            Dejala vacía para cortesía sin vencimiento.
+          </small>
+        </div>
+
         <div class="input-group">
           <label>Notas internas</label>
           <textarea name="notas" rows="2">${negocio.notas || ''}</textarea>
@@ -147,6 +200,13 @@ async function abrirModalNegocio(id) {
     d.consultorios_extras = parseInt(d.consultorios_extras) || 0;
     if (!d.notas) d.notas = null;
 
+    // Cortesía: el checkbox manda 'on' si está tildado y nada si no, así que
+    // lo leemos directo del elemento y lo guardamos como verdadero/falso.
+    const sinCobro = e.target.sin_cobro.checked;
+    d.sin_cobro = sinCobro;
+    // La fecha solo tiene sentido si hay cortesía; si no, queda vacía (null).
+    d.gratis_hasta = (sinCobro && d.gratis_hasta) ? d.gratis_hasta : null;
+
     let res;
     if (id) res = await sb.from('negocios').update(d).eq('id', id);
     else res = await sb.from('negocios').insert(d);
@@ -156,4 +216,10 @@ async function abrirModalNegocio(id) {
     cerrarModal();
     await cargarNegocios();
   });
+}
+
+// Muestra/oculta el campo "Gratis hasta" según el tilde de cortesía.
+function toggleCortesiaFecha(checked) {
+  const g = document.getElementById('grupo-gratis-hasta');
+  if (g) g.style.display = checked ? 'block' : 'none';
 }
