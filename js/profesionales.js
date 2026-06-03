@@ -70,6 +70,15 @@ async function cargarProfesionales() {
 }
 
 async function abrirModalProfesional(id) {
+  // Tope del plan: solo al CREAR uno nuevo. Si ya llegó al máximo, ni abrimos.
+  if (!id) {
+    const tope = await topeProfesionalesNegocio();
+    if (tope && tope.alcanzado) {
+      mostrarMensaje(`Llegaste al límite de tu plan: ${tope.max} profesionales (tenés ${tope.actual}). Para sumar más, cambiá de plan.`, 'error');
+      return;
+    }
+  }
+
   let prof = { nombre:'', matricula:'', telefono:'', color:'#534AB7', activo:true, usuario_id:'' };
   if (id) {
     const { data } = await sb.from('profesionales').select('*').eq('id', id).single();
@@ -142,8 +151,14 @@ async function abrirModalProfesional(id) {
     if (!d.telefono) d.telefono = null;
 
     let res;
-    if (id) res = await sb.from('profesionales').update(d).eq('id', id);
-    else res = await sb.from('profesionales').insert(d);
+    if (id) {
+      res = await sb.from('profesionales').update(d).eq('id', id);
+    } else {
+      // Al crear, dejamos el profesional atado a su negocio (necesario para
+      // contar el tope del plan y, más adelante, para la seguridad por RLS).
+      d.negocio_id = usuarioActual.negocio_id;
+      res = await sb.from('profesionales').insert(d);
+    }
 
     if (res.error) {
       mostrarMensaje('Error: ' + res.error.message, 'error');
@@ -164,4 +179,31 @@ async function eliminarProfesional(id) {
   }
   mostrarMensaje('Eliminado', 'exito');
   await cargarProfesionales();
+}
+
+// Calcula el tope de profesionales del plan del negocio actual.
+// Devuelve { max, actual, alcanzado } o null si no aplica / sin negocio.
+// max = null significa "sin límite" (no frena).
+async function topeProfesionalesNegocio() {
+  const negId = usuarioActual.negocio_id;
+  if (!negId) return null; // super admin u otro caso raro: no frenamos acá
+
+  // La vista nos da el plan y cuántos profesionales tiene el negocio hoy.
+  const { data: vista } = await sb.from('vista_uso_negocios')
+    .select('plan, profesionales_actuales')
+    .eq('id', negId)
+    .single();
+  if (!vista) return null;
+
+  // El máximo lo leemos del plan (la tabla planes es de lectura pública).
+  const { data: plan } = await sb.from('planes')
+    .select('max_profesionales')
+    .eq('id', vista.plan)
+    .single();
+
+  const max = plan?.max_profesionales;
+  if (max === null || max === undefined) return { max: null, actual: vista.profesionales_actuales || 0, alcanzado: false };
+
+  const actual = vista.profesionales_actuales || 0;
+  return { max, actual, alcanzado: actual >= max };
 }

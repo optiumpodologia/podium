@@ -157,6 +157,19 @@ async function abrirModalNuevoUsuario() {
     const fd = new FormData(e.target);
     const d = Object.fromEntries(fd.entries());
 
+    // --- Topes del plan: recepción (según plan) y admin (siempre 1 por negocio) ---
+    const negocioObjetivo = esSuperAdmin ? d.negocio_id : usuarioActual.negocio_id;
+    if (d.rol === 'recepcion' || d.rol === 'negocio') {
+      const tope = await topeUsuariosNegocio(negocioObjetivo, d.rol);
+      if (tope && tope.alcanzado) {
+        const msg = d.rol === 'negocio'
+          ? 'Ese negocio ya tiene su usuario dueño (admin). Solo se permite 1.'
+          : `Llegaste al límite de usuarios de recepción del plan (${tope.max}). Para sumar más, cambiá de plan.`;
+        mostrarMensaje(msg, 'error');
+        return;
+      }
+    }
+
     const btn = document.getElementById('btn-crear-usuario');
     btn.disabled = true;
     btn.textContent = 'Creando...';
@@ -221,4 +234,35 @@ async function toggleUsuarioActivo(id, activar) {
   }
   mostrarMensaje(activar ? 'Usuario activado' : 'Usuario desactivado', 'exito');
   await cargarUsuarios();
+}
+
+// Calcula el tope de usuarios para un negocio según el rol que se quiere crear.
+// - rol 'negocio' (admin/dueño): siempre máximo 1, no depende del plan.
+// - rol 'recepcion': máximo del plan (max_recepcion); null = sin límite.
+// Devuelve { max, actual, alcanzado } o null si no aplica.
+async function topeUsuariosNegocio(negocioId, rol) {
+  if (!negocioId) return null;
+
+  if (rol === 'negocio') {
+    const { count } = await sb.from('usuarios')
+      .select('*', { count: 'exact', head: true })
+      .eq('negocio_id', negocioId).eq('rol', 'negocio');
+    return { max: 1, actual: count || 0, alcanzado: (count || 0) >= 1 };
+  }
+
+  // recepción: tope del plan del negocio
+  const { data: vista } = await sb.from('vista_uso_negocios')
+    .select('plan').eq('id', negocioId).single();
+  if (!vista) return null;
+
+  const { data: plan } = await sb.from('planes')
+    .select('max_recepcion').eq('id', vista.plan).single();
+
+  const max = plan?.max_recepcion;
+  if (max === null || max === undefined) return { max: null, actual: 0, alcanzado: false };
+
+  const { count } = await sb.from('usuarios')
+    .select('*', { count: 'exact', head: true })
+    .eq('negocio_id', negocioId).eq('rol', 'recepcion');
+  return { max, actual: count || 0, alcanzado: (count || 0) >= max };
 }

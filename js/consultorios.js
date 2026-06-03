@@ -61,7 +61,6 @@ async function cargarInfoPlan() {
         <div style="font-size: 13px; font-weight: 600; color: var(--info);">Plan ${vista.plan}</div>
         <div style="font-size: 12px; color: var(--info); margin-top: 2px;">
           Consultorios: ${usados}/${limiteTotal} · ${restantes > 0 ? `${restantes} disponibles` : 'Límite alcanzado'}
-          · Profesionales máx por consultorio: ${vista.max_profesionales_por_consultorio}
         </div>
       </div>
     </div>
@@ -206,14 +205,11 @@ async function gestionarProfesionalesConsultorio(consultorioId) {
     .select('profesional_id')
     .eq('consultorio_id', consultorioId);
 
-  const { data: vista } = await sb.from('vista_uso_negocios')
-    .select('max_profesionales_por_consultorio')
-    .eq('id', usuarioActual.negocio_id)
-    .single();
-  const maxProfs = vista?.max_profesionales_por_consultorio || 999;
-
   const idsAsignados = new Set((asignaciones || []).map(a => a.profesional_id));
 
+  // Ya NO hay tope de profesionales por consultorio: el tope del plan es el
+  // TOTAL de profesionales del negocio y se controla al crear el profesional.
+  // Acá solo se elige en qué sala/s trabaja cada uno, sin límite por sala.
   abrirModal(`
     <div class="modal-header">
       <div class="modal-titulo">Profesionales de ${consultorio.nombre}</div>
@@ -221,8 +217,8 @@ async function gestionarProfesionalesConsultorio(consultorioId) {
     </div>
     <div class="modal-body">
       <div style="font-size: 12px; color: var(--texto-secundario); margin-bottom: 1rem;">
-        Marcá los profesionales que trabajan en este consultorio. Máximo ${maxProfs} según tu plan.
-        <br><strong id="contador-asignados">Asignados: ${idsAsignados.size}/${maxProfs}</strong>
+        Marcá los profesionales que trabajan en este consultorio.
+        <br><strong id="contador-asignados">Asignados: ${idsAsignados.size}</strong>
       </div>
 
       ${(profesionales || []).length === 0 ? `
@@ -234,7 +230,7 @@ async function gestionarProfesionalesConsultorio(consultorioId) {
               <input type="checkbox" class="check-prof"
                 data-prof-id="${p.id}"
                 ${idsAsignados.has(p.id) ? 'checked' : ''}
-                onchange="toggleProfConsultorio('${p.id}', '${consultorioId}', this.checked, ${maxProfs})">
+                onchange="toggleProfConsultorio('${p.id}', '${consultorioId}', this.checked)">
               <div>
                 <div style="font-weight: 600;">${p.nombre}</div>
                 <div style="font-size: 12px; color: var(--texto-secundario);">${p.especialidad || ''}</div>
@@ -250,18 +246,8 @@ async function gestionarProfesionalesConsultorio(consultorioId) {
   `);
 }
 
-async function toggleProfConsultorio(profId, consultorioId, checked, maxProfs) {
+async function toggleProfConsultorio(profId, consultorioId, checked) {
   if (checked) {
-    const { count } = await sb.from('profesionales_consultorios')
-      .select('*', { count: 'exact', head: true })
-      .eq('consultorio_id', consultorioId);
-
-    if (count >= maxProfs) {
-      mostrarMensaje(`Llegaste al límite de ${maxProfs} profesionales por consultorio. Mejorá tu plan para tener más.`, 'error');
-      document.querySelector(`[data-prof-id="${profId}"]`).checked = false;
-      return;
-    }
-
     const { error } = await sb.from('profesionales_consultorios').insert({
       profesional_id: profId,
       consultorio_id: consultorioId
@@ -288,5 +274,5 @@ async function toggleProfConsultorio(profId, consultorioId, checked, maxProfs) {
     .eq('consultorio_id', consultorioId);
 
   const contador = document.getElementById('contador-asignados');
-  if (contador) contador.textContent = `Asignados: ${nuevoCount}/${maxProfs}`;
+  if (contador) contador.textContent = `Asignados: ${nuevoCount}`;
 }
