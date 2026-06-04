@@ -1,5 +1,22 @@
+// ============================================================
+// agenda.js — Agenda por COLUMNAS (casilleros / consultorios)
+// ============================================================
+//
+// Modelo nuevo:
+//   - Cada día tiene N columnas fijas (N = consultorios del plan).
+//   - Un profesional ocupa una columna ese día.
+//   - Quién aparece sale de sus días laborales (patrón fijo) y días
+//     especiales (excepciones por fecha). El "no viene" lo saca.
+//   - El sistema sienta a cada profesional en el primer casillero libre.
+//
+// ETAPA 1 (esta entrega):
+//   - Dibuja columnas + siembra al vuelo (NO escribe en agenda_dia todavía).
+//   - Muestra los turnos existentes de cada profesional en su columna.
+//   - Pasado en gris / solo lectura (sin dar turnos).
+//   - SIN dar turnos, SIN swap (eso viene en etapas 2 y 3).
+// ============================================================
+
 let agendaFechaActual = new Date();
-let agendaVista = 'semana';
 
 async function renderAgenda(container) {
   agendaFechaActual = new Date();
@@ -7,13 +24,8 @@ async function renderAgenda(container) {
     <div class="page-header">
       <div>
         <div class="page-title">Agenda</div>
-        <div class="page-subtitle" id="agenda-rango"></div>
+        <div class="page-subtitle">Gestioná los turnos de tus consultorios</div>
       </div>
-      ${usuarioActual.rol === 'recepcion' ? `
-        <button class="btn btn-primary-sm" onclick="abrirModalNuevoTurno()">
-          <span>+</span> Nuevo turno
-        </button>
-      ` : ''}
     </div>
 
     <div class="agenda-layout">
@@ -40,10 +52,6 @@ async function renderAgenda(container) {
             <button class="btn-icon" onclick="agendaCambiarFecha(1)" title="Siguiente">›</button>
           </div>
           <div class="agenda-fecha-titulo" id="agenda-titulo"></div>
-          <div class="agenda-vistas">
-            <button class="btn-vista ${agendaVista==='dia'?'active':''}" onclick="agendaCambiarVista('dia')">Día</button>
-            <button class="btn-vista ${agendaVista==='semana'?'active':''}" onclick="agendaCambiarVista('semana')">Semana</button>
-          </div>
         </div>
 
         <div id="agenda-grid-container"></div>
@@ -55,6 +63,9 @@ async function renderAgenda(container) {
   dibujarMiniCalendario();
 }
 
+// ============================================================
+// MINI CALENDARIO (igual que antes)
+// ============================================================
 function dibujarMiniCalendario() {
   const cont = document.getElementById('mini-calendario');
   if (!cont) return;
@@ -114,8 +125,7 @@ function cambiarMesMini(dir) {
 }
 
 function agendaCambiarFecha(dir) {
-  const dias = agendaVista === 'semana' ? 7 : 1;
-  agendaFechaActual.setDate(agendaFechaActual.getDate() + dir * dias);
+  agendaFechaActual.setDate(agendaFechaActual.getDate() + dir);
   dibujarAgenda();
   dibujarMiniCalendario();
 }
@@ -126,135 +136,206 @@ function agendaIrHoy() {
   dibujarMiniCalendario();
 }
 
-function agendaCambiarVista(vista) {
-  agendaVista = vista;
-  document.querySelectorAll('.btn-vista').forEach(b => {
-    b.classList.toggle('active', b.textContent.toLowerCase().startsWith(vista[0]));
-  });
-  dibujarAgenda();
+// ============================================================
+// CUÁNTAS COLUMNAS (consultorios del plan)
+// ============================================================
+async function obtenerCantidadConsultorios() {
+  const negId = usuarioActual.negocio_id;
+  if (!negId) return 1; // caso raro (super admin no entra acá)
+
+  const { data: vista } = await sb.from('vista_uso_negocios')
+    .select('limite_total_consultorios')
+    .eq('id', negId)
+    .single();
+
+  return Math.max(1, vista?.limite_total_consultorios || 1);
 }
 
-async function dibujarAgenda() {
-  let fechaInicio, fechaFin, dias;
+// ============================================================
+// QUIÉN ATIENDE ESE DÍA (siembra al vuelo, etapa 1)
+// Devuelve un array de columnas: [{ columna, profesional } | null...]
+// ============================================================
+async function calcularProfesionalesDelDia(fecha, cantColumnas) {
+  const negId = usuarioActual.negocio_id;
+  const fechaStr = fecha.toISOString().split('T')[0];
+  const diaSemana = fecha.getDay(); // 0=dom ... 6=sáb
 
-  if (agendaVista === 'semana') {
-    const d = new Date(agendaFechaActual);
-    const dow = d.getDay() === 0 ? 6 : d.getDay() - 1;
-    d.setDate(d.getDate() - dow);
-    fechaInicio = new Date(d);
-    fechaInicio.setHours(0,0,0,0);
-    fechaFin = new Date(fechaInicio);
-    fechaFin.setDate(fechaFin.getDate() + 6);
-    fechaFin.setHours(23,59,59,999);
-    dias = [];
-    for (let i = 0; i < 6; i++) {
-      const dia = new Date(fechaInicio);
-      dia.setDate(dia.getDate() + i);
-      dias.push(dia);
-    }
-  } else {
-    fechaInicio = new Date(agendaFechaActual);
-    fechaInicio.setHours(0,0,0,0);
-    fechaFin = new Date(fechaInicio);
-    fechaFin.setHours(23,59,59,999);
-    dias = [new Date(fechaInicio)];
+  // Profesionales activos del negocio
+  const { data: profesionales } = await sb.from('profesionales')
+    .select('id, nombre, color, usuario_id')
+    .eq('activo', true)
+    .order('nombre');
+
+  if (!profesionales || profesionales.length === 0) return [];
+
+  const ids = profesionales.map(p => p.id);
+
+  // Días laborales que aplican a ESTE día de la semana
+  const { data: laborales } = await sb.from('dias_laborales_profesional')
+    .select('profesional_id')
+    .in('profesional_id', ids)
+    .eq('dia_semana', diaSemana);
+
+  // Días especiales de ESTA fecha (no_viene = ausencia, o franja extra)
+  const { data: especiales } = await sb.from('dias_especiales_profesional')
+    .select('profesional_id, no_viene')
+    .in('profesional_id', ids)
+    .eq('fecha', fechaStr);
+
+  const ausentes = new Set((especiales || []).filter(e => e.no_viene).map(e => e.profesional_id));
+  const vienenEspecial = new Set((especiales || []).filter(e => !e.no_viene).map(e => e.profesional_id));
+  const tienenLaboral = new Set((laborales || []).map(l => l.profesional_id));
+
+  // Atiende ese día = (tiene día laboral O viene por día especial) Y no está ausente
+  const atienden = profesionales.filter(p =>
+    (tienenLaboral.has(p.id) || vienenEspecial.has(p.id)) && !ausentes.has(p.id)
+  );
+
+  // Sentarlos en el primer casillero libre (1, 2, 3...) en orden de nombre.
+  const columnas = new Array(cantColumnas).fill(null);
+  let i = 0;
+  for (const prof of atienden) {
+    if (i >= cantColumnas) break; // no hay más casilleros
+    columnas[i] = { columna: i + 1, profesional: prof };
+    i++;
+  }
+  return columnas;
+}
+
+// ============================================================
+// DIBUJAR LA AGENDA DEL DÍA
+// ============================================================
+async function dibujarAgenda() {
+  const titulo = document.getElementById('agenda-titulo');
+  if (titulo) {
+    titulo.textContent = agendaFechaActual.toLocaleDateString('es-AR', {
+      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+    });
   }
 
-  document.getElementById('agenda-titulo').textContent = formatearRangoAgenda(fechaInicio, fechaFin, agendaVista);
+  const grilla = document.getElementById('agenda-grid-container');
+  grilla.innerHTML = '<div class="vacio" style="padding:2rem;">Cargando...</div>';
 
+  // ¿Es un día pasado? (solo lectura)
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  const diaSel = new Date(agendaFechaActual); diaSel.setHours(0,0,0,0);
+  const esPasado = diaSel < hoy;
+
+  // Rango horario de la grilla (de config general)
   const { data: config } = await sb.from('configuracion').select('*').eq('id', 1).single();
-  const horaInicio = parseInt((config?.hora_apertura || '09:00').split(':')[0]);
-  const horaFin = parseInt((config?.hora_cierre || '18:00').split(':')[0]);
+  const horaInicio = parseInt((config?.hora_apertura || '08:00').split(':')[0]);
+  const horaFin = parseInt((config?.hora_cierre || '20:00').split(':')[0]);
+  const horas = [];
+  for (let h = horaInicio; h <= horaFin; h++) horas.push(h);
 
-  let query = sb.from('turnos')
+  // Columnas del plan + quién atiende ese día
+  const cantColumnas = await obtenerCantidadConsultorios();
+  const columnas = await calcularProfesionalesDelDia(agendaFechaActual, cantColumnas);
+
+  // Turnos del día (para mostrarlos en la columna de su profesional)
+  const fechaInicio = new Date(agendaFechaActual); fechaInicio.setHours(0,0,0,0);
+  const fechaFin = new Date(agendaFechaActual); fechaFin.setHours(23,59,59,999);
+
+  const { data: turnos } = await sb.from('turnos')
     .select('*, pacientes(nombre, apellido), tipos_atencion(nombre, color)')
     .gte('fecha_hora', fechaInicio.toISOString())
     .lte('fecha_hora', fechaFin.toISOString())
     .order('fecha_hora');
 
-  if (usuarioActual.rol === 'profesional') {
-    const { data: prof } = await sb.from('profesionales').select('id').eq('usuario_id', usuarioActual.id).single();
-    if (prof) query = query.eq('profesional_id', prof.id);
-  }
-
-  const { data: turnos, error } = await query;
-  if (error) console.error(error);
-
-  const hoyStr = new Date().toDateString();
-  const horas = [];
-  for (let h = horaInicio; h <= horaFin; h++) horas.push(h);
-
-  const grilla = document.getElementById('agenda-grid-container');
-  const colCount = dias.length;
-
-  let html = `<div class="agenda-grid ${agendaVista==='dia'?'vista-dia':''}" style="grid-template-columns: 60px repeat(${colCount}, 1fr);">`;
-
-  html += `<div></div>`;
-  dias.forEach(d => {
-    const esHoy = d.toDateString() === hoyStr;
-    html += `
-      <div class="agenda-header-dia ${esHoy?'hoy':''}">
-        <div class="agenda-dia-nombre">${d.toLocaleDateString('es-AR',{weekday:'short'})}${esHoy?' · hoy':''}</div>
-        <div class="agenda-dia-numero">${d.getDate()}</div>
-      </div>
-    `;
+  // Agrupar turnos por profesional
+  const turnosPorProf = {};
+  (turnos || []).forEach(t => {
+    (turnosPorProf[t.profesional_id] = turnosPorProf[t.profesional_id] || []).push(t);
   });
 
-  html += `<div class="agenda-col-horas" style="height: ${horas.length * 60}px;">`;
+  // ---- Armar la grilla ----
+  let html = `<div class="agenda-grid-col ${esPasado ? 'es-pasado' : ''}"
+    style="grid-template-columns: 56px repeat(${cantColumnas}, 1fr);">`;
+
+  // Fila de encabezados: esquina vacía + un encabezado por columna
+  html += `<div class="agenda-col-esquina"></div>`;
+  columnas.forEach((col, idx) => {
+    const numero = idx + 1;
+    if (col && col.profesional) {
+      const p = col.profesional;
+      const iniciales = (p.nombre || '?').split(' ').map(x => x[0]).slice(0,2).join('').toUpperCase();
+      html += `
+        <div class="agenda-col-head">
+          <div class="agenda-col-titulo">Consultorio ${numero}</div>
+          <div class="agenda-col-prof">
+            <span class="agenda-col-dot" style="background:${p.color || 'var(--primario)'};"></span>
+            ${p.nombre}
+          </div>
+        </div>
+      `;
+    } else {
+      html += `
+        <div class="agenda-col-head">
+          <div class="agenda-col-titulo">Consultorio ${numero}</div>
+          <div class="agenda-col-prof libre">— libre —</div>
+        </div>
+      `;
+    }
+  });
+
+  // Cuerpo: columna de horas + una columna por consultorio
+  const altoTotal = horas.length * 60;
+
+  // Columna de horas
+  html += `<div class="agenda-horas-col" style="height:${altoTotal}px;">`;
   horas.forEach(h => {
-    html += `<div class="agenda-hora">${String(h).padStart(2,'0')}:00</div>`;
+    html += `<div class="agenda-hora-label">${String(h).padStart(2,'0')}:00</div>`;
   });
   html += `</div>`;
 
-  dias.forEach(dia => {
-    const esHoy = dia.toDateString() === hoyStr;
-    const dateStr = dia.toISOString().split('T')[0];
-    html += `<div class="agenda-col-dia ${esHoy?'hoy':''}" style="height: ${horas.length * 60}px;">`;
+  // Columnas de consultorios
+  columnas.forEach((col) => {
+    html += `<div class="agenda-consultorio-col" style="height:${altoTotal}px;">`;
 
+    // Líneas de hora de fondo
     horas.forEach((h, idx) => {
-      html += `<div class="agenda-celda-hora" style="top: ${idx*60}px;"
-        onclick="${usuarioActual.rol==='recepcion'?`abrirModalNuevoTurno('${dateStr}T${String(h).padStart(2,'0')}:00')`:''}"></div>`;
+      html += `<div class="agenda-linea-hora" style="top:${idx*60}px;"></div>`;
     });
 
-    if (turnos) {
-      turnos.filter(t => {
-        const td = new Date(t.fecha_hora);
-        return td.toDateString() === dia.toDateString();
-      }).forEach(t => {
+    if (col && col.profesional) {
+      // Turnos de este profesional
+      const susTurnos = turnosPorProf[col.profesional.id] || [];
+      susTurnos.forEach(t => {
         const td = new Date(t.fecha_hora);
         const horaT = td.getHours() + td.getMinutes()/60;
         const top = (horaT - horaInicio) * 60;
         const altura = Math.max(28, (t.duracion_minutos / 60) * 60);
         const nombre = t.pacientes ? `${t.pacientes.apellido}, ${t.pacientes.nombre.split(' ')[0]}` : '—';
         const subtitulo = t.tipos_atencion?.nombre || (t.estado === 'agendado' ? 'Pendiente' : '');
-
         html += `
           <div class="turno-card estado-${t.estado}"
-               style="top: ${top}px; height: ${altura}px;"
-               onclick="event.stopPropagation(); abrirModalTurno('${t.id}')"
+               style="top:${top}px; height:${altura}px;"
+               onclick="abrirModalTurno('${t.id}')"
                title="${nombre}">
             <div class="turno-card-nombre">${nombre}</div>
             <div class="turno-card-detalle">${formatearHora(t.fecha_hora)}${subtitulo ? ' · ' + subtitulo : ''}</div>
           </div>
         `;
       });
+    } else {
+      // Columna libre: estado vacío tipo "Agenda libre"
+      html += `
+        <div class="agenda-libre-estado">
+          <div class="agenda-libre-icono">🗓️</div>
+          <div class="agenda-libre-titulo">Agenda libre</div>
+          <div class="agenda-libre-texto">Asigná un día laboral al profesional<br>para que aparezca acá</div>
+        </div>
+      `;
     }
 
     html += `</div>`;
   });
 
   html += `</div>`;
-  grilla.innerHTML = html;
-}
 
-function formatearRangoAgenda(inicio, fin, vista) {
-  if (vista === 'dia') {
-    return inicio.toLocaleDateString('es-AR', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  if (esPasado) {
+    html = `<div class="agenda-aviso-pasado">Día pasado · solo lectura</div>` + html;
   }
-  const m1 = inicio.toLocaleDateString('es-AR', { month: 'short' });
-  const m2 = fin.toLocaleDateString('es-AR', { month: 'short' });
-  if (m1 === m2) {
-    return `${inicio.getDate()} al ${fin.getDate()} de ${inicio.toLocaleDateString('es-AR',{month:'long'})} ${fin.getFullYear()}`;
-  }
-  return `${inicio.getDate()} ${m1} - ${fin.getDate()} ${m2} ${fin.getFullYear()}`;
+
+  grilla.innerHTML = html;
 }
