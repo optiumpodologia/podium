@@ -20,6 +20,12 @@ const ROLES = ['super_admin', 'negocio', 'recepcion', 'profesional'];
 // Para cada módulo: qué roles pueden ABRIRLO. Esto controla tanto el
 // menú lateral como el guarda de entrada de cada pantalla.
 // El ORDEN de las claves es el orden en que aparecen en el menú.
+//
+// NOTA: el módulo 'profesionales' es la pantalla "Mi equipo" (profesionales
+// + recepción del negocio). Mantenemos el id 'profesionales' para no romper
+// nada; solo cambia la etiqueta visible (en app.html).
+// 'usuarios' quedó SOLO para super_admin: el dueño gestiona su gente desde
+// "Mi equipo", no desde acá.
 const MODULOS_ACCESO = {
   negocios:       ['super_admin'],                          // clientes del SaaS
   planes:         ['super_admin'],                          // planes de suscripción del SaaS
@@ -27,10 +33,10 @@ const MODULOS_ACCESO = {
   agenda:         ['negocio', 'recepcion', 'profesional'],
   pacientes:      ['negocio', 'recepcion', 'profesional'],
   consultorios:   ['negocio', 'recepcion'],
-  profesionales:  ['negocio', 'recepcion'],
+  profesionales:  ['negocio', 'recepcion'],                 // pantalla "Mi equipo"
   tipos_atencion: ['negocio'],                              // Atenciones (catálogo)
   productos:      ['negocio'],
-  usuarios:       ['super_admin', 'negocio'],
+  usuarios:       ['super_admin'],                          // solo uso interno Optium
   configuracion:  ['negocio'],
 };
 
@@ -54,6 +60,14 @@ const ACCIONES = {
 
   // Recepción gestiona profesionales pero NO puede tocar sus claves.
   resetear_clave_profesional: u => u.rol === 'negocio',
+
+  // Dar de alta un profesional (crea login + registro de agenda): solo el dueño.
+  crear_profesional: u => u.rol === 'negocio',
+
+  // Dar de alta / activar recepción: solo el dueño. Hoy se hace una vez;
+  // si mañana el plan permite más de una, igual lo hace el dueño (el tope
+  // real lo pone max_recepcion del plan).
+  crear_recepcion: u => u.rol === 'negocio',
 };
 
 // --- Helpers ----------------------------------------------------------

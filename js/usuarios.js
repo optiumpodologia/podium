@@ -1,16 +1,23 @@
+// ============================================================
+// usuarios.js — Gestión GLOBAL de accesos (solo Super Admin)
+// ============================================================
+// El dueño (rol 'negocio') ya NO entra acá: gestiona a su gente desde
+// "Mi equipo" (profesionales + recepción). Esta pantalla quedó para el
+// uso interno de Optium: crear negocios, recepción y otros super admin,
+// y ver/activar/desactivar usuarios de todos los negocios.
+// ============================================================
+
 async function renderUsuarios(container) {
   if (!puedeVerModulo(usuarioActual, 'usuarios')) {
     container.innerHTML = '<div class="vacio">Acceso restringido</div>';
     return;
   }
 
-  const esSuperAdmin = usuarioActual.rol === 'super_admin';
-
   container.innerHTML = `
     <div class="page-header">
       <div>
         <div class="page-title">Usuarios</div>
-        <div class="page-subtitle">${esSuperAdmin ? 'Gestión global de accesos' : 'Empleados que pueden entrar al sistema'}</div>
+        <div class="page-subtitle">Gestión global de accesos</div>
       </div>
       <button class="btn btn-primary-sm" onclick="abrirModalNuevoUsuario()">
         <span>+</span> Nuevo usuario
@@ -24,13 +31,13 @@ async function renderUsuarios(container) {
             <th>Nombre</th>
             <th>Email</th>
             <th>Rol</th>
-            ${esSuperAdmin ? '<th>Negocio</th>' : ''}
+            <th>Negocio</th>
             <th>Estado</th>
             <th style="text-align:right;">Acciones</th>
           </tr>
         </thead>
         <tbody id="tabla-usuarios">
-          <tr><td colspan="${esSuperAdmin ? 6 : 5}" class="vacio">Cargando...</td></tr>
+          <tr><td colspan="6" class="vacio">Cargando...</td></tr>
         </tbody>
       </table>
     </div>
@@ -40,13 +47,12 @@ async function renderUsuarios(container) {
 }
 
 async function cargarUsuarios() {
-  const esSuperAdmin = usuarioActual.rol === 'super_admin';
   const { data, error } = await sb.from('usuarios').select('*, negocios(nombre)').order('nombre');
   if (error) { mostrarMensaje('Error al cargar', 'error'); console.error(error); return; }
 
   const tbody = document.getElementById('tabla-usuarios');
   if (!data || data.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="${esSuperAdmin ? 6 : 5}" class="vacio">No hay usuarios</td></tr>`;
+    tbody.innerHTML = '<tr><td colspan="6" class="vacio">No hay usuarios</td></tr>';
     return;
   }
 
@@ -65,7 +71,7 @@ async function cargarUsuarios() {
       <td><strong>${u.nombre}</strong>${esYo ? ' <span style="font-size:11px; color:var(--texto-tenue);">(vos)</span>' : ''}</td>
       <td>${u.email}</td>
       <td>${rolBadge}</td>
-      ${esSuperAdmin ? `<td>${u.negocios?.nombre || '—'}</td>` : ''}
+      <td>${u.negocios?.nombre || '—'}</td>
       <td>${u.activo ? '<span class="badge badge-llego">Activo</span>' : '<span class="badge badge-cancelado">Inactivo</span>'}</td>
       <td>
         <div class="tabla-acciones">
@@ -82,27 +88,19 @@ async function cargarUsuarios() {
 }
 
 async function abrirModalNuevoUsuario() {
-  const esSuperAdmin = usuarioActual.rol === 'super_admin';
+  const { data: negocios } = await sb.from('negocios').select('id, nombre').eq('activo', true).order('nombre');
+  const negociosOptions = (negocios || []).map(n =>
+    `<option value="${n.id}">${n.nombre}</option>`
+  ).join('');
 
-  let negociosOptions = '';
-  if (esSuperAdmin) {
-    const { data: negocios } = await sb.from('negocios').select('id, nombre').eq('activo', true).order('nombre');
-    negociosOptions = (negocios || []).map(n =>
-      `<option value="${n.id}">${n.nombre}</option>`
-    ).join('');
-  }
-
-  // Nota: "profesional" ya NO se crea acá. El profesional se da de alta en la
-  // pantalla Profesionales, en un solo paso (login + registro de agenda juntos).
-  const rolOptions = esSuperAdmin
-    ? `
-      <option value="negocio">Negocio (dueño)</option>
-      <option value="recepcion">Recepción</option>
-      <option value="super_admin">Super Admin (uso interno Optium)</option>
-    `
-    : `
-      <option value="recepcion">Recepción</option>
-    `;
+  // Nota: "profesional" NO se crea acá: se da de alta desde "Mi equipo" del
+  // negocio (login + registro de agenda juntos). La recepción del negocio
+  // también se hace desde "Mi equipo"; el super admin igual puede crearla acá.
+  const rolOptions = `
+    <option value="negocio">Negocio (dueño)</option>
+    <option value="recepcion">Recepción</option>
+    <option value="super_admin">Super Admin (uso interno Optium)</option>
+  `;
 
   abrirModal(`
     <div class="modal-header">
@@ -111,12 +109,6 @@ async function abrirModalNuevoUsuario() {
     </div>
     <form id="form-nuevo-usuario">
       <div class="modal-body">
-        ${!esSuperAdmin ? `
-          <div style="background: var(--info-claro); color: var(--info); padding: 10px 12px; border-radius: var(--radio); font-size: 12px; margin-bottom: 1rem;">
-            ¿Vas a sumar un <strong>profesional</strong>? Se da de alta en la pantalla <strong>Profesionales</strong> (ahí se crea su acceso y su lugar en la agenda de una sola vez). Acá creás solo la recepción.
-          </div>
-        ` : ''}
-
         <div class="input-group">
           <label>Nombre completo *</label>
           <input type="text" name="nombre" required placeholder="Ej: María González">
@@ -142,14 +134,12 @@ async function abrirModalNuevoUsuario() {
           </select>
         </div>
 
-        ${esSuperAdmin ? `
-          <div class="input-group" id="grupo-negocio">
-            <label>Negocio *</label>
-            <select name="negocio_id" id="select-negocio">
-              ${negociosOptions}
-            </select>
-          </div>
-        ` : ''}
+        <div class="input-group" id="grupo-negocio">
+          <label>Negocio *</label>
+          <select name="negocio_id" id="select-negocio">
+            ${negociosOptions}
+          </select>
+        </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn" onclick="cerrarModal()">Cancelar</button>
@@ -164,9 +154,8 @@ async function abrirModalNuevoUsuario() {
     const d = Object.fromEntries(fd.entries());
 
     // --- Topes del plan: recepción (según plan) y admin (siempre 1 por negocio) ---
-    const negocioObjetivo = esSuperAdmin ? d.negocio_id : usuarioActual.negocio_id;
     if (d.rol === 'recepcion' || d.rol === 'negocio') {
-      const tope = await topeUsuariosNegocio(negocioObjetivo, d.rol);
+      const tope = await topeUsuariosNegocio(d.negocio_id, d.rol);
       if (tope && tope.alcanzado) {
         const msg = d.rol === 'negocio'
           ? 'Ese negocio ya tiene su usuario dueño (admin). Solo se permite 1.'
