@@ -862,3 +862,149 @@ input, select, textarea {
   .agenda-grid { grid-template-columns: 50px repeat(6, minmax(80px, 1fr)); overflow-x: auto; }
   .form-row { grid-template-columns: 1fr; }
 }
+
+/* ============================================================
+   AGENDA POR COLUMNAS (casilleros / consultorios)
+   ============================================================ */
+
+.agenda-grid-col {
+  display: grid;
+  position: relative;
+}
+
+/* Día pasado: apagado y sin interacción */
+.agenda-grid-col.es-pasado {
+  filter: grayscale(0.6);
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+.agenda-aviso-pasado {
+  background: var(--fondo);
+  color: var(--texto-secundario);
+  font-size: 12px;
+  text-align: center;
+  padding: 6px;
+  border-bottom: 1px solid var(--borde-tenue);
+}
+
+/* ---- Encabezados de columna ---- */
+.agenda-col-esquina {
+  border-bottom: 1px solid var(--borde-tenue);
+}
+
+.agenda-col-head {
+  padding: 12px 10px;
+  text-align: center;
+  border-left: 1px solid var(--borde-tenue);
+  border-bottom: 1px solid var(--borde-tenue);
+}
+
+.agenda-col-titulo {
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.agenda-col-prof {
+  font-size: 12px;
+  color: var(--texto-secundario);
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.agenda-col-prof.libre {
+  color: var(--texto-tenue);
+  font-style: italic;
+}
+
+.agenda-col-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+/* ---- Columna de horas ---- */
+.agenda-horas-col {
+  position: relative;
+  border-right: 1px solid var(--borde-tenue);
+}
+
+.agenda-hora-label {
+  height: 60px;
+  font-size: 11px;
+  color: var(--texto-secundario);
+  text-align: right;
+  padding: 4px 8px 0 0;
+  box-sizing: border-box;
+}
+
+/* ---- Columnas de consultorio ---- */
+.agenda-consultorio-col {
+  position: relative;
+  border-left: 1px solid var(--borde-tenue);
+}
+
+.agenda-linea-hora {
+  position: absolute;
+  left: 0; right: 0;
+  height: 60px;
+  border-bottom: 1px dashed var(--borde-tenue);
+}
+
+/* ---- Estado "Agenda libre" en columna vacía ---- */
+.agenda-libre-estado {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  color: var(--texto-tenue);
+  width: 90%;
+}
+
+.agenda-libre-icono {
+  font-size: 28px;
+  opacity: 0.5;
+  margin-bottom: 6px;
+}
+
+.agenda-libre-titulo {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--texto-secundario);
+  margin-bottom: 4px;
+}
+
+.agenda-libre-texto {
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* ---- Etapa 2: arrastre + quitar ---- */
+.agenda-col-head[draggable="true"] {
+  cursor: grab;
+}
+.agenda-col-head[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+.agenda-col-quitar {
+  background: none;
+  border: none;
+  color: var(--texto-tenue);
+  font-size: 15px;
+  line-height: 1;
+  padding: 0 2px;
+  margin-left: 4px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+.agenda-col-quitar:hover {
+  background: var(--peligro-claro);
+  color: var(--peligro);
+}
