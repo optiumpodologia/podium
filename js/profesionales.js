@@ -295,6 +295,7 @@ async function cargarProfesionales() {
       <td>${p.activo ? '<span class="badge badge-llego">Activo</span>' : '<span class="badge badge-cancelado">Inactivo</span>'}</td>
       <td>
         <div class="tabla-acciones">
+          <button class="btn-icon" onclick="abrirModalHorarios('${p.id}')" title="Horarios">🕐</button>
           <button class="btn-icon" onclick="abrirModalProfesional('${p.id}')" title="Editar">✎</button>
           <button class="btn-icon" onclick="eliminarProfesional('${p.id}')" title="Eliminar" style="color: var(--peligro);">×</button>
         </div>
@@ -539,6 +540,299 @@ async function eliminarProfesional(id) {
   }
   mostrarMensaje('Eliminado', 'exito');
   await cargarProfesionales();
+}
+
+// ============================================================
+// HORARIOS DEL PROFESIONAL (días laborales fijos + días especiales)
+// Modal aparte, lo abren dueño y recepción (ambos administran agendas).
+// Lee/escribe en: dias_laborales_profesional, dias_especiales_profesional
+// ============================================================
+
+const DIAS_SEMANA = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+
+// Estado en memoria mientras el modal está abierto.
+let _horariosProf = null;       // { id, nombre, negocio_id }
+let _horariosLaborales = [];    // filas de dias_laborales_profesional
+let _horariosEspeciales = [];   // filas de dias_especiales_profesional
+
+async function abrirModalHorarios(profesionalId) {
+  const { data: prof, error } = await sb.from('profesionales')
+    .select('id, nombre, negocio_id')
+    .eq('id', profesionalId)
+    .single();
+
+  if (error || !prof) { mostrarMensaje('No se pudo cargar el profesional', 'error'); return; }
+  _horariosProf = prof;
+
+  abrirModal(`
+    <div class="modal-header">
+      <div class="modal-titulo">Horarios · ${prof.nombre}</div>
+      <button class="modal-cerrar" onclick="cerrarModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div style="margin-bottom: 1.5rem;">
+        <div style="font-weight: 600; font-size: 14px; margin-bottom: 0.25rem;">Días laborales (semana fija)</div>
+        <div style="font-size: 12px; color: var(--texto-secundario); margin-bottom: 0.75rem;">
+          El horario habitual que se repite todas las semanas. Podés agregar más de una franja al mismo día (ej: mañana y tarde).
+        </div>
+        <div id="lista-laborales"><div class="vacio" style="padding:1rem;">Cargando...</div></div>
+        <button class="btn" style="margin-top: 0.75rem; font-size: 12px; padding: 6px 12px;" onclick="agregarFranjaLaboral()">+ Agregar franja</button>
+      </div>
+
+      <div style="border-top: 1px solid var(--borde-tenue); padding-top: 1.25rem;">
+        <div style="font-weight: 600; font-size: 14px; margin-bottom: 0.25rem;">Días especiales (excepciones)</div>
+        <div style="font-size: 12px; color: var(--texto-secundario); margin-bottom: 0.75rem;">
+          Una fecha puntual: que venga un día que normalmente no trabaja, o que falte un día que sí.
+        </div>
+        <div id="lista-especiales"><div class="vacio" style="padding:1rem;">Cargando...</div></div>
+        <button class="btn" style="margin-top: 0.75rem; font-size: 12px; padding: 6px 12px;" onclick="agregarDiaEspecial()">+ Agregar día especial</button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="cerrarModal()">Cerrar</button>
+    </div>
+  `);
+
+  await cargarHorarios();
+}
+
+async function cargarHorarios() {
+  const profId = _horariosProf.id;
+
+  const { data: laborales } = await sb.from('dias_laborales_profesional')
+    .select('*')
+    .eq('profesional_id', profId)
+    .order('dia_semana')
+    .order('hora_inicio');
+
+  const { data: especiales } = await sb.from('dias_especiales_profesional')
+    .select('*')
+    .eq('profesional_id', profId)
+    .order('fecha');
+
+  _horariosLaborales = laborales || [];
+  _horariosEspeciales = especiales || [];
+
+  dibujarLaborales();
+  dibujarEspeciales();
+}
+
+function dibujarLaborales() {
+  const cont = document.getElementById('lista-laborales');
+  if (!cont) return;
+
+  if (_horariosLaborales.length === 0) {
+    cont.innerHTML = '<div class="vacio" style="padding:1rem;">Sin franjas cargadas. Agregá la primera abajo.</div>';
+    return;
+  }
+
+  cont.innerHTML = `<div style="display:flex; flex-direction:column; gap:8px;">${
+    _horariosLaborales.map(f => `
+      <div class="turno-row" style="cursor:default;">
+        <div style="min-width: 90px; font-weight: 600; font-size: 13px;">${DIAS_SEMANA[f.dia_semana]}</div>
+        <div class="turno-row-info">
+          <div style="font-size: 13px;">${f.hora_inicio?.slice(0,5)} a ${f.hora_fin?.slice(0,5)}</div>
+        </div>
+        <button class="btn-icon" title="Eliminar" style="color: var(--peligro);" onclick="eliminarFranjaLaboral('${f.id}')">×</button>
+      </div>
+    `).join('')
+  }</div>`;
+}
+
+function dibujarEspeciales() {
+  const cont = document.getElementById('lista-especiales');
+  if (!cont) return;
+
+  if (_horariosEspeciales.length === 0) {
+    cont.innerHTML = '<div class="vacio" style="padding:1rem;">Sin días especiales.</div>';
+    return;
+  }
+
+  cont.innerHTML = `<div style="display:flex; flex-direction:column; gap:8px;">${
+    _horariosEspeciales.map(e => {
+      const fechaTxt = new Date(e.fecha + 'T00:00').toLocaleDateString('es-AR', { weekday:'short', day:'numeric', month:'long' });
+      const detalle = e.no_viene
+        ? '<span style="color: var(--peligro); font-weight: 600;">No viene (ausencia)</span>'
+        : `Viene de ${e.hora_inicio?.slice(0,5)} a ${e.hora_fin?.slice(0,5)}`;
+      return `
+        <div class="turno-row" style="cursor:default;">
+          <div style="min-width: 140px; font-weight: 600; font-size: 13px; text-transform: capitalize;">${fechaTxt}</div>
+          <div class="turno-row-info"><div style="font-size: 13px;">${detalle}</div></div>
+          <button class="btn-icon" title="Eliminar" style="color: var(--peligro);" onclick="eliminarDiaEspecial('${e.id}')">×</button>
+        </div>
+      `;
+    }).join('')
+  }</div>`;
+}
+
+// ---- Días laborales: alta ----
+function agregarFranjaLaboral() {
+  abrirModal(`
+    <div class="modal-header">
+      <div class="modal-titulo">Nueva franja · ${_horariosProf.nombre}</div>
+      <button class="modal-cerrar" onclick="abrirModalHorarios('${_horariosProf.id}')">×</button>
+    </div>
+    <form id="form-franja">
+      <div class="modal-body">
+        <div class="input-group">
+          <label>Día de la semana *</label>
+          <select name="dia_semana" required>
+            ${[1,2,3,4,5,6,0].map(d => `<option value="${d}">${DIAS_SEMANA[d]}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-row">
+          <div class="input-group">
+            <label>Desde *</label>
+            <input type="time" name="hora_inicio" value="09:00" required>
+          </div>
+          <div class="input-group">
+            <label>Hasta *</label>
+            <input type="time" name="hora_fin" value="13:00" required>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn" onclick="abrirModalHorarios('${_horariosProf.id}')">Cancelar</button>
+        <button type="submit" class="btn btn-primary-sm">Agregar franja</button>
+      </div>
+    </form>
+  `);
+
+  document.getElementById('form-franja').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const d = Object.fromEntries(fd.entries());
+
+    if (d.hora_fin <= d.hora_inicio) {
+      mostrarMensaje('La hora de fin tiene que ser mayor a la de inicio.', 'advertencia');
+      return;
+    }
+
+    const { error } = await sb.from('dias_laborales_profesional').insert({
+      negocio_id: _horariosProf.negocio_id,
+      profesional_id: _horariosProf.id,
+      dia_semana: parseInt(d.dia_semana),
+      hora_inicio: d.hora_inicio,
+      hora_fin: d.hora_fin
+    });
+
+    if (error) {
+      const msg = error.code === '23505'
+        ? 'Ya existe una franja para ese día que arranca a esa hora.'
+        : error.message;
+      mostrarMensaje('Error: ' + msg, 'error');
+      return;
+    }
+
+    mostrarMensaje('Franja agregada', 'exito');
+    abrirModalHorarios(_horariosProf.id); // vuelve a la pantalla de horarios, ya recargada
+  });
+}
+
+async function eliminarFranjaLaboral(id) {
+  if (!confirm('¿Eliminar esta franja?')) return;
+  const { error } = await sb.from('dias_laborales_profesional').delete().eq('id', id);
+  if (error) { mostrarMensaje('Error: ' + error.message, 'error'); return; }
+  mostrarMensaje('Franja eliminada', 'exito');
+  await cargarHorarios();
+}
+
+// ---- Días especiales: alta ----
+function agregarDiaEspecial() {
+  abrirModal(`
+    <div class="modal-header">
+      <div class="modal-titulo">Día especial · ${_horariosProf.nombre}</div>
+      <button class="modal-cerrar" onclick="abrirModalHorarios('${_horariosProf.id}')">×</button>
+    </div>
+    <form id="form-especial">
+      <div class="modal-body">
+        <div class="input-group">
+          <label>Fecha *</label>
+          <input type="date" name="fecha" required>
+        </div>
+
+        <label style="display:flex; align-items:flex-start; gap:8px; padding:10px 12px; border:1px solid var(--borde); border-radius:var(--radio); margin-bottom:1rem; cursor:pointer;">
+          <input type="checkbox" name="no_viene" id="check-no-viene" onchange="toggleNoViene(this.checked)" style="margin-top:2px;">
+          <span>
+            <strong>No viene este día (ausencia)</strong>
+            <div style="font-size:12px; color:var(--texto-secundario);">
+              Marcá esto si ese día falta. Si lo dejás sin marcar, es un día extra en que sí viene.
+            </div>
+          </span>
+        </label>
+
+        <div id="bloque-horas-especial">
+          <div class="form-row">
+            <div class="input-group">
+              <label>Desde *</label>
+              <input type="time" name="hora_inicio" value="09:00">
+            </div>
+            <div class="input-group">
+              <label>Hasta *</label>
+              <input type="time" name="hora_fin" value="13:00">
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn" onclick="abrirModalHorarios('${_horariosProf.id}')">Cancelar</button>
+        <button type="submit" class="btn btn-primary-sm">Agregar</button>
+      </div>
+    </form>
+  `);
+
+  document.getElementById('form-especial').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const d = Object.fromEntries(fd.entries());
+    const noViene = d.no_viene === 'on';
+
+    const fila = {
+      negocio_id: _horariosProf.negocio_id,
+      profesional_id: _horariosProf.id,
+      fecha: d.fecha,
+      no_viene: noViene
+    };
+
+    if (noViene) {
+      fila.hora_inicio = null;
+      fila.hora_fin = null;
+    } else {
+      if (!d.hora_inicio || !d.hora_fin || d.hora_fin <= d.hora_inicio) {
+        mostrarMensaje('Poné un horario válido (fin mayor que inicio).', 'advertencia');
+        return;
+      }
+      fila.hora_inicio = d.hora_inicio;
+      fila.hora_fin = d.hora_fin;
+    }
+
+    const { error } = await sb.from('dias_especiales_profesional').insert(fila);
+
+    if (error) {
+      const msg = error.code === '23505'
+        ? 'Ya hay un día especial cargado para esa fecha con esos datos.'
+        : error.message;
+      mostrarMensaje('Error: ' + msg, 'error');
+      return;
+    }
+
+    mostrarMensaje('Día especial agregado', 'exito');
+    abrirModalHorarios(_horariosProf.id);
+  });
+}
+
+// Muestra/oculta las horas según el tilde "no viene".
+function toggleNoViene(checked) {
+  const bloque = document.getElementById('bloque-horas-especial');
+  if (bloque) bloque.style.display = checked ? 'none' : 'block';
+}
+
+async function eliminarDiaEspecial(id) {
+  if (!confirm('¿Eliminar este día especial?')) return;
+  const { error } = await sb.from('dias_especiales_profesional').delete().eq('id', id);
+  if (error) { mostrarMensaje('Error: ' + error.message, 'error'); return; }
+  mostrarMensaje('Día especial eliminado', 'exito');
+  await cargarHorarios();
 }
 
 // Calcula el tope de profesionales del plan del negocio actual.
