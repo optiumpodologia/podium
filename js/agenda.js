@@ -23,8 +23,10 @@
 let agendaFechaActual = new Date();
 let _agendaCols = [];          // estado del día: [{columna, profesional, registroId} | null]
 let _agendaArrastreCol = null; // columna origen durante un drag
+let _ttPacientes = [];         // cache de pacientes para el typeahead del alta de turno
 
 async function renderAgenda(container) {
+  inyectarEstilosAgenda();
   agendaFechaActual = new Date();
   container.innerHTML = `
     <div class="page-header">
@@ -161,6 +163,94 @@ async function obtenerCantidadConsultorios() {
     .eq('id', negId)
     .single();
   return Math.max(1, vista?.limite_total_consultorios || 1);
+}
+
+// --- Etapa 3: helpers de horario y disponibilidad ------------------
+
+// 'HH:MM[:SS]' -> minutos desde medianoche
+function parseHoraMin(t) {
+  if (!t) return null;
+  const [h, m] = String(t).split(':');
+  return parseInt(h) * 60 + parseInt(m || '0');
+}
+
+// minutos -> 'HH:MM'
+function minToHora(min) {
+  const h = Math.floor(min / 60), m = min % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+// minuto de inicio (local) de un turno dentro de su día
+function turnoMinInicio(t) {
+  const d = new Date(t.fecha_hora);
+  return d.getHours() * 60 + d.getMinutes();
+}
+
+// ¿el rango [ini,fin) choca con algún turno que ocupa lugar?
+// (cancelado/ausente no bloquean)
+function haySolapamiento(ini, fin, turnos) {
+  const BLOQUEAN = ['agendado', 'llego', 'en_atencion', 'finalizado'];
+  return (turnos || []).some(t => {
+    if (!BLOQUEAN.includes(t.estado)) return false;
+    const tIni = turnoMinInicio(t);
+    const tFin = tIni + (t.duracion_minutos || 0);
+    return ini < tFin && tIni < fin;
+  });
+}
+
+// Devuelve { profId: [{ini,fin}] } con la franja EFECTIVA de cada profesional
+// ese día. Prioridad: día especial (no_viene -> [] ; con horas -> esas franjas)
+// y si no hay especial, los días laborales fijos de ese día de la semana.
+async function mapaFranjasProfes(profIds, fecha) {
+  if (!profIds || profIds.length === 0) return {};
+  const fechaStr = agendaFechaStr(fecha);
+  const diaSemana = fecha.getDay();
+
+  const { data: laborales } = await sb.from('dias_laborales_profesional')
+    .select('profesional_id, hora_inicio, hora_fin')
+    .in('profesional_id', profIds)
+    .eq('dia_semana', diaSemana);
+
+  const { data: especiales } = await sb.from('dias_especiales_profesional')
+    .select('profesional_id, no_viene, hora_inicio, hora_fin')
+    .in('profesional_id', profIds)
+    .eq('fecha', fechaStr);
+
+  const limpia = (arr) => arr
+    .map(x => ({ ini: parseHoraMin(x.hora_inicio), fin: parseHoraMin(x.hora_fin) }))
+    .filter(f => f.ini != null && f.fin != null && f.fin > f.ini);
+
+  const map = {};
+  profIds.forEach(id => {
+    const esp = (especiales || []).filter(e => e.profesional_id === id);
+    if (esp.some(e => e.no_viene)) { map[id] = []; return; }       // ausente ese día
+    const espHoras = esp.filter(e => !e.no_viene && e.hora_inicio && e.hora_fin);
+    if (espHoras.length) { map[id] = limpia(espHoras); return; }    // viene con horario especial
+    map[id] = limpia((laborales || []).filter(l => l.profesional_id === id)); // patrón fijo
+  });
+  return map;
+}
+
+// Estilos de Etapa 3 (huecos clickeables + typeahead). Se inyectan una sola
+// vez, así no hace falta tocar styles.css.
+function inyectarEstilosAgenda() {
+  if (document.getElementById('estilos-agenda-etapa3')) return;
+  const st = document.createElement('style');
+  st.id = 'estilos-agenda-etapa3';
+  st.textContent = `
+    .agenda-franja-band { position:absolute; left:2px; right:2px; background:rgba(83,74,183,0.05); border-radius:4px; z-index:0; pointer-events:none; }
+    .agenda-hueco { position:absolute; left:2px; right:2px; z-index:1; cursor:pointer; border-radius:4px; border:1px dashed transparent; display:flex; align-items:center; justify-content:center; transition:background .12s, border-color .12s; }
+    .agenda-hueco:hover { background:rgba(83,74,183,0.12); border-color:var(--primario-medio); }
+    .agenda-hueco-mas { opacity:0; font-size:16px; font-weight:600; color:var(--primario); }
+    .agenda-hueco:hover .agenda-hueco-mas { opacity:1; }
+    .agenda-sin-franja { position:absolute; top:8px; left:6px; right:6px; text-align:center; font-size:11px; color:var(--texto-tenue); }
+    .tt-resultados { position:absolute; left:0; right:0; top:100%; margin-top:2px; background:#fff; border:1px solid var(--borde); border-radius:var(--radio); box-shadow:var(--sombra-fuerte); z-index:10; max-height:240px; overflow-y:auto; }
+    .tt-item { padding:8px 12px; cursor:pointer; font-size:13px; border-bottom:1px solid var(--borde-tenue); }
+    .tt-item:last-child { border-bottom:none; }
+    .tt-item:hover { background:var(--fondo); }
+    .tt-vacio { color:var(--texto-tenue); cursor:default; }
+  `;
+  document.head.appendChild(st);
 }
 
 // ============================================================
@@ -319,6 +409,14 @@ async function dibujarAgenda() {
     (turnosPorProf[t.profesional_id] = turnosPorProf[t.profesional_id] || []).push(t);
   });
 
+  // Etapa 3: tamaño de hueco (= duración por defecto) y franjas efectivas del día
+  const slotMin = parseInt(config?.duracion_turno_minutos) || 45;
+  const fechaStrSel = agendaFechaStr(agendaFechaActual);
+  const seatedIds = columnas.filter(c => c && c.profesional).map(c => c.profesional.id);
+  const mapaFranjas = (!esPasado && seatedIds.length)
+    ? await mapaFranjasProfes(seatedIds, agendaFechaActual)
+    : {};
+
   let html = `<div class="agenda-grid-col ${esPasado ? 'es-pasado' : ''}"
     style="grid-template-columns: 56px repeat(${cantColumnas}, 1fr);">`;
 
@@ -370,6 +468,37 @@ async function dibujarAgenda() {
 
     if (col && col.profesional) {
       const susTurnos = turnosPorProf[col.profesional.id] || [];
+
+      // Etapa 3: disponibilidad y huecos para dar turno (solo presente/futuro)
+      if (!esPasado) {
+        const franjas = mapaFranjas[col.profesional.id] || [];
+
+        // Banda de fondo = horario en que atiende
+        franjas.forEach(fr => {
+          const topB = fr.ini - horaInicio * 60;
+          const altoB = fr.fin - fr.ini;
+          if (altoB > 0) {
+            html += `<div class="agenda-franja-band" style="top:${topB}px; height:${altoB}px;"></div>`;
+          }
+        });
+
+        // Huecos clickeables: uno cada slotMin dentro de la franja, salteando choques
+        franjas.forEach(fr => {
+          for (let s = fr.ini; s + slotMin <= fr.fin; s += slotMin) {
+            if (haySolapamiento(s, s + slotMin, susTurnos)) continue;
+            const topH = s - horaInicio * 60;
+            html += `<div class="agenda-hueco" style="top:${topH}px; height:${slotMin}px;"
+              title="Dar turno ${minToHora(s)}"
+              onclick="abrirModalNuevoTurnoCasillero('${col.profesional.id}', ${numero}, '${fechaStrSel}', ${s})">
+              <span class="agenda-hueco-mas">+</span></div>`;
+          }
+        });
+
+        if (franjas.length === 0) {
+          html += `<div class="agenda-sin-franja">Sin horario cargado este día</div>`;
+        }
+      }
+
       susTurnos.forEach(t => {
         const td = new Date(t.fecha_hora);
         const horaT = td.getHours() + td.getMinutes()/60;
@@ -570,4 +699,224 @@ async function agendaDrop(columnaDestino) {
   if (r.error) { mostrarMensaje('Error en swap: ' + r.error.message, 'error'); await dibujarAgenda(); return; }
 
   await dibujarAgenda();
+}
+
+// ============================================================
+// ETAPA 3 — DAR TURNO desde un hueco de la agenda
+// ============================================================
+// profId    : profesional de esa columna
+// columna   : nro de consultorio (para el título)
+// fechaStr  : 'YYYY-MM-DD' del día abierto
+// startMin  : minuto del hueco clickeado (hora precargada)
+// pacientePre (opcional): {id, nombre, apellido} para volver con uno ya elegido
+async function abrirModalNuevoTurnoCasillero(profId, columna, fechaStr, startMin, pacientePre) {
+  const { data: config } = await sb.from('configuracion')
+    .select('duracion_turno_minutos').eq('id', 1).single();
+  const durDefault = parseInt(config?.duracion_turno_minutos) || 45;
+
+  const col = _agendaCols[columna - 1];
+  const profNombre = col?.profesional?.nombre || 'Profesional';
+
+  const { data: pacientes } = await sb.from('pacientes')
+    .select('id, nombre, apellido, dni')
+    .order('apellido').order('nombre');
+  _ttPacientes = pacientes || [];
+
+  const fechaLinda = new Date(fechaStr + 'T00:00')
+    .toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
+
+  abrirModal(`
+    <div class="modal-header">
+      <div class="modal-titulo">Nuevo turno &middot; Consultorio ${columna}</div>
+      <button class="modal-cerrar" onclick="cerrarModal()">&times;</button>
+    </div>
+    <form id="form-turno-casillero">
+      <div class="modal-body">
+        <div style="background: var(--fondo); padding:10px 12px; border-radius: var(--radio); margin-bottom:1rem; font-size:13px;">
+          <strong>${profNombre}</strong>
+          <span style="color: var(--texto-secundario);"> &middot; ${fechaLinda}</span>
+        </div>
+
+        <div class="input-group" style="position:relative;">
+          <label>Paciente *</label>
+          <input type="text" id="tt-paciente-input" autocomplete="off"
+            placeholder="Buscar por apellido, nombre o DNI..."
+            value="${pacientePre ? (pacientePre.apellido + ', ' + pacientePre.nombre) : ''}"
+            oninput="ttFiltrarPacientes(this.value)">
+          <input type="hidden" name="paciente_id" id="tt-paciente-id" value="${pacientePre ? pacientePre.id : ''}">
+          <div id="tt-resultados" class="tt-resultados" style="display:none;"></div>
+          <div style="margin-top:6px;">
+            <button type="button" class="btn" style="font-size:12px; padding:4px 8px;"
+              onclick="ttNuevoPacienteDesdeTurno('${profId}', ${columna}, '${fechaStr}', ${startMin})">+ Nuevo paciente</button>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="input-group">
+            <label>Hora *</label>
+            <input type="time" name="hora" value="${minToHora(startMin)}" required>
+          </div>
+          <div class="input-group">
+            <label>Duración (min) *</label>
+            <input type="number" name="duracion" value="${durDefault}" min="5" step="5" required>
+          </div>
+        </div>
+
+        <div class="input-group">
+          <label>Notas (opcional)</label>
+          <textarea name="notas" rows="2" placeholder="Ej: primera vez, necesita silla..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn" onclick="cerrarModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary-sm">Crear turno</button>
+      </div>
+    </form>
+  `);
+
+  document.getElementById('form-turno-casillero').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const pacienteId = fd.get('paciente_id');
+    const hora = fd.get('hora');
+    const dur = parseInt(fd.get('duracion')) || durDefault;
+    const notas = (fd.get('notas') || '').trim() || null;
+
+    if (!pacienteId) { mostrarMensaje('Elegí un paciente de la lista.', 'advertencia'); return; }
+    if (!hora) { mostrarMensaje('Indicá una hora.', 'advertencia'); return; }
+
+    const ini = parseHoraMin(hora);
+    const fin = ini + dur;
+
+    // 1) ¿Entra en la franja del profesional ese día?
+    const mapa = await mapaFranjasProfes([profId], new Date(fechaStr + 'T00:00'));
+    const franjas = mapa[profId] || [];
+    if (franjas.length === 0) {
+      mostrarMensaje('Ese profesional no atiende ese día.', 'error'); return;
+    }
+    if (!franjas.some(f => ini >= f.ini && fin <= f.fin)) {
+      const txt = franjas.map(f => `${minToHora(f.ini)}-${minToHora(f.fin)}`).join(', ');
+      mostrarMensaje(`El turno no entra en su horario (${txt}).`, 'error'); return;
+    }
+
+    // 2) ¿Choca con otro turno suyo ese día?
+    const di = new Date(fechaStr + 'T00:00'); di.setHours(0, 0, 0, 0);
+    const df = new Date(fechaStr + 'T00:00'); df.setHours(23, 59, 59, 999);
+    const { data: existentes } = await sb.from('turnos')
+      .select('fecha_hora, duracion_minutos, estado')
+      .eq('profesional_id', profId)
+      .gte('fecha_hora', di.toISOString())
+      .lte('fecha_hora', df.toISOString());
+    if (haySolapamiento(ini, fin, existentes)) {
+      mostrarMensaje('Se superpone con otro turno de ese profesional.', 'error'); return;
+    }
+
+    // 3) Insertar
+    const fechaHora = new Date(`${fechaStr}T${hora}:00`);
+    const { error } = await sb.from('turnos').insert({
+      negocio_id: usuarioActual.negocio_id,
+      paciente_id: pacienteId,
+      profesional_id: profId,
+      fecha_hora: fechaHora.toISOString(),
+      duracion_minutos: dur,
+      estado: 'agendado',
+      notas: notas,
+      creado_por: usuarioActual.id
+    });
+    if (error) { mostrarMensaje('Error: ' + error.message, 'error'); return; }
+
+    mostrarMensaje('Turno creado', 'exito');
+    cerrarModal();
+    await dibujarAgenda();
+  });
+}
+
+// --- Typeahead de pacientes ---------------------------------------
+function ttFiltrarPacientes(q) {
+  const cont = document.getElementById('tt-resultados');
+  const hidden = document.getElementById('tt-paciente-id');
+  if (hidden) hidden.value = '';           // si reescribe, se deselecciona
+  if (!cont) return;
+
+  const term = (q || '').toLowerCase().trim();
+  if (!term) { cont.style.display = 'none'; cont.innerHTML = ''; return; }
+
+  const res = _ttPacientes.filter(p =>
+    `${p.apellido} ${p.nombre} ${p.dni || ''}`.toLowerCase().includes(term)
+  ).slice(0, 8);
+
+  cont.innerHTML = res.length === 0
+    ? `<div class="tt-item tt-vacio">Sin resultados</div>`
+    : res.map(p => `
+        <div class="tt-item" onclick="ttElegirPaciente('${p.id}')">
+          <strong>${p.apellido}, ${p.nombre}</strong>
+          ${p.dni ? `<span style="color:var(--texto-secundario);"> &middot; ${p.dni}</span>` : ''}
+        </div>
+      `).join('');
+  cont.style.display = 'block';
+}
+
+function ttElegirPaciente(id) {
+  const p = _ttPacientes.find(x => x.id === id);
+  if (!p) return;
+  const input = document.getElementById('tt-paciente-input');
+  const hidden = document.getElementById('tt-paciente-id');
+  const cont = document.getElementById('tt-resultados');
+  if (input) input.value = `${p.apellido}, ${p.nombre}`;
+  if (hidden) hidden.value = id;
+  if (cont) { cont.style.display = 'none'; cont.innerHTML = ''; }
+}
+
+// --- Alta rápida de paciente (vuelve al turno con el paciente elegido) ---
+function ttNuevoPacienteDesdeTurno(profId, columna, fechaStr, startMin) {
+  abrirModal(`
+    <div class="modal-header">
+      <div class="modal-titulo">Nuevo paciente</div>
+      <button class="modal-cerrar" onclick="cerrarModal()">&times;</button>
+    </div>
+    <form id="form-nuevo-pac-turno">
+      <div class="modal-body">
+        <div class="form-row">
+          <div class="input-group">
+            <label>Apellido *</label>
+            <input type="text" name="apellido" required>
+          </div>
+          <div class="input-group">
+            <label>Nombre *</label>
+            <input type="text" name="nombre" required>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="input-group">
+            <label>DNI</label>
+            <input type="text" name="dni">
+          </div>
+          <div class="input-group">
+            <label>Teléfono</label>
+            <input type="text" name="telefono">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn"
+          onclick="abrirModalNuevoTurnoCasillero('${profId}', ${columna}, '${fechaStr}', ${startMin})">Volver</button>
+        <button type="submit" class="btn btn-primary-sm">Crear y usar</button>
+      </div>
+    </form>
+  `);
+
+  document.getElementById('form-nuevo-pac-turno').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const datos = Object.fromEntries(fd.entries());
+    Object.keys(datos).forEach(k => { if (datos[k] === '') datos[k] = null; });
+    datos.negocio_id = usuarioActual.negocio_id;
+
+    const { data, error } = await sb.from('pacientes')
+      .insert(datos).select('id, nombre, apellido').single();
+    if (error) { mostrarMensaje('Error al crear paciente: ' + error.message, 'error'); return; }
+
+    mostrarMensaje('Paciente creado', 'exito');
+    abrirModalNuevoTurnoCasillero(profId, columna, fechaStr, startMin, data);
+  });
 }
