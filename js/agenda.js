@@ -239,10 +239,10 @@ function inyectarEstilosAgenda() {
   st.id = 'estilos-agenda-etapa3';
   st.textContent = `
     .agenda-franja-band { position:absolute; left:2px; right:2px; background:rgba(83,74,183,0.05); border-radius:4px; z-index:0; pointer-events:none; }
-    .agenda-hueco { position:absolute; left:2px; right:2px; z-index:1; cursor:pointer; border-radius:4px; border:1px dashed transparent; display:flex; align-items:center; justify-content:center; transition:background .12s, border-color .12s; }
+    .agenda-hueco { position:absolute; left:2px; right:2px; z-index:1; cursor:pointer; border-radius:4px; border:1px dashed transparent; display:flex; align-items:center; justify-content:flex-start; padding-left:6px; transition:background .12s, border-color .12s; }
     .agenda-hueco:hover { background:rgba(83,74,183,0.12); border-color:var(--primario-medio); }
-    .agenda-hueco-mas { opacity:0; font-size:16px; font-weight:600; color:var(--primario); }
-    .agenda-hueco:hover .agenda-hueco-mas { opacity:1; }
+    .agenda-hueco-hora { font-size:11px; color:var(--texto-tenue); font-weight:500; }
+    .agenda-hueco:hover .agenda-hueco-hora { color:var(--primario); }
     .agenda-sin-franja { position:absolute; top:8px; left:6px; right:6px; text-align:center; font-size:11px; color:var(--texto-tenue); }
     .tt-resultados { position:absolute; left:0; right:0; top:100%; margin-top:2px; background:#fff; border:1px solid var(--borde); border-radius:var(--radio); box-shadow:var(--sombra-fuerte); z-index:10; max-height:240px; overflow-y:auto; }
     .tt-item { padding:8px 12px; cursor:pointer; font-size:13px; border-bottom:1px solid var(--borde-tenue); }
@@ -264,7 +264,7 @@ async function obtenerDiaAgenda(fecha, cantColumnas, esPasado) {
 
   // 1) Ya está guardado este día?
   const { data: guardado } = await sb.from('agenda_dia')
-    .select('id, columna, profesional_id, profesionales(id, nombre, color, usuario_id)')
+    .select('id, columna, profesional_id, profesionales(id, nombre, color, usuario_id, duracion_turno_minutos)')
     .eq('negocio_id', negId)
     .eq('fecha', fechaStr)
     .order('columna');
@@ -301,7 +301,7 @@ async function obtenerDiaAgenda(fecha, cantColumnas, esPasado) {
       // Si falla (ej: otra pestaña sembró en paralelo), releemos lo que haya.
       console.error('siembra:', error);
       const { data: reread } = await sb.from('agenda_dia')
-        .select('id, columna, profesional_id, profesionales(id, nombre, color, usuario_id)')
+        .select('id, columna, profesional_id, profesionales(id, nombre, color, usuario_id, duracion_turno_minutos)')
         .eq('negocio_id', negId)
         .eq('fecha', fechaStr)
         .order('columna');
@@ -332,7 +332,7 @@ async function calcularSiembra(fecha, cantColumnas) {
   const diaSemana = fecha.getDay();
 
   const { data: profesionales } = await sb.from('profesionales')
-    .select('id, nombre, color, usuario_id')
+    .select('id, nombre, color, usuario_id, duracion_turno_minutos')
     .eq('activo', true)
     .order('nombre');
   if (!profesionales || profesionales.length === 0) return [];
@@ -388,8 +388,6 @@ async function dibujarAgenda() {
   const { data: config } = await sb.from('configuracion').select('*').eq('id', 1).single();
   const horaInicio = parseInt((config?.hora_apertura || '08:00').split(':')[0]);
   const horaFin = parseInt((config?.hora_cierre || '20:00').split(':')[0]);
-  const horas = [];
-  for (let h = horaInicio; h <= horaFin; h++) horas.push(h);
 
   const cantColumnas = await obtenerCantidadConsultorios();
   const columnas = await obtenerDiaAgenda(agendaFechaActual, cantColumnas, esPasado);
@@ -409,8 +407,16 @@ async function dibujarAgenda() {
     (turnosPorProf[t.profesional_id] = turnosPorProf[t.profesional_id] || []).push(t);
   });
 
-  // Etapa 3: tamaño de hueco (= duración por defecto) y franjas efectivas del día
-  const slotMin = parseInt(config?.duracion_turno_minutos) || 45;
+  // Duración por defecto del negocio: define la grilla (regla de la izquierda).
+  const negocioSlot = parseInt(config?.duracion_turno_minutos) || 45;
+  const inicioMin = horaInicio * 60;
+  const finMin = horaFin * 60;
+
+  // Slots de la regla (08:00, 08:45, 09:30... según la duración del negocio).
+  const slotsRegla = [];
+  for (let s = inicioMin; s <= finMin; s += negocioSlot) slotsRegla.push(s);
+  const altoTotal = slotsRegla.length * negocioSlot;
+
   const fechaStrSel = agendaFechaStr(agendaFechaActual);
   const seatedIds = columnas.filter(c => c && c.profesional).map(c => c.profesional.id);
   const mapaFranjas = (!esPasado && seatedIds.length)
@@ -449,12 +455,10 @@ async function dibujarAgenda() {
     }
   });
 
-  const altoTotal = horas.length * 60;
-
-  // Columna de horas
+  // Columna de horas (un renglón por slot de la duración del negocio)
   html += `<div class="agenda-horas-col" style="height:${altoTotal}px;">`;
-  horas.forEach(h => {
-    html += `<div class="agenda-hora-label">${String(h).padStart(2,'0')}:00</div>`;
+  slotsRegla.forEach(s => {
+    html += `<div class="agenda-hora-label" style="height:${negocioSlot}px;">${minToHora(s)}</div>`;
   });
   html += `</div>`;
 
@@ -462,8 +466,8 @@ async function dibujarAgenda() {
   columnas.forEach((col, idx) => {
     const numero = idx + 1;
     html += `<div class="agenda-consultorio-col" style="height:${altoTotal}px;">`;
-    horas.forEach((h, i) => {
-      html += `<div class="agenda-linea-hora" style="top:${i*60}px;"></div>`;
+    slotsRegla.forEach(s => {
+      html += `<div class="agenda-linea-hora" style="top:${s - inicioMin}px; height:${negocioSlot}px;"></div>`;
     });
 
     if (col && col.profesional) {
@@ -472,25 +476,28 @@ async function dibujarAgenda() {
       // Etapa 3: disponibilidad y huecos para dar turno (solo presente/futuro)
       if (!esPasado) {
         const franjas = mapaFranjas[col.profesional.id] || [];
+        // Duración de turno de ESTE profesional (si no tiene, la del negocio)
+        const profDur = parseInt(col.profesional.duracion_turno_minutos) || negocioSlot;
 
         // Banda de fondo = horario en que atiende
         franjas.forEach(fr => {
-          const topB = fr.ini - horaInicio * 60;
+          const topB = fr.ini - inicioMin;
           const altoB = fr.fin - fr.ini;
           if (altoB > 0) {
             html += `<div class="agenda-franja-band" style="top:${topB}px; height:${altoB}px;"></div>`;
           }
         });
 
-        // Huecos clickeables: uno cada slotMin dentro de la franja, salteando choques
+        // Huecos clickeables: uno cada profDur dentro de la franja, salteando choques.
+        // Cada hueco muestra su hora adentro (se entienda aunque no caiga en la regla).
         franjas.forEach(fr => {
-          for (let s = fr.ini; s + slotMin <= fr.fin; s += slotMin) {
-            if (haySolapamiento(s, s + slotMin, susTurnos)) continue;
-            const topH = s - horaInicio * 60;
-            html += `<div class="agenda-hueco" style="top:${topH}px; height:${slotMin}px;"
+          for (let s = fr.ini; s + profDur <= fr.fin; s += profDur) {
+            if (haySolapamiento(s, s + profDur, susTurnos)) continue;
+            const topH = s - inicioMin;
+            html += `<div class="agenda-hueco" style="top:${topH}px; height:${profDur}px;"
               title="Dar turno ${minToHora(s)}"
               onclick="abrirModalNuevoTurnoCasillero('${col.profesional.id}', ${numero}, '${fechaStrSel}', ${s})">
-              <span class="agenda-hueco-mas">+</span></div>`;
+              <span class="agenda-hueco-hora">${minToHora(s)}</span></div>`;
           }
         });
 
@@ -716,6 +723,7 @@ async function abrirModalNuevoTurnoCasillero(profId, columna, fechaStr, startMin
 
   const col = _agendaCols[columna - 1];
   const profNombre = col?.profesional?.nombre || 'Profesional';
+  const profDur = parseInt(col?.profesional?.duracion_turno_minutos) || durDefault;
 
   const { data: pacientes } = await sb.from('pacientes')
     .select('id, nombre, apellido, dni')
@@ -751,15 +759,10 @@ async function abrirModalNuevoTurnoCasillero(profId, columna, fechaStr, startMin
           </div>
         </div>
 
-        <div class="form-row">
-          <div class="input-group">
-            <label>Hora *</label>
-            <input type="time" name="hora" value="${minToHora(startMin)}" required>
-          </div>
-          <div class="input-group">
-            <label>Duración (min) *</label>
-            <input type="number" name="duracion" value="${durDefault}" min="5" step="5" required>
-          </div>
+        <div style="font-size:13px; color: var(--texto-secundario); margin-bottom:1rem;">
+          Horario: <strong style="color: var(--texto);">${minToHora(startMin)}</strong>
+          &middot; duración <strong style="color: var(--texto);">${profDur} min</strong>
+          <span style="color: var(--texto-tenue);">(termina ${minToHora(startMin + profDur)})</span>
         </div>
 
         <div class="input-group">
@@ -778,14 +781,13 @@ async function abrirModalNuevoTurnoCasillero(profId, columna, fechaStr, startMin
     e.preventDefault();
     const fd = new FormData(e.target);
     const pacienteId = fd.get('paciente_id');
-    const hora = fd.get('hora');
-    const dur = parseInt(fd.get('duracion')) || durDefault;
+    const hora = minToHora(startMin);   // hora fija = la del hueco
+    const dur = profDur;                // duración fija = la del profesional
     const notas = (fd.get('notas') || '').trim() || null;
 
     if (!pacienteId) { mostrarMensaje('Elegí un paciente de la lista.', 'advertencia'); return; }
-    if (!hora) { mostrarMensaje('Indicá una hora.', 'advertencia'); return; }
 
-    const ini = parseHoraMin(hora);
+    const ini = startMin;
     const fin = ini + dur;
 
     // 1) ¿Entra en la franja del profesional ese día?
