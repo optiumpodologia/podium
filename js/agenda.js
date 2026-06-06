@@ -239,10 +239,10 @@ function inyectarEstilosAgenda() {
   st.id = 'estilos-agenda-etapa3';
   st.textContent = `
     .agenda-franja-band { position:absolute; left:2px; right:2px; background:rgba(83,74,183,0.05); border-radius:4px; z-index:0; pointer-events:none; }
-    .agenda-hueco { position:absolute; left:2px; right:2px; z-index:1; cursor:pointer; border-radius:4px; border:1px dashed transparent; display:flex; align-items:center; justify-content:flex-start; padding-left:6px; transition:background .12s, border-color .12s; }
+    .agenda-hueco { position:absolute; left:2px; right:2px; z-index:1; cursor:pointer; border-radius:4px; border:1px dashed transparent; display:flex; align-items:center; justify-content:center; transition:background .12s, border-color .12s; }
     .agenda-hueco:hover { background:rgba(83,74,183,0.12); border-color:var(--primario-medio); }
-    .agenda-hueco-hora { font-size:11px; color:var(--texto-tenue); font-weight:500; }
-    .agenda-hueco:hover .agenda-hueco-hora { color:var(--primario); }
+    .agenda-hueco-mas { opacity:0; font-size:16px; font-weight:600; color:var(--primario); }
+    .agenda-hueco:hover .agenda-hueco-mas { opacity:1; }
     .agenda-sin-franja { position:absolute; top:8px; left:6px; right:6px; text-align:center; font-size:11px; color:var(--texto-tenue); }
     .tt-resultados { position:absolute; left:0; right:0; top:100%; margin-top:2px; background:#fff; border:1px solid var(--borde); border-radius:var(--radio); box-shadow:var(--sombra-fuerte); z-index:10; max-height:240px; overflow-y:auto; }
     .tt-item { padding:8px 12px; cursor:pointer; font-size:13px; border-bottom:1px solid var(--borde-tenue); }
@@ -264,7 +264,7 @@ async function obtenerDiaAgenda(fecha, cantColumnas, esPasado) {
 
   // 1) Ya está guardado este día?
   const { data: guardado } = await sb.from('agenda_dia')
-    .select('id, columna, profesional_id, profesionales(id, nombre, color, usuario_id, duracion_turno_minutos)')
+    .select('id, columna, profesional_id, profesionales(id, nombre, color, usuario_id)')
     .eq('negocio_id', negId)
     .eq('fecha', fechaStr)
     .order('columna');
@@ -301,7 +301,7 @@ async function obtenerDiaAgenda(fecha, cantColumnas, esPasado) {
       // Si falla (ej: otra pestaña sembró en paralelo), releemos lo que haya.
       console.error('siembra:', error);
       const { data: reread } = await sb.from('agenda_dia')
-        .select('id, columna, profesional_id, profesionales(id, nombre, color, usuario_id, duracion_turno_minutos)')
+        .select('id, columna, profesional_id, profesionales(id, nombre, color, usuario_id)')
         .eq('negocio_id', negId)
         .eq('fecha', fechaStr)
         .order('columna');
@@ -332,7 +332,7 @@ async function calcularSiembra(fecha, cantColumnas) {
   const diaSemana = fecha.getDay();
 
   const { data: profesionales } = await sb.from('profesionales')
-    .select('id, nombre, color, usuario_id, duracion_turno_minutos')
+    .select('id, nombre, color, usuario_id')
     .eq('activo', true)
     .order('nombre');
   if (!profesionales || profesionales.length === 0) return [];
@@ -476,8 +476,6 @@ async function dibujarAgenda() {
       // Etapa 3: disponibilidad y huecos para dar turno (solo presente/futuro)
       if (!esPasado) {
         const franjas = mapaFranjas[col.profesional.id] || [];
-        // Duración de turno de ESTE profesional (si no tiene, la del negocio)
-        const profDur = parseInt(col.profesional.duracion_turno_minutos) || negocioSlot;
 
         // Banda de fondo = horario en que atiende
         franjas.forEach(fr => {
@@ -488,17 +486,19 @@ async function dibujarAgenda() {
           }
         });
 
-        // Huecos clickeables: uno cada profDur dentro de la franja, salteando choques.
-        // Cada hueco muestra su hora adentro (se entienda aunque no caiga en la regla).
-        franjas.forEach(fr => {
-          for (let s = fr.ini; s + profDur <= fr.fin; s += profDur) {
-            if (haySolapamiento(s, s + profDur, susTurnos)) continue;
-            const topH = s - inicioMin;
-            html += `<div class="agenda-hueco" style="top:${topH}px; height:${profDur}px;"
-              title="Dar turno ${minToHora(s)}"
-              onclick="abrirModalNuevoTurnoCasillero('${col.profesional.id}', ${numero}, '${fechaStrSel}', ${s})">
-              <span class="agenda-hueco-hora">${minToHora(s)}</span></div>`;
-          }
+        // Huecos: uno por cada renglón de la grilla del negocio que caiga dentro
+        // de la franja del profesional y no choque con un turno. Quedan pegados a
+        // la regla de la izquierda (un solo juego de horarios).
+        slotsRegla.forEach(t => {
+          if (t + negocioSlot > finMin) return;
+          const dentro = franjas.some(fr => t >= fr.ini && t + negocioSlot <= fr.fin);
+          if (!dentro) return;
+          if (haySolapamiento(t, t + negocioSlot, susTurnos)) return;
+          const topH = t - inicioMin;
+          html += `<div class="agenda-hueco" style="top:${topH}px; height:${negocioSlot}px;"
+            title="Dar turno ${minToHora(t)}"
+            onclick="abrirModalNuevoTurnoCasillero('${col.profesional.id}', ${numero}, '${fechaStrSel}', ${t})">
+            <span class="agenda-hueco-mas">+</span></div>`;
         });
 
         if (franjas.length === 0) {
@@ -723,7 +723,7 @@ async function abrirModalNuevoTurnoCasillero(profId, columna, fechaStr, startMin
 
   const col = _agendaCols[columna - 1];
   const profNombre = col?.profesional?.nombre || 'Profesional';
-  const profDur = parseInt(col?.profesional?.duracion_turno_minutos) || durDefault;
+  const profDur = durDefault;  // duración única del negocio
 
   const { data: pacientes } = await sb.from('pacientes')
     .select('id, nombre, apellido, dni')

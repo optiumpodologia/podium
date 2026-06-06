@@ -331,10 +331,6 @@ async function abrirModalProfesional(id) {
     if (data) prof = data;
   }
 
-  // Duración por defecto del negocio (para mostrarla como referencia / placeholder)
-  const { data: cfgDur } = await sb.from('configuracion').select('duracion_turno_minutos').eq('id', 1).single();
-  const durDefaultNegocio = parseInt(cfgDur?.duracion_turno_minutos) || 45;
-
   // El "full (sin login)" solo tiene sentido al crear y en Plan 1.
   // (Si algún día el full se habilita en otro plan o por prueba, se cambia acá.)
   const mostrarFull = esAlta && planNegocio === 'plan_1';
@@ -373,18 +369,6 @@ async function abrirModalProfesional(id) {
             </select>
           </div>
         </div>
-
-        ${id ? `
-        <div class="input-group">
-          <label>Duración del turno (min)</label>
-          <input type="number" name="duracion_turno_minutos" min="5" step="5"
-            value="${prof.duracion_turno_minutos ?? ''}"
-            placeholder="Por defecto del negocio: ${durDefaultNegocio}">
-          <small style="color: var(--texto-tenue); display:block; margin-top:4px;">
-            Vacío = usa la duración del negocio (${durDefaultNegocio} min). Poné un número para que este profesional atienda con turnos de otra duración.
-          </small>
-        </div>
-        ` : ''}
 
         ${esAlta ? `
           ${mostrarFull ? `
@@ -430,34 +414,12 @@ async function abrirModalProfesional(id) {
 
     // ---------- EDICIÓN: solo datos de agenda, el login NO se toca ----------
     if (id) {
-      const durNueva = d.duracion_turno_minutos ? parseInt(d.duracion_turno_minutos) : null;
-      const durVieja = prof.duracion_turno_minutos ?? null;
-
-      // Si cambió la duración y tiene turnos a futuro, avisar (los viejos no se tocan).
-      if (durNueva !== durVieja) {
-        const ahora = new Date().toISOString();
-        const { count } = await sb.from('turnos')
-          .select('*', { count: 'exact', head: true })
-          .eq('profesional_id', id)
-          .gte('fecha_hora', ahora)
-          .in('estado', ['agendado', 'llego', 'en_atencion']);
-        if (count && count > 0) {
-          const ok = confirm(
-            `Este profesional tiene ${count} turno${count !== 1 ? 's' : ''} a futuro.\n\n` +
-            `Esos turnos se mantienen tal cual (con la duración que ya tenían). ` +
-            `La nueva duración solo se aplica a los turnos nuevos.\n\n¿Guardar igual?`
-          );
-          if (!ok) return;
-        }
-      }
-
       const datos = {
         nombre: d.nombre.trim(),
         matricula: d.matricula || null,
         telefono: d.telefono || null,
         color: d.color,
-        activo,
-        duracion_turno_minutos: durNueva
+        activo
       };
       btn.disabled = true; btn.textContent = 'Guardando...';
       const res = await sb.from('profesionales').update(datos).eq('id', id);
