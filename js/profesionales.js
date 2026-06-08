@@ -730,11 +730,104 @@ function agregarFranjaLaboral() {
 }
 
 async function eliminarFranjaLaboral(id) {
-  if (!confirm('¿Eliminar esta franja?')) return;
+  const franja = _horariosLaborales.find(f => f.id === id);
+  if (!franja) return;
+  if (!confirm('¿Eliminar esta franja?\n\nSi el profesional deja de trabajar ese día, se liberan los días futuros sin turnos (los que tienen turnos se mantienen).')) return;
+
+  // 1) Borrar la franja
   const { error } = await sb.from('dias_laborales_profesional').delete().eq('id', id);
   if (error) { mostrarMensaje('Error: ' + error.message, 'error'); return; }
-  mostrarMensaje('Franja eliminada', 'exito');
+
+  // 2) ¿Le queda otra franja ese MISMO día de la semana? Si sí, sigue trabajando
+  //    ese día y no hay nada que liberar.
+  const profId = _horariosProf.id;
+  const quedanEseDia = _horariosLaborales.some(
+    f => f.id !== id && f.dia_semana === franja.dia_semana
+  );
+
+  let res = { liberados: 0, mantenidos: [] };
+  if (!quedanEseDia) {
+    res = await liberarDiasFuturos(profId, franja.dia_semana);
+  }
+
   await cargarHorarios();
+
+  // 3) Avisar el resultado
+  if (res.mantenidos.length > 0) {
+    alert(
+      `Franja eliminada.\n\n` +
+      `Días futuros liberados (sin turnos): ${res.liberados}\n\n` +
+      `Estos días se mantuvieron porque tienen turnos o el profesional ya estaba agregado a mano:\n` +
+      res.mantenidos.map(f => '· ' + formatearFechaCorta(f)).join('\n')
+    );
+  } else if (res.liberados > 0) {
+    mostrarMensaje(`Franja eliminada. Se liberaron ${res.liberados} día(s) futuros.`, 'exito');
+  } else {
+    mostrarMensaje('Franja eliminada', 'exito');
+  }
+}
+
+// Etapa 2.5: cuando un profesional deja de trabajar un día de la semana, soltar
+// los días FUTUROS donde estaba sentado por ese patrón, salvo que tengan turnos
+// o un día especial "viene" (alta manual desde la agenda). El pasado y hoy no se tocan.
+async function liberarDiasFuturos(profId, diaSemana) {
+  const hoyStr = hoyLocalStr();
+
+  // Días futuros donde este profesional está sentado
+  const { data: futuros } = await sb.from('agenda_dia')
+    .select('id, fecha')
+    .eq('profesional_id', profId)
+    .gt('fecha', hoyStr);
+
+  // Solo los que caen en ese día de la semana
+  const candidatos = (futuros || []).filter(
+    r => new Date(r.fecha + 'T00:00').getDay() === diaSemana
+  );
+  if (candidatos.length === 0) return { liberados: 0, mantenidos: [] };
+
+  // Fechas con turnos de este profesional (a futuro) → se respetan
+  const { data: turnosFut } = await sb.from('turnos')
+    .select('fecha_hora')
+    .eq('profesional_id', profId)
+    .gte('fecha_hora', hoyStr + 'T00:00:00');
+  const fechasConTurno = new Set(
+    (turnosFut || []).map(t => fechaLocalStr(new Date(t.fecha_hora)))
+  );
+
+  // Fechas con día especial "viene" (lo agregaron a mano en la agenda) → se respetan
+  const { data: espFut } = await sb.from('dias_especiales_profesional')
+    .select('fecha, no_viene')
+    .eq('profesional_id', profId)
+    .gt('fecha', hoyStr);
+  const fechasEspecial = new Set(
+    (espFut || []).filter(e => !e.no_viene).map(e => e.fecha)
+  );
+
+  const aLiberar = [];
+  const mantenidos = [];
+  candidatos.forEach(r => {
+    if (fechasConTurno.has(r.fecha) || fechasEspecial.has(r.fecha)) {
+      mantenidos.push(r.fecha);
+    } else {
+      aLiberar.push(r.id);
+    }
+  });
+
+  if (aLiberar.length > 0) {
+    const { error } = await sb.from('agenda_dia').delete().in('id', aLiberar);
+    if (error) mostrarMensaje('Error al liberar días: ' + error.message, 'error');
+  }
+
+  return { liberados: aLiberar.length, mantenidos };
+}
+
+// Helpers de fecha local (YYYY-MM-DD) para no mezclar zonas horarias
+function fechaLocalStr(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function hoyLocalStr() { return fechaLocalStr(new Date()); }
+function formatearFechaCorta(fechaStr) {
+  return new Date(fechaStr + 'T00:00').toLocaleDateString('es-AR', { weekday:'short', day:'numeric', month:'short' });
 }
 
 // ---- Días especiales: alta ----
@@ -806,6 +899,21 @@ function agregarDiaEspecial() {
       fila.hora_fin = d.hora_fin;
     }
 
+    // Si es "no viene", ese día no puede tener turnos (sino quedarían sin profesional).
+    if (noViene) {
+      const di = new Date(d.fecha + 'T00:00:00');
+      const df = new Date(d.fecha + 'T23:59:59');
+      const { count } = await sb.from('turnos')
+        .select('*', { count: 'exact', head: true })
+        .eq('profesional_id', _horariosProf.id)
+        .gte('fecha_hora', di.toISOString())
+        .lte('fecha_hora', df.toISOString());
+      if (count && count > 0) {
+        mostrarMensaje(`No se puede marcar ausente: tiene ${count} turno${count !== 1 ? 's' : ''} ese día. Reasignalos o cancelalos primero.`, 'error');
+        return;
+      }
+    }
+
     const { error } = await sb.from('dias_especiales_profesional').insert(fila);
 
     if (error) {
@@ -816,7 +924,16 @@ function agregarDiaEspecial() {
       return;
     }
 
-    mostrarMensaje('Día especial agregado', 'exito');
+    // "No viene": además de registrar la ausencia, lo saca del tablero de ese día
+    // (libera la columna). Solo hoy/futuro; el pasado no se toca.
+    if (noViene && d.fecha >= hoyLocalStr()) {
+      await sb.from('agenda_dia')
+        .delete()
+        .eq('profesional_id', _horariosProf.id)
+        .eq('fecha', d.fecha);
+    }
+
+    mostrarMensaje(noViene ? 'Ausencia registrada' : 'Día especial agregado', 'exito');
     abrirModalHorarios(_horariosProf.id);
   });
 }

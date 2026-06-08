@@ -441,7 +441,6 @@ async function dibujarAgenda() {
           <div class="agenda-col-prof">
             <span class="agenda-col-dot" style="background:${p.color || 'var(--primario)'};"></span>
             ${p.nombre}
-            ${esPasado ? '' : `<button class="agenda-col-quitar" title="Quitar de este día" onclick="agendaQuitarProfesional(${numero})">&times;</button>`}
           </div>
         </div>
       `;
@@ -630,43 +629,6 @@ async function agendaAgregarProfesional(columna) {
     cerrarModal();
     await dibujarAgenda();
   });
-}
-
-// ============================================================
-// QUITAR PROFESIONAL de una columna (bloquea si tiene turnos)
-// ============================================================
-async function agendaQuitarProfesional(columna) {
-  const col = _agendaCols[columna - 1];
-  if (!col || !col.profesional) return;
-
-  const fechaInicio = new Date(agendaFechaActual); fechaInicio.setHours(0,0,0,0);
-  const fechaFin = new Date(agendaFechaActual); fechaFin.setHours(23,59,59,999);
-
-  const { count } = await sb.from('turnos')
-    .select('*', { count: 'exact', head: true })
-    .eq('profesional_id', col.profesional.id)
-    .gte('fecha_hora', fechaInicio.toISOString())
-    .lte('fecha_hora', fechaFin.toISOString());
-
-  if (count && count > 0) {
-    mostrarMensaje(`No se puede quitar a ${col.profesional.nombre}: tiene ${count} turno${count !== 1 ? 's' : ''} ese día.`, 'error');
-    return;
-  }
-
-  if (!confirm(`¿Quitar a ${col.profesional.nombre} del Consultorio ${columna} este día?`)) return;
-
-  const { error } = await sb.from('agenda_dia').delete().eq('id', col.registroId);
-  if (error) { mostrarMensaje('Error: ' + error.message, 'error'); return; }
-
-  // Limpiamos un eventual día especial "viene" de ese profe ese día (no toca "no_viene" ni laborales fijos).
-  await sb.from('dias_especiales_profesional')
-    .delete()
-    .eq('profesional_id', col.profesional.id)
-    .eq('fecha', agendaFechaStr(agendaFechaActual))
-    .eq('no_viene', false);
-
-  mostrarMensaje('Profesional quitado de este día', 'exito');
-  await dibujarAgenda();
 }
 
 // ============================================================
