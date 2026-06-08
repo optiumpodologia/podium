@@ -114,7 +114,7 @@ async function abrirModalTipoAtencion(id) {
 
     let res;
     if (id) res = await sb.from('tipos_atencion').update(d).eq('id', id);
-    else res = await sb.from('tipos_atencion').insert(d);
+    else res = await sb.from('tipos_atencion').insert({ ...d, negocio_id: usuarioActual.negocio_id });
 
     if (res.error) { mostrarMensaje('Error: ' + res.error.message, 'error'); return; }
     mostrarMensaje(id ? 'Actualizado' : 'Creado', 'exito');

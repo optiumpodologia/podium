@@ -185,7 +185,7 @@ async function abrirModalPaciente(id) {
     if (id) {
       res = await sb.from('pacientes').update(datos).eq('id', id);
     } else {
-      res = await sb.from('pacientes').insert(datos);
+      res = await sb.from('pacientes').insert({ ...datos, negocio_id: usuarioActual.negocio_id });
     }
 
     if (res.error) {
