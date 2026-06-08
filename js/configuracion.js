@@ -4,7 +4,8 @@ async function renderConfiguracion(container) {
     return;
   }
 
-  const { data: config } = await sb.from('configuracion').select('*').eq('id', 1).single();
+  const { data: config } = await sb.from('configuracion')
+    .select('*').eq('negocio_id', usuarioActual.negocio_id).maybeSingle();
 
   container.innerHTML = `
     <div class="page-header">
@@ -67,9 +68,18 @@ async function renderConfiguracion(container) {
     e.preventDefault();
     const fd = new FormData(e.target);
     const d = Object.fromEntries(fd.entries());
-    d.duracion_turno_minutos = parseInt(d.duracion_turno_minutos);
 
-    const { error } = await sb.from('configuracion').update(d).eq('id', 1);
+    const payload = {
+      negocio_id: usuarioActual.negocio_id,
+      nombre_consultorio: d.nombre_consultorio || null,
+      duracion_turno_minutos: parseInt(d.duracion_turno_minutos),
+      hora_apertura: d.hora_apertura,
+      hora_cierre: d.hora_cierre,
+      actualizado_en: new Date().toISOString()
+    };
+
+    const { error } = await sb.from('configuracion')
+      .upsert(payload, { onConflict: 'negocio_id' });
     if (error) {
       mostrarMensaje('Error: ' + error.message, 'error');
       return;

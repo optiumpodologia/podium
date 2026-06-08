@@ -385,7 +385,8 @@ async function dibujarAgenda() {
   const diaSel = new Date(agendaFechaActual); diaSel.setHours(0,0,0,0);
   const esPasado = diaSel < hoy;
 
-  const { data: config } = await sb.from('configuracion').select('*').eq('id', 1).single();
+  const { data: config } = await sb.from('configuracion').select('*')
+    .eq('negocio_id', usuarioActual.negocio_id).maybeSingle();
   const horaInicio = parseInt((config?.hora_apertura || '08:00').split(':')[0]);
   const horaFin = parseInt((config?.hora_cierre || '20:00').split(':')[0]);
 
@@ -718,7 +719,7 @@ async function agendaDrop(columnaDestino) {
 // pacientePre (opcional): {id, nombre, apellido} para volver con uno ya elegido
 async function abrirModalNuevoTurnoCasillero(profId, columna, fechaStr, startMin, pacientePre) {
   const { data: config } = await sb.from('configuracion')
-    .select('duracion_turno_minutos').eq('id', 1).single();
+    .select('duracion_turno_minutos').eq('negocio_id', usuarioActual.negocio_id).maybeSingle();
   const durDefault = parseInt(config?.duracion_turno_minutos) || 45;
 
   const col = _agendaCols[columna - 1];
