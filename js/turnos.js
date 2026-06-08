@@ -121,6 +121,13 @@ async function abrirModalTurno(turnoId) {
   const esRecepcion = usuarioActual.rol === 'recepcion';
   const esProfesional = usuarioActual.rol === 'profesional';
 
+  // Solo-lectura del pasado: un turno de un día anterior a HOY no se puede editar.
+  const fT = new Date(turno.fecha_hora);
+  const diaTurno = new Date(fT.getFullYear(), fT.getMonth(), fT.getDate());
+  const ahoraD = new Date();
+  const diaHoy = new Date(ahoraD.getFullYear(), ahoraD.getMonth(), ahoraD.getDate());
+  const esPasado = diaTurno < diaHoy;
+
   let accionesEstado = '';
   if (turno.estado === 'agendado' && esRecepcion) {
     accionesEstado = `
@@ -150,14 +157,18 @@ async function abrirModalTurno(turnoId) {
     `;
   }
 
+  // En días pasados no se muestra ninguna acción: es solo lectura.
+  if (esPasado) accionesEstado = '';
+
   abrirModal(`
     <div class="modal-header">
-      <div class="modal-titulo">Turno</div>
+      <div class="modal-titulo">${esPasado ? 'Turno · solo lectura' : 'Turno'}</div>
       <button class="modal-cerrar" onclick="cerrarModal()">×</button>
     </div>
     <div class="modal-body">
       <div style="margin-bottom: 1rem;">
         <span class="badge badge-${turno.estado}">${etiquetaEstado(turno.estado)}</span>
+        ${esPasado ? `<span style="margin-left:8px; font-size:12px; color: var(--texto-tenue);">Día pasado · solo lectura</span>` : ''}
       </div>
 
       <table style="width: 100%; font-size: 13px;">
@@ -204,7 +215,7 @@ async function abrirModalTurno(turnoId) {
       ` : ''}
     </div>
     <div class="modal-footer">
-      ${esRecepcion && !['finalizado'].includes(turno.estado) ? `
+      ${!esPasado && esRecepcion && !['finalizado'].includes(turno.estado) ? `
         <button class="btn btn-danger" onclick="eliminarTurno('${turno.id}')">Eliminar</button>
       ` : ''}
       <button class="btn" onclick="cerrarModal()">Cerrar</button>
