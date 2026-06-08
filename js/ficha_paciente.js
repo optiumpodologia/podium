@@ -88,7 +88,7 @@ async function verFichaPaciente(pacienteId) {
   `);
 }
 
-async function abrirFichaAtencion(turnoId) {
+async function abrirFichaAtencion(turnoId, soloLectura = false) {
   if (usuarioActual.rol !== 'profesional') {
     mostrarMensaje('Solo el profesional puede cargar fichas', 'advertencia');
     return;
@@ -115,9 +115,11 @@ async function abrirFichaAtencion(turnoId) {
     observaciones: '', proxima_visita: ''
   };
 
+  const dis = soloLectura ? 'disabled' : '';
+
   abrirModal(`
     <div class="modal-header">
-      <div class="modal-titulo">Ficha de atención</div>
+      <div class="modal-titulo">${soloLectura ? 'Ficha de atención · solo lectura' : 'Ficha de atención'}</div>
       <button class="modal-cerrar" onclick="cerrarModal()">×</button>
     </div>
     <form id="form-ficha">
@@ -129,7 +131,7 @@ async function abrirFichaAtencion(turnoId) {
 
         <div class="input-group">
           <label>Tipo de atención realizada *</label>
-          <select name="tipo_atencion_id" required>
+          <select name="tipo_atencion_id" required ${dis}>
             <option value="">Seleccionar...</option>
             ${(tipos||[]).map(t => `
               <option value="${t.id}" ${ficha.tipo_atencion_id === t.id ? 'selected' : ''}>${t.nombre}</option>
@@ -139,36 +141,41 @@ async function abrirFichaAtencion(turnoId) {
 
         <div class="input-group">
           <label>Motivo de consulta</label>
-          <textarea name="motivo_consulta" rows="2">${ficha.motivo_consulta || ''}</textarea>
+          <textarea name="motivo_consulta" rows="2" ${dis}>${ficha.motivo_consulta || ''}</textarea>
         </div>
 
         <div class="input-group">
           <label>Diagnóstico</label>
-          <textarea name="diagnostico" rows="2">${ficha.diagnostico || ''}</textarea>
+          <textarea name="diagnostico" rows="2" ${dis}>${ficha.diagnostico || ''}</textarea>
         </div>
 
         <div class="input-group">
           <label>Tratamiento realizado</label>
-          <textarea name="tratamiento" rows="3">${ficha.tratamiento || ''}</textarea>
+          <textarea name="tratamiento" rows="3" ${dis}>${ficha.tratamiento || ''}</textarea>
         </div>
 
         <div class="input-group">
           <label>Observaciones / evolución</label>
-          <textarea name="observaciones" rows="2">${ficha.observaciones || ''}</textarea>
+          <textarea name="observaciones" rows="2" ${dis}>${ficha.observaciones || ''}</textarea>
         </div>
 
         <div class="input-group">
           <label>Próxima visita sugerida</label>
-          <input type="date" name="proxima_visita" value="${ficha.proxima_visita || ''}">
+          <input type="date" name="proxima_visita" value="${ficha.proxima_visita || ''}" ${dis}>
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn" onclick="cerrarModal()">Cancelar</button>
-        <button type="submit" class="btn btn-primary-sm">Cerrar ficha y finalizar turno</button>
+        ${soloLectura ? `
+          <button type="button" class="btn" onclick="cerrarModal()">Cerrar</button>
+        ` : `
+          <button type="button" class="btn" onclick="cerrarModal()">Cancelar</button>
+          <button type="submit" class="btn btn-primary-sm">Cerrar ficha y finalizar turno</button>
+        `}
       </div>
     </form>
   `);
 
+  if (soloLectura) return;  // en solo-lectura no hay guardado
   document.getElementById('form-ficha').addEventListener('submit', async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);

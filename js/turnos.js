@@ -6,7 +6,7 @@ async function abrirModalNuevoTurno(fechaHoraInicial) {
 
   const { data: pacientes } = await sb.from('pacientes').select('id, nombre, apellido').order('apellido');
   const { data: profesionales } = await sb.from('profesionales').select('id, nombre').eq('activo', true).order('nombre');
-  const { data: config } = await sb.from('configuracion').select('duracion_turno_minutos').eq('id', 1).single();
+  const { data: config } = await sb.from('configuracion').select('duracion_turno_minutos').eq('negocio_id', usuarioActual.negocio_id).maybeSingle();
   const duracionDefault = config?.duracion_turno_minutos || 45;
 
   if (!profesionales || profesionales.length === 0) {
@@ -84,6 +84,7 @@ async function abrirModalNuevoTurno(fechaHoraInicial) {
     const fechaHora = new Date(`${d.fecha}T${d.hora}`);
 
     const turno = {
+      negocio_id: usuarioActual.negocio_id,
       paciente_id: d.paciente_id,
       profesional_id: d.profesional_id,
       fecha_hora: fechaHora.toISOString(),
@@ -159,6 +160,10 @@ async function abrirModalTurno(turnoId) {
 
   // En días pasados no se muestra ninguna acción: es solo lectura.
   if (esPasado) accionesEstado = '';
+  // ...salvo poder VER la ficha (sin editar) si el turno se finalizó.
+  if (esPasado && turno.estado === 'finalizado' && esProfesional) {
+    accionesEstado = `<button class="btn" onclick="abrirFichaAtencion('${turno.id}', true)">Ver ficha</button>`;
+  }
 
   abrirModal(`
     <div class="modal-header">
