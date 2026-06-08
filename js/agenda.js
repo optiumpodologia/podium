@@ -408,21 +408,34 @@ async function dibujarAgenda() {
     (turnosPorProf[t.profesional_id] = turnosPorProf[t.profesional_id] || []).push(t);
   });
 
-  // Duración por defecto del negocio: define la grilla (regla de la izquierda).
+  // Paso de la grilla (regla de la izquierda) = duración por defecto del negocio.
   const negocioSlot = parseInt(config?.duracion_turno_minutos) || 45;
-  const inicioMin = horaInicio * 60;
-  const finMin = horaFin * 60;
-
-  // Slots de la regla (08:00, 08:45, 09:30... según la duración del negocio).
-  const slotsRegla = [];
-  for (let s = inicioMin; s <= finMin; s += negocioSlot) slotsRegla.push(s);
-  const altoTotal = slotsRegla.length * negocioSlot;
 
   const fechaStrSel = agendaFechaStr(agendaFechaActual);
   const seatedIds = columnas.filter(c => c && c.profesional).map(c => c.profesional.id);
   const mapaFranjas = (!esPasado && seatedIds.length)
     ? await mapaFranjasProfes(seatedIds, agendaFechaActual)
     : {};
+
+  // Rango vertical de la grilla: arranca en la apertura del negocio pero se ESTIRA
+  // para cubrir las franjas de los profesionales y los turnos del día. Si alguien
+  // atiende (o tiene un turno) más tarde que el cierre, la agenda igual lo muestra.
+  let inicioMin = horaInicio * 60;
+  let finMin = horaFin * 60;
+  const extenderRango = (ini, fin) => {
+    while (ini < inicioMin) inicioMin -= negocioSlot;   // hacia atrás, manteniendo la grilla alineada
+    if (fin > finMin) finMin = fin;
+  };
+  Object.values(mapaFranjas).forEach(fr => fr.forEach(f => extenderRango(f.ini, f.fin)));
+  (turnos || []).forEach(t => {
+    const ti = turnoMinInicio(t);
+    extenderRango(ti, ti + (t.duracion_minutos || 0));
+  });
+
+  // Slots de la regla (09:00, 09:40... según la duración del negocio).
+  const slotsRegla = [];
+  for (let s = inicioMin; s <= finMin; s += negocioSlot) slotsRegla.push(s);
+  const altoTotal = slotsRegla.length * negocioSlot;
 
   let html = `<div class="agenda-grid-col ${esPasado ? 'es-pasado' : ''}"
     style="grid-template-columns: 56px repeat(${cantColumnas}, 1fr);">`;
