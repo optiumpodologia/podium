@@ -239,9 +239,9 @@ function inyectarEstilosAgenda() {
   st.id = 'estilos-agenda-etapa3';
   st.textContent = `
     .agenda-franja-band { position:absolute; left:2px; right:2px; background:rgba(83,74,183,0.05); border-radius:4px; z-index:0; pointer-events:none; }
-    .agenda-hueco { position:absolute; left:2px; right:2px; z-index:1; cursor:pointer; border-radius:4px; border:1px dashed transparent; display:flex; align-items:center; justify-content:center; transition:background .12s, border-color .12s; }
-    .agenda-hueco:hover { background:rgba(83,74,183,0.12); border-color:var(--primario-medio); }
-    .agenda-hueco-mas { opacity:0; font-size:16px; font-weight:600; color:var(--primario); }
+    .agenda-hueco { position:absolute; left:2px; right:2px; z-index:1; cursor:pointer; border-radius:4px; border:1px dashed var(--primario-medio); background:rgba(83,74,183,0.04); box-sizing:border-box; display:flex; align-items:center; justify-content:center; transition:background .12s, border-color .12s; }
+    .agenda-hueco:hover { background:rgba(83,74,183,0.16); border-style:solid; }
+    .agenda-hueco-mas { opacity:0.45; font-size:15px; font-weight:600; color:var(--primario); }
     .agenda-hueco:hover .agenda-hueco-mas { opacity:1; }
     .agenda-sin-franja { position:absolute; top:8px; left:6px; right:6px; text-align:center; font-size:11px; color:var(--texto-tenue); }
     .tt-resultados { position:absolute; left:0; right:0; top:100%; margin-top:2px; background:#fff; border:1px solid var(--borde); border-radius:var(--radio); box-shadow:var(--sombra-fuerte); z-index:10; max-height:240px; overflow-y:auto; }
