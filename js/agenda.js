@@ -268,6 +268,7 @@ function inyectarEstilosAgenda() {
     /* Chip de sobreturno (opción B: no parte la columna) */
     .turno-sobre-chip { position:absolute; left:3px; bottom:3px; background:#7c3aed; color:#fff; font-size:10px; font-weight:600; padding:2px 7px; border-radius:9px; cursor:pointer; z-index:3; transition:filter .08s; }
     .turno-sobre-chip:hover { filter:brightness(1.15); }
+    .turno-sobre-suelto { bottom:auto; z-index:4; }
     .turno-card.es-sobreturno { border-left:3px solid #7c3aed; }
     .turno-card.estado-cobrado { background:#ECECEC; border-left:3px solid #777; color:#555; }
     /* Celda bloqueada (no disponible) */
@@ -551,7 +552,7 @@ async function dibujarAgenda() {
           const dentro = franjas.some(fr => t >= fr.ini && t + negocioSlot <= fr.fin);
           if (!dentro) return;
           if (bloqueadosMin.has(t)) return;
-          if (haySolapamiento(t, t + negocioSlot, susTurnos)) return;
+          if (haySolapamiento(t, t + negocioSlot, normales)) return;  // los sobreturnos NO bloquean el slot
           const topH = t - inicioMin;
           html += `<div class="agenda-hueco" style="top:${topH}px; height:${negocioSlot}px;"
             title="Dar turno ${minToHora(t)}"
@@ -582,12 +583,18 @@ async function dibujarAgenda() {
         html += tarjetaTurnoHTML(t, numero, fechaStrSel, sobrePorMin[turnoMinInicio(t)] || [], esPasado, inicioMin);
       });
 
-      // Sobreturnos huérfanos (sin un turno base en ese minuto): se dibujan como tarjeta
+      // Sobreturnos huérfanos (se borró el turno base): NO ocupan el slot.
+      // Quedan como chip violeta chico en su horario; el "+ dar turno" sigue
+      // disponible para dar un turno completo si alguien canceló.
       Object.keys(sobrePorMin).forEach(mStr => {
         const m = parseInt(mStr);
-        if (minConCard.has(m)) return;
+        if (minConCard.has(m)) return;  // si hay base, ya va como chip en la tarjeta
+        const topS = m - inicioMin;
         sobrePorMin[m].forEach(t => {
-          html += tarjetaTurnoHTML(t, numero, fechaStrSel, [], esPasado, inicioMin, true);
+          const nom = t.pacientes ? `${t.pacientes.apellido}, ${t.pacientes.nombre.split(' ')[0]}` : 'Sobreturno';
+          html += `<div class="turno-sobre-chip turno-sobre-suelto" style="top:${topS}px;"
+            title="Sobreturno (sin turno base)"
+            onclick="event.stopPropagation(); verSobreturnos('${t.profesional_id}','${t.fecha_hora}')">${nom}</div>`;
         });
       });
     } else {
@@ -837,11 +844,13 @@ async function abrirModalNuevoTurnoCasillero(profId, columna, fechaStr, startMin
     const di = new Date(fechaStr + 'T00:00'); di.setHours(0, 0, 0, 0);
     const df = new Date(fechaStr + 'T00:00'); df.setHours(23, 59, 59, 999);
     const { data: existentes } = await sb.from('turnos')
-      .select('fecha_hora, duracion_minutos, estado')
+      .select('fecha_hora, duracion_minutos, estado, es_sobreturno')
       .eq('profesional_id', profId)
       .gte('fecha_hora', di.toISOString())
       .lte('fecha_hora', df.toISOString());
-    if (!esSobreturno && haySolapamiento(ini, fin, existentes)) {
+    // Un sobreturno (secundario) no impide dar un turno completo en ese horario.
+    const ocupanSlot = (existentes || []).filter(e => !e.es_sobreturno);
+    if (!esSobreturno && haySolapamiento(ini, fin, ocupanSlot)) {
       mostrarMensaje('Se superpone con otro turno de ese profesional.', 'error'); return;
     }
 
@@ -1074,7 +1083,11 @@ async function verSobreturnos(profId, fechaHoraISO) {
         <div class="turno-row" style="cursor:default; position:relative;">
           <div class="turno-row-info">
             <div class="turno-row-nombre">${t.pacientes ? t.pacientes.apellido + ', ' + t.pacientes.nombre : '-'}</div>
-            <div class="turno-row-tipo"><span class="badge badge-${t.estado}">${etiquetaEstado(t.estado)}</span></div>
+            <div class="turno-row-tipo">
+              <span class="badge badge-${t.estado}">${etiquetaEstado(t.estado)}</span>
+              ${(usuarioActual.rol === 'profesional' && t.estado === 'agendado')
+                ? ' <span style="font-size:11px; color:var(--texto-tenue);">· esperando que recepción reciba al paciente</span>' : ''}
+            </div>
           </div>
           <div style="position:relative; min-width:90px;">
             ${esPasado ? '' : accionesTurnoHTML(t, numero, fechaStr, true)}
