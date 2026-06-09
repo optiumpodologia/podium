@@ -232,7 +232,12 @@ async function confirmarCobro(turnoId) {
   }
 
   // 4) Turno cobrado
-  await sb.from('turnos').update({ estado: 'cobrado' }).eq('id', turnoId);
+  const { error: eEstado } = await sb.from('turnos').update({ estado: 'cobrado' }).eq('id', turnoId);
+  if (eEstado) {
+    mostrarMensaje('El pago se registró pero el turno no pasó a cobrado: ' + eEstado.message, 'error');
+    if (btn) { btn.disabled = false; btn.textContent = 'Cobrar'; }
+    return;
+  }
 
   mostrarMensaje('Cobro registrado por ' + formatearPrecio(total), 'exito');
   cerrarModal();
