@@ -60,6 +60,10 @@
 <script>
 let usuarioActual = null;
 
+// Clave donde recordamos en qué módulo estaba el usuario, para que al
+// refrescar (F5) vuelva a la misma pantalla en vez de ir siempre a Inicio.
+const MODULO_KEY = 'podium_modulo_activo';
+
 // Catálogo ÚNICO de módulos (id, etiqueta, ícono, función que lo dibuja).
 // Quién ve cada uno lo decide permisos.js (MODULOS_ACCESO), no este archivo.
 // El orden de acá es el orden en que aparecen en el menú.
@@ -91,9 +95,13 @@ const MODULOS = [
 
   renderNav();
 
-  // Aterriza en el primer módulo que el usuario tenga permitido ver.
-  const primerModulo = MODULOS.find(m => puedeVerModulo(usuarioActual, m.id));
-  navegar(primerModulo ? primerModulo.id : 'dashboard');
+  // Aterriza en el módulo guardado (si el usuario todavía puede verlo);
+  // si no hay guardado o ya no aplica, en el primero permitido.
+  const guardado = localStorage.getItem(MODULO_KEY);
+  const moduloInicial = (guardado && puedeVerModulo(usuarioActual, guardado))
+    ? guardado
+    : (MODULOS.find(m => puedeVerModulo(usuarioActual, m.id))?.id || 'dashboard');
+  navegar(moduloInicial);
 })();
 
 function renderNav() {
@@ -113,6 +121,9 @@ function navegar(moduloId) {
     document.getElementById('main').innerHTML = '<div class="vacio">No tenés acceso a este módulo</div>';
     return;
   }
+
+  // Recordamos el módulo para sobrevivir un F5.
+  try { localStorage.setItem(MODULO_KEY, moduloId); } catch (e) {}
 
   document.querySelectorAll('.nav-item').forEach(el => {
     el.classList.toggle('active', el.dataset.modulo === moduloId);
