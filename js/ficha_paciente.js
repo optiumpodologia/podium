@@ -117,6 +117,32 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
 
   const dis = soloLectura ? 'disabled' : '';
 
+  // --- Cronómetro de atención -----------------------------------------
+  // En atención: reloj corriendo = now - hora_inicio_atencion (setInterval).
+  // Finalizado: duración total ya calculada (estática). No toca DB.
+  const inicioAtencion = turno.hora_inicio_atencion ? new Date(turno.hora_inicio_atencion) : null;
+  const mostrarCrono = turno.estado === 'en_atencion' && inicioAtencion && !soloLectura;
+
+  let cronoHTML = '';
+  if (mostrarCrono) {
+    cronoHTML = `
+      <div style="background: var(--fondo); border-left: 3px solid var(--exito); padding: 10px 14px; border-radius: var(--radio); margin-bottom: 1rem; display: flex; align-items: center; gap: 12px;">
+        <span style="font-size: 20px;">⏱</span>
+        <div>
+          <div style="font-size: 11px; color: var(--texto-secundario); text-transform: uppercase; letter-spacing: .5px;">En atención</div>
+          <div id="ficha-cronometro" style="font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; color: var(--exito);">00:00</div>
+        </div>
+      </div>
+    `;
+  } else if (turno.estado === 'finalizado' && inicioAtencion && turno.hora_fin_atencion) {
+    const totalMin = Math.max(0, Math.round((new Date(turno.hora_fin_atencion) - inicioAtencion) / 60000));
+    cronoHTML = `
+      <div style="background: var(--fondo); padding: 8px 12px; border-radius: var(--radio); margin-bottom: 1rem; font-size: 13px; color: var(--texto-secundario);">
+        ⏱ Duración de la atención: <strong style="color: var(--texto);">${totalMin} min</strong>
+      </div>
+    `;
+  }
+
   abrirModal(`
     <div class="modal-header">
       <div class="modal-titulo">${soloLectura ? 'Ficha de atención · solo lectura' : 'Ficha de atención'}</div>
@@ -128,6 +154,8 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
           <strong>${turno.pacientes?.apellido}, ${turno.pacientes?.nombre}</strong>
           <span style="color: var(--texto-secundario);"> · ${new Date(turno.fecha_hora).toLocaleDateString('es-AR')}</span>
         </div>
+
+        ${cronoHTML}
 
         <div class="input-group">
           <label>Tipo de atención realizada *</label>
@@ -175,9 +203,29 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
     </form>
   `);
 
+  // Arranca el cronómetro (si corresponde). Se autolimpia cuando el
+  // elemento desaparece (modal cerrado), sin depender de cerrarModal().
+  if (mostrarCrono) {
+    const fmt = (ms) => {
+      const s = Math.max(0, Math.floor(ms / 1000));
+      const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+      const pad = n => String(n).padStart(2, '0');
+      return h > 0 ? `${pad(h)}:${pad(m)}:${pad(sec)}` : `${pad(m)}:${pad(sec)}`;
+    };
+    const tick = () => {
+      const el = document.getElementById('ficha-cronometro');
+      if (!el) { clearInterval(window._fichaCronoInt); return; }
+      el.textContent = fmt(Date.now() - inicioAtencion.getTime());
+    };
+    clearInterval(window._fichaCronoInt);
+    tick();
+    window._fichaCronoInt = setInterval(tick, 1000);
+  }
+
   if (soloLectura) return;  // en solo-lectura no hay guardado
   document.getElementById('form-ficha').addEventListener('submit', async (e) => {
     e.preventDefault();
+    clearInterval(window._fichaCronoInt);
     const fd = new FormData(e.target);
     const d = Object.fromEntries(fd.entries());
     Object.keys(d).forEach(k => { if (d[k] === '') d[k] = null; });
