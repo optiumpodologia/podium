@@ -14,7 +14,7 @@ async function verFichaPaciente(pacienteId) {
   let fichas = [];
   if (usuarioActual.rol === 'profesional') {
     const { data } = await sb.from('fichas_atencion')
-      .select('*, turnos(fecha_hora), tipos_atencion(nombre)')
+      .select('*, turnos(fecha_hora)')
       .eq('paciente_id', pacienteId)
       .order('creado_en', { ascending: false });
     fichas = data || [];
@@ -408,7 +408,6 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
       turno_id: turnoId,
       paciente_id: turno.paciente_id,
       profesional_id: turno.profesional_id,
-      tipo_atencion_id: primeraAtencion,
       observaciones,
       proxima_visita_nota: _ficha.prox || null,
       negocio_id: usuarioActual.negocio_id
