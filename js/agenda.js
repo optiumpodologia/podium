@@ -251,20 +251,27 @@ function inyectarEstilosAgenda() {
     .tt-vacio { color:var(--texto-tenue); cursor:default; }
 
     /* Botones de acción por celda (siempre visibles) */
-    .turno-acciones { position:absolute; top:2px; right:2px; display:flex; gap:2px; z-index:3; }
-    .turno-accion-btn { width:22px; height:22px; border:none; border-radius:4px; background:rgba(255,255,255,0.88); cursor:pointer; font-size:12px; line-height:1; display:flex; align-items:center; justify-content:center; padding:0; box-shadow:0 1px 2px rgba(0,0,0,0.18); }
-    .turno-accion-btn:hover { background:#fff; }
+    .turno-acciones { position:absolute; top:3px; right:3px; display:flex; gap:3px; z-index:3; }
+    .turno-accion-btn { width:24px; height:24px; border:1px solid rgba(0,0,0,0.12); border-radius:5px; background:rgba(255,255,255,0.95); cursor:pointer; font-size:13px; line-height:1; display:flex; align-items:center; justify-content:center; padding:0; box-shadow:0 1px 2px rgba(0,0,0,0.12); transition:transform .08s, box-shadow .08s, background .08s; }
+    .turno-accion-btn:hover { background:#fff; transform:translateY(-1px); box-shadow:0 2px 6px rgba(0,0,0,0.22); border-color:rgba(0,0,0,0.25); }
+    .turno-accion-btn:active { transform:translateY(0); }
     .turno-accion-btn.peligro { color:var(--peligro); }
+    .turno-accion-btn.peligro:hover { background:var(--peligro); color:#fff; border-color:var(--peligro); }
     .turno-accion-btn.exito { color:var(--exito); }
+    .turno-accion-btn.exito:hover { background:var(--exito); color:#fff; border-color:var(--exito); }
     .turno-accion-btn.violeta { color:#7c3aed; }
+    .turno-accion-btn.violeta:hover { background:#7c3aed; color:#fff; border-color:#7c3aed; }
+    /* El cuerpo de la tarjeta también responde al hover, para separar su zona de click de la de los íconos */
+    .turno-card { transition:filter .1s, box-shadow .1s; }
+    .turno-card:hover { filter:brightness(0.97); box-shadow:inset 0 0 0 2px rgba(0,0,0,0.10); }
     /* Chip de sobreturno (opción B: no parte la columna) */
-    .turno-sobre-chip { position:absolute; left:2px; bottom:2px; background:#7c3aed; color:#fff; font-size:10px; font-weight:600; padding:1px 6px; border-radius:8px; cursor:pointer; z-index:3; }
-    .turno-sobre-chip:hover { filter:brightness(1.12); }
+    .turno-sobre-chip { position:absolute; left:3px; bottom:3px; background:#7c3aed; color:#fff; font-size:10px; font-weight:600; padding:2px 7px; border-radius:9px; cursor:pointer; z-index:3; transition:filter .08s; }
+    .turno-sobre-chip:hover { filter:brightness(1.15); }
     .turno-card.es-sobreturno { border-left:3px solid #7c3aed; }
     /* Celda bloqueada (no disponible) */
     .agenda-bloqueo { position:absolute; left:2px; right:2px; background:#3a3a3a; color:#fff; border-radius:4px; z-index:2; display:flex; align-items:center; justify-content:center; gap:8px; font-size:11px; font-weight:600; }
-    .agenda-hueco-bloq { position:absolute; top:2px; right:2px; width:20px; height:20px; border:none; border-radius:4px; background:rgba(255,255,255,0.75); cursor:pointer; font-size:12px; line-height:1; display:flex; align-items:center; justify-content:center; padding:0; color:#666; z-index:2; }
-    .agenda-hueco-bloq:hover { background:#fff; color:var(--peligro); }
+    .agenda-hueco-bloq { position:absolute; top:3px; right:3px; width:21px; height:21px; border:1px solid rgba(0,0,0,0.12); border-radius:5px; background:rgba(255,255,255,0.9); cursor:pointer; font-size:12px; line-height:1; display:flex; align-items:center; justify-content:center; padding:0; color:#666; z-index:2; transition:background .08s, color .08s; }
+    .agenda-hueco-bloq:hover { background:var(--peligro); color:#fff; border-color:var(--peligro); }
   `;
   document.head.appendChild(st);
 }
@@ -466,7 +473,7 @@ async function dibujarAgenda() {
   const altoTotal = slotsRegla.length * negocioSlot;
 
   let html = `<div class="agenda-grid-col ${esPasado ? 'es-pasado' : ''}"
-    style="grid-template-columns: 56px repeat(${cantColumnas}, 1fr);">`;
+    style="grid-template-columns: 56px repeat(${cantColumnas}, 260px); width:max-content;">`;
 
   // Encabezados
   html += `<div class="agenda-col-esquina"></div>`;
