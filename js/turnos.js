@@ -110,7 +110,7 @@ async function abrirModalNuevoTurno(fechaHoraInicial) {
 
 async function abrirModalTurno(turnoId) {
   const { data: turno, error } = await sb.from('turnos')
-    .select('*, pacientes(nombre, apellido, telefono, dni), tipos_atencion(nombre, precio, color), profesionales(nombre)')
+    .select('*, pacientes(nombre, apellido, telefono, dni), tipos_atencion(nombre, precio, color), profesionales(nombre, usuario_id)')
     .eq('id', turnoId)
     .single();
 
@@ -121,6 +121,14 @@ async function abrirModalTurno(turnoId) {
 
   const esRecepcion = usuarioActual.rol === 'recepcion';
   const esProfesional = usuarioActual.rol === 'profesional';
+
+  // Si el profesional DUEÑO reabre un turno que está en atención, va directo
+  // a la ficha de carga (sin el paso intermedio "Cerrar ficha y finalizar").
+  // Esto también cubre el caso de volver tras un F5.
+  if (turno.estado === 'en_atencion' && esProfesional &&
+      turno.profesionales?.usuario_id === usuarioActual.id) {
+    return abrirFichaAtencion(turnoId);
+  }
 
   // Solo-lectura del pasado: un turno de un día anterior a HOY no se puede editar.
   const fT = new Date(turno.fecha_hora);
