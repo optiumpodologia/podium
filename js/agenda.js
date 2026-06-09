@@ -48,6 +48,7 @@ async function renderAgenda(container) {
             <div class="leyenda-item"><div class="leyenda-color" style="background: #9FE1CB; border-left: 3px solid #0F6E56;"></div><span style="font-size: 12px;">Llegó</span></div>
             <div class="leyenda-item"><div class="leyenda-color" style="background: #FAC775; border-left: 3px solid #854F0B;"></div><span style="font-size: 12px;">En atención</span></div>
             <div class="leyenda-item"><div class="leyenda-color" style="background: #B5D4F4; border-left: 3px solid #0C447C;"></div><span style="font-size: 12px;">Finalizado</span></div>
+            <div class="leyenda-item"><div class="leyenda-color" style="background: #ECECEC; border-left: 3px solid #777;"></div><span style="font-size: 12px;">Cobrado</span></div>
           </div>
         </div>
       </div>
@@ -268,6 +269,7 @@ function inyectarEstilosAgenda() {
     .turno-sobre-chip { position:absolute; left:3px; bottom:3px; background:#7c3aed; color:#fff; font-size:10px; font-weight:600; padding:2px 7px; border-radius:9px; cursor:pointer; z-index:3; transition:filter .08s; }
     .turno-sobre-chip:hover { filter:brightness(1.15); }
     .turno-card.es-sobreturno { border-left:3px solid #7c3aed; }
+    .turno-card.estado-cobrado { background:#ECECEC; border-left:3px solid #777; color:#555; }
     /* Celda bloqueada (no disponible) */
     .agenda-bloqueo { position:absolute; left:2px; right:2px; background:#3a3a3a; color:#fff; border-radius:4px; z-index:2; display:flex; align-items:center; justify-content:center; gap:8px; font-size:11px; font-weight:600; }
     .agenda-hueco-bloq { position:absolute; top:3px; right:3px; width:21px; height:21px; border:1px solid rgba(0,0,0,0.12); border-radius:5px; background:rgba(255,255,255,0.9); cursor:pointer; font-size:12px; line-height:1; display:flex; align-items:center; justify-content:center; padding:0; color:#666; z-index:2; transition:background .08s, color .08s; }
@@ -845,6 +847,19 @@ async function abrirModalNuevoTurnoCasillero(profId, columna, fechaStr, startMin
 
     // 3) Insertar
     const fechaHora = new Date(`${fechaStr}T${hora}:00`);
+
+    // Un solo sobreturno por horario/profesional.
+    if (esSobreturno) {
+      const { count } = await sb.from('turnos')
+        .select('id', { count: 'exact', head: true })
+        .eq('profesional_id', profId)
+        .eq('fecha_hora', fechaHora.toISOString())
+        .eq('es_sobreturno', true);
+      if ((count || 0) >= 1) {
+        mostrarMensaje('Ya hay un sobreturno en ese horario.', 'advertencia'); return;
+      }
+    }
+
     const { error } = await sb.from('turnos').insert({
       negocio_id: usuarioActual.negocio_id,
       paciente_id: pacienteId,
@@ -966,12 +981,15 @@ function tarjetaTurnoHTML(t, numero, fechaStr, sobres, esPasado, inicioMin, esHu
   const altura = Math.max(28, (t.duracion_minutos / 60) * 60);
   const nombre = t.pacientes ? `${t.pacientes.apellido}, ${t.pacientes.nombre.split(' ')[0]}` : '-';
   const subtitulo = t.tipos_atencion?.nombre || (t.estado === 'agendado' ? 'Pendiente' : '');
-  const acciones = esPasado ? '' : accionesTurnoHTML(t, numero, fechaStr);
-  const chip = (sobres && sobres.length)
-    ? `<div class="turno-sobre-chip" title="Ver sobreturnos"
-         onclick="event.stopPropagation(); verSobreturnos('${t.profesional_id}','${t.fecha_hora}')">
-         +${sobres.length} sobreturno${sobres.length > 1 ? 's' : ''}</div>`
-    : '';
+  const tieneSobre = !!(sobres && sobres.length);
+  const acciones = esPasado ? '' : accionesTurnoHTML(t, numero, fechaStr, tieneSobre);
+  let chip = '';
+  if (tieneSobre) {
+    const s = sobres[0];
+    const nombreSobre = s.pacientes ? `${s.pacientes.apellido}, ${s.pacientes.nombre.split(' ')[0]}` : 'Sobreturno';
+    chip = `<div class="turno-sobre-chip" title="Ver sobreturno"
+         onclick="event.stopPropagation(); verSobreturnos('${t.profesional_id}','${t.fecha_hora}')">${nombreSobre}</div>`;
+  }
   const claseSobre = (esHuerfano || t.es_sobreturno) ? ' es-sobreturno' : '';
   return `
     <div class="turno-card estado-${t.estado}${claseSobre}"
@@ -987,10 +1005,12 @@ function tarjetaTurnoHTML(t, numero, fechaStr, sobres, esPasado, inicioMin, esHu
 }
 
 // Devuelve la tira de íconos según estado del turno y rol del usuario.
-function accionesTurnoHTML(t, numero, fechaStr) {
+// yaTieneSobre: si el turno base ya tiene un sobreturno, no se ofrece dar otro.
+function accionesTurnoHTML(t, numero, fechaStr, yaTieneSobre) {
   const rol = usuarioActual.rol;
   const esProf = rol === 'profesional';
   const esGestor = rol === 'negocio' || rol === 'recepcion';
+  const puedeSobre = !t.es_sobreturno && !yaTieneSobre;
   const stop = 'event.stopPropagation();';
   const btn = (icono, titulo, fn, extra) =>
     `<button class="turno-accion-btn ${extra || ''}" title="${titulo}" onclick="${stop}${fn}">${icono}</button>`;
@@ -1002,11 +1022,11 @@ function accionesTurnoHTML(t, numero, fechaStr) {
   if (esGestor) {
     if (t.estado === 'agendado') {
       out.push(btn('&#10003;', 'Recibir paciente', `cambiarEstadoTurno('${t.id}','llego')`));
-      if (!t.es_sobreturno) out.push(btn('&#43;', 'Dar sobreturno', `abrirModalNuevoTurnoCasillero('${t.profesional_id}', ${numero}, '${fechaStr}', ${turnoMinInicio(t)}, null, true)`, 'violeta'));
+      if (puedeSobre) out.push(btn('&#43;', 'Dar sobreturno', `abrirModalNuevoTurnoCasillero('${t.profesional_id}', ${numero}, '${fechaStr}', ${turnoMinInicio(t)}, null, true)`, 'violeta'));
       out.push(btn('&#128465;', 'Eliminar turno', `eliminarTurno('${t.id}')`, 'peligro'));
     } else if (t.estado === 'llego') {
       out.push(btn('&#8617;', 'Cancelar recepción', `cambiarEstadoTurno('${t.id}','agendado')`));
-      if (!t.es_sobreturno) out.push(btn('&#43;', 'Dar sobreturno', `abrirModalNuevoTurnoCasillero('${t.profesional_id}', ${numero}, '${fechaStr}', ${turnoMinInicio(t)}, null, true)`, 'violeta'));
+      if (puedeSobre) out.push(btn('&#43;', 'Dar sobreturno', `abrirModalNuevoTurnoCasillero('${t.profesional_id}', ${numero}, '${fechaStr}', ${turnoMinInicio(t)}, null, true)`, 'violeta'));
     } else if (t.estado === 'finalizado') {
       out.push(btn('&#36;', 'Cobrar', `(typeof abrirCobro==='function' ? abrirCobro('${t.id}') : mostrarMensaje('El cobro se activa en el próximo paso','advertencia'))`, 'exito'));
     }
@@ -1019,6 +1039,8 @@ function accionesTurnoHTML(t, numero, fechaStr) {
       out.push(btn('&#129529;', 'Seguir ficha', `abrirFichaAtencion('${t.id}')`));
     } else if (t.estado === 'finalizado') {
       out.push(btn('&#128065;', 'Ver ficha', `abrirFichaAtencion('${t.id}')`));
+    } else if (t.estado === 'cobrado') {
+      out.push(btn('&#128065;', 'Ver ficha', `abrirFichaAtencion('${t.id}', true)`));
     }
   }
 
@@ -1055,21 +1077,20 @@ async function verSobreturnos(profId, fechaHoraISO) {
             <div class="turno-row-tipo"><span class="badge badge-${t.estado}">${etiquetaEstado(t.estado)}</span></div>
           </div>
           <div style="position:relative; min-width:90px;">
-            ${esPasado ? '' : accionesTurnoHTML(t, numero, fechaStr)}
+            ${esPasado ? '' : accionesTurnoHTML(t, numero, fechaStr, true)}
           </div>
         </div>
       `).join('');
 
   abrirModal(`
     <div class="modal-header">
-      <div class="modal-titulo">Sobreturnos &middot; ${minToHora(startMin)}</div>
+      <div class="modal-titulo">Sobreturno &middot; ${minToHora(startMin)}</div>
       <button class="modal-cerrar" onclick="cerrarModal()">&times;</button>
     </div>
     <div class="modal-body">
       <div class="turnos-dia-lista">${items}</div>
     </div>
     <div class="modal-footer">
-      ${esPasado ? '' : `<button class="btn btn-primary-sm" onclick="cerrarModal(); abrirModalNuevoTurnoCasillero('${profId}', ${numero}, '${fechaStr}', ${startMin}, null, true)">+ Agregar sobreturno</button>`}
       <button class="btn" onclick="cerrarModal()">Cerrar</button>
     </div>
   `);
