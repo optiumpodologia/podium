@@ -101,10 +101,24 @@ async function verFichaPaciente(pacienteId) {
 
   const puedeEditar = ['recepcion', 'negocio'].includes(usuarioActual.rol);
 
-  const dato = (lbl, val, full) => `
-    <div class="ficha-campo"${full ? ' style="grid-column:1/-1;"' : ''}>
-      <div class="ficha-campo-lbl">${lbl}</div>
-      <div class="ficha-campo-val${val ? '' : ' vacio'}">${val || 'Sin cargar'}</div>
+  const ic = (p, s = 18) => `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0">${p}</svg>`;
+
+  const ICO = {
+    tel:    '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>',
+    mail:   '<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>',
+    cal:    '<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>',
+    afil:   '<rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/>',
+    dir:    '<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>',
+    obra:   '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>',
+    header: '<rect width="8" height="4" x="8" y="2" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M9 12h6"/><path d="M9 16h6"/>',
+    lock:   '<rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+    nota:   '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6"/><path d="M9 17h6"/>'
+  };
+
+  const cardDato = (iconKey, lbl, val, full) => `
+    <div class="ficha-card${full ? ' full' : ''}">
+      <div class="ficha-card-head"><span class="ficha-card-ico">${ic(ICO[iconKey])}</span><span class="ficha-card-lbl">${lbl}</span></div>
+      <div class="ficha-card-val${val ? '' : ' vacio'}">${val || 'Sin cargar'}</div>
     </div>`;
 
   const fechaNacLinda = paciente.fecha_nacimiento
@@ -112,9 +126,11 @@ async function verFichaPaciente(pacienteId) {
     : '';
 
   abrirModal(`
-    <style>.modal{max-width:740px;}</style>
+    <style>.modal{max-width:860px;}</style>
     <div class="modal-header">
-      <div class="modal-titulo">Vista rápida</div>
+      <div class="modal-titulo" style="display:flex; align-items:center; gap:10px;">
+        <span class="ficha-header-ico">${ic(ICO.header, 18)}</span>Ficha clínica
+      </div>
       <button class="modal-cerrar" onclick="cerrarModal()">×</button>
     </div>
     <div class="modal-body" style="padding:0;">
@@ -128,7 +144,23 @@ async function verFichaPaciente(pacienteId) {
             <div><span>Obra social</span><strong>${paciente.obra_social || '—'}</strong></div>
             <div><span>Última visita</span><strong>${ultimaVisita}</strong></div>
           </div>
-          ${puedeEditar ? `<button class="btn btn-primary-sm ficha-editar" onclick="abrirModalPaciente('${paciente.id}')">Editar</button>` : ''}
+          ${puedeEditar ? `<button class="btn btn-primary-sm ficha-editar" onclick="abrirModalPaciente('${paciente.id}')">Editar datos</button>` : ''}
+
+          <div class="ficha-nota">
+            <div class="ficha-nota-head"><span class="ficha-nota-ico">${ic(ICO.nota, 16)}</span> Nota rápida</div>
+            <div id="nota-display">
+              <div class="ficha-nota-texto${paciente.notas ? '' : ' vacio'}">${paciente.notas || 'Sin notas agregadas'}</div>
+              ${puedeEditar ? `<button class="ficha-nota-btn" onclick="fichaNotaEditar()">${paciente.notas ? 'Editar nota' : '+ Agregar nota'}</button>` : ''}
+            </div>
+            ${puedeEditar ? `
+            <div id="nota-editor" style="display:none;">
+              <textarea id="nota-input" class="anam-input" rows="4" placeholder="Ej: avisar 1 día antes, paga en efectivo...">${paciente.notas || ''}</textarea>
+              <div style="display:flex; gap:6px; justify-content:flex-end; margin-top:8px;">
+                <button class="btn" onclick="fichaNotaCancelar()">Cancelar</button>
+                <button class="btn btn-primary-sm" onclick="guardarNota('${paciente.id}')">Guardar</button>
+              </div>
+            </div>` : ''}
+          </div>
         </aside>
 
         <div class="ficha-main">
@@ -139,14 +171,13 @@ async function verFichaPaciente(pacienteId) {
           </div>
 
           <div class="ficha-panel active" data-fpanel="personales">
-            <div class="ficha-grid">
-              ${dato('Teléfono', paciente.telefono)}
-              ${dato('Email', paciente.email)}
-              ${dato('Fecha de nacimiento', fechaNacLinda)}
-              ${dato('N° de afiliado', paciente.numero_afiliado)}
-              ${dato('Dirección', paciente.direccion, true)}
-              ${dato('Obra social', paciente.obra_social, true)}
-              ${paciente.notas ? dato('Notas', paciente.notas, true) : ''}
+            <div class="ficha-cards">
+              ${cardDato('tel', 'Teléfono', paciente.telefono)}
+              ${cardDato('mail', 'Email', paciente.email)}
+              ${cardDato('cal', 'Fecha de nacimiento', fechaNacLinda)}
+              ${cardDato('afil', 'N° de afiliado', paciente.numero_afiliado)}
+              ${cardDato('dir', 'Dirección', paciente.direccion, true)}
+              ${cardDato('obra', 'Obra social', paciente.obra_social, true)}
             </div>
           </div>
 
@@ -173,10 +204,37 @@ async function verFichaPaciente(pacienteId) {
         </div>
       </div>
     </div>
-    <div class="modal-footer">
+    <div class="modal-footer" style="justify-content:space-between; align-items:center;">
+      <div class="ficha-footer-conf">${ic(ICO.lock, 15)} Información confidencial. Uso exclusivo profesional.</div>
       <button class="btn" onclick="cerrarModal()">Cerrar</button>
     </div>
   `);
+}
+
+// --- Nota rápida (campo pacientes.notas) ---
+function fichaNotaEditar() {
+  const d = document.getElementById('nota-display'), e = document.getElementById('nota-editor');
+  if (d) d.style.display = 'none';
+  if (e) e.style.display = 'block';
+}
+function fichaNotaCancelar() {
+  const d = document.getElementById('nota-display'), e = document.getElementById('nota-editor');
+  if (e) e.style.display = 'none';
+  if (d) d.style.display = 'block';
+}
+async function guardarNota(pacienteId) {
+  const ta = document.getElementById('nota-input');
+  if (!ta) return;
+  const texto = ta.value.trim() || null;
+  const { error } = await sb.from('pacientes').update({ notas: texto }).eq('id', pacienteId);
+  if (error) { mostrarMensaje('No se pudo guardar la nota: ' + error.message, 'error'); return; }
+  mostrarMensaje('Nota guardada', 'exito');
+  const disp = document.getElementById('nota-display');
+  const txtEl = disp ? disp.querySelector('.ficha-nota-texto') : null;
+  if (txtEl) { txtEl.textContent = texto || 'Sin notas agregadas'; txtEl.classList.toggle('vacio', !texto); }
+  const btn = disp ? disp.querySelector('.ficha-nota-btn') : null;
+  if (btn) btn.textContent = texto ? 'Editar nota' : '+ Agregar nota';
+  fichaNotaCancelar();
 }
 
 // Cambia de pestaña dentro de la ficha.
