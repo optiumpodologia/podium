@@ -29,13 +29,6 @@ async function renderAgenda(container) {
   inyectarEstilosAgenda();
   agendaFechaActual = new Date();
   container.innerHTML = `
-    <div class="page-header">
-      <div>
-        <div class="page-title">Agenda</div>
-        <div class="page-subtitle">Gestioná los turnos de tus consultorios</div>
-      </div>
-    </div>
-
     <div class="agenda-layout">
       <div class="agenda-sidebar">
         <div class="card" style="padding: 12px;">
@@ -74,11 +67,13 @@ async function renderAgenda(container) {
           <div id="agenda-resumen-dia"></div>
         </div>
         <div class="card" style="padding: 16px;">
-          <div class="card-title" style="font-size: 14px; margin-bottom: 10px;">Notas del día</div>
-          <div class="panel-placeholder">
-            <div class="panel-placeholder-icono">&#128221;</div>
-            <div>Espacio reservado para anotaciones, lista de espera y recordatorios.</div>
+          <div class="card-title" style="font-size: 14px; margin-bottom: 10px;">Notas</div>
+          <div class="notas-add">
+            <input id="nota-nueva" class="notas-input" maxlength="280" placeholder="Agregar nota..."
+                   onkeydown="if(event.key==='Enter'){event.preventDefault();agregarNotaAgenda();}">
+            <button class="notas-add-btn" onclick="agregarNotaAgenda()" title="Agregar nota">+</button>
           </div>
+          <div id="agenda-notas" class="notas-lista"></div>
         </div>
       </div>
     </div>
@@ -86,6 +81,7 @@ async function renderAgenda(container) {
 
   await dibujarAgenda();
   dibujarMiniCalendario();
+  cargarNotasAgenda();
 }
 
 // ============================================================
@@ -688,8 +684,9 @@ function renderPanelDia(columnas, turnos) {
     const pendientes = en('agendado', 'llego', 'en_atencion');
     const atendidos = en('finalizado', 'cobrado');
     const ausencias = en('ausente');
-    const tile = (icono, clase, num, label) => `
-      <div class="tile-stat">
+    const sobreturnos = ts.filter(t => t.es_sobreturno && t.estado !== 'cancelado').length;
+    const tile = (icono, clase, num, label, full) => `
+      <div class="tile-stat${full ? ' tile-full' : ''}">
         <div class="tile-icono ${clase}">${icono}</div>
         <div>
           <div class="tile-num">${num}</div>
@@ -701,8 +698,89 @@ function renderPanelDia(columnas, turnos) {
       ${tile(svgMini('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>'), 'advertencia', pendientes, 'Pendientes')}
       ${tile(svgMini('<path d="M21.8 10A10 10 0 1 1 17 3.3"/><path d="m9 11 3 3L22 4"/>'), 'exito', atendidos, 'Atendidos')}
       ${tile(svgMini('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="17" x2="22" y1="8" y2="13"/><line x1="22" x2="17" y1="8" y2="13"/>'), 'info', ausencias, 'Ausencias')}
+      ${tile(svgMini('<path d="M8 2v4"/><path d="M16 2v4"/><path d="M21 13V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h7"/><path d="M3 10h18"/><path d="M16 19h6"/><path d="M19 16v6"/>'), '', sobreturnos, 'Sobreturnos', true)}
     </div>`;
   }
+}
+
+// ============================================================
+// NOTAS PERMANENTES (panel derecho) — tabla notas_agenda, por negocio
+//   Agregar (input), cada nota es un cuadro, X para borrar,
+//   clic en el texto edita inline y guarda al salir (vaciar = borrar).
+// ============================================================
+let _notasAgenda = [];
+
+function escHtmlNota(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+async function cargarNotasAgenda() {
+  const cont = document.getElementById('agenda-notas');
+  if (!cont) return;
+  const { data, error } = await sb.from('notas_agenda')
+    .select('id, texto')
+    .eq('negocio_id', usuarioActual.negocio_id)
+    .order('creado_en', { ascending: true });
+  if (error) { cont.innerHTML = `<div class="notas-vacio">No se pudieron cargar las notas.</div>`; return; }
+  _notasAgenda = data || [];
+  pintarNotasAgenda();
+}
+
+function pintarNotasAgenda() {
+  const cont = document.getElementById('agenda-notas');
+  if (!cont) return;
+  if (_notasAgenda.length === 0) {
+    cont.innerHTML = `<div class="notas-vacio">Sin notas. Sumá recordatorios o lista de espera.</div>`;
+    return;
+  }
+  cont.innerHTML = _notasAgenda.map(n => `
+    <div class="nota-box" data-id="${n.id}">
+      <div class="nota-box-texto" onclick="editarNotaAgenda('${n.id}')" title="Tocá para editar">${escHtmlNota(n.texto)}</div>
+      <button class="nota-box-x" onclick="eliminarNotaAgenda('${n.id}')" title="Eliminar">&times;</button>
+    </div>`).join('');
+}
+
+async function agregarNotaAgenda() {
+  const inp = document.getElementById('nota-nueva');
+  if (!inp) return;
+  const texto = inp.value.trim();
+  if (!texto) return;
+  const { error } = await sb.from('notas_agenda')
+    .insert({ negocio_id: usuarioActual.negocio_id, texto });
+  if (error) { mostrarMensaje('No se pudo agregar la nota: ' + error.message, 'error'); return; }
+  inp.value = '';
+  await cargarNotasAgenda();
+}
+
+async function eliminarNotaAgenda(id) {
+  const { error } = await sb.from('notas_agenda').delete().eq('id', id);
+  if (error) { mostrarMensaje('No se pudo eliminar: ' + error.message, 'error'); return; }
+  _notasAgenda = _notasAgenda.filter(n => n.id !== id);
+  pintarNotasAgenda();
+}
+
+function editarNotaAgenda(id) {
+  const box = document.querySelector(`.nota-box[data-id="${id}"]`);
+  const nota = _notasAgenda.find(n => n.id === id);
+  if (!box || !nota) return;
+  box.classList.add('editando');
+  box.innerHTML = `<textarea class="nota-box-edit" rows="2" maxlength="280">${escHtmlNota(nota.texto)}</textarea>`;
+  const ta = box.querySelector('textarea');
+  ta.focus();
+  ta.setSelectionRange(ta.value.length, ta.value.length);
+  ta.addEventListener('blur', async () => {
+    const nuevo = ta.value.trim();
+    if (!nuevo) { await eliminarNotaAgenda(id); return; }       // vaciar = borrar
+    if (nuevo !== nota.texto) {
+      const { error } = await sb.from('notas_agenda')
+        .update({ texto: nuevo, actualizado_en: new Date().toISOString() }).eq('id', id);
+      if (error) { mostrarMensaje('No se pudo guardar: ' + error.message, 'error'); }
+      else { nota.texto = nuevo; }
+    }
+    pintarNotasAgenda();
+  }, { once: true });
 }
 
 // ============================================================
