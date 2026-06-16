@@ -1291,3 +1291,26 @@ input, select, textarea {
   .ficha-resumen { border-right: none; border-bottom: 1px solid var(--borde-tenue); }
   .ficha-grid { grid-template-columns: 1fr; }
 }
+
+/* ----- Anamnesis (formulario clínico) ----- */
+.ficha-tab-alerta {
+  display: inline-block;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--advertencia);
+  margin-left: 5px;
+  vertical-align: middle;
+}
+.anam-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  font-size: 13px;
+  background: #fff;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.anam-input:focus { border-color: var(--primario); box-shadow: 0 0 0 3px rgba(109,91,208,0.15); }
+.anam-pie { display: flex; flex-wrap: wrap; gap: 14px; }
+.anam-pie-op { display: flex; align-items: center; gap: 5px; font-size: 13px; cursor: pointer; }

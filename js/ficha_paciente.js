@@ -11,6 +11,71 @@ function calcularEdad(fechaNac) {
   return e;
 }
 
+// --- Anamnesis: campos y armado del panel clínico ---
+const ANAMNESIS_CAMPOS = [
+  { k: 'primera_visita',       label: 'Primera visita' },
+  { k: 'enfermedad_base',      label: 'Enfermedad de base' },
+  { k: 'bajo_tratamiento',     label: 'Bajo tratamiento' },
+  { k: 'medicacion',           label: 'Medicación' },
+  { k: 'antitetanica',         label: 'Antitetánica' },
+  { k: 'presion_arterial',     label: 'Presión arterial' },
+  { k: 'diabetico',            label: 'Diabético' },
+  { k: 'discrasias',           label: 'Discrasias sanguíneas' },
+  { k: 'procesos_infecciosos', label: 'Procesos infecciosos' },
+  { k: 'valoracion_piel',      label: 'Valoración de la piel' },
+  { k: 'cianosis',             label: 'Cianosis' },
+  { k: 'turgencia',            label: 'Turgencia' },
+  { k: 'problemas_vasculares', label: 'Problemas vasculares' },
+  { k: 'alergias',             label: 'Alergias' },
+];
+const PIE_OPCIONES = ['Normal', 'Frío', 'Caliente', 'Húmedo', 'Intertrigo'];
+
+function panelAnamnesisHTML(anam, editable, pacienteId) {
+  const v = (k) => (anam && anam[k]) ? anam[k] : '';
+  const esc = (s) => String(s).replace(/"/g, '&quot;');
+
+  if (!editable) {
+    // Solo lectura (recepción)
+    if (!anam) {
+      return `<div class="panel-placeholder" style="padding:2rem 1rem;">
+        <div>Anamnesis pendiente de carga.<br>La completa el profesional en la primera atención.</div>
+      </div>`;
+    }
+    const campos = ANAMNESIS_CAMPOS.map(c => `
+      <div class="ficha-campo">
+        <div class="ficha-campo-lbl">${c.label}</div>
+        <div class="ficha-campo-val${v(c.k) ? '' : ' vacio'}">${v(c.k) || '—'}</div>
+      </div>`).join('');
+    return `<div class="ficha-grid">${campos}
+      <div class="ficha-campo"><div class="ficha-campo-lbl">Pie</div><div class="ficha-campo-val${v('pie') ? '' : ' vacio'}">${v('pie') || '—'}</div></div>
+      <div class="ficha-campo" style="grid-column:1/-1;"><div class="ficha-campo-lbl">Observaciones</div><div class="ficha-campo-val${v('observaciones') ? '' : ' vacio'}">${v('observaciones') || '—'}</div></div>
+    </div>`;
+  }
+
+  // Editable (profesional / negocio)
+  const inputs = ANAMNESIS_CAMPOS.map(c => `
+    <div class="ficha-campo">
+      <label class="ficha-campo-lbl">${c.label}</label>
+      <input class="anam-input" id="anam_${c.k}" value="${esc(v(c.k))}">
+    </div>`).join('');
+  const pieRadios = PIE_OPCIONES.map(op => `
+    <label class="anam-pie-op"><input type="radio" name="anam_pie" value="${op}" ${v('pie') === op ? 'checked' : ''}> ${op}</label>`).join('');
+  return `
+    <div class="ficha-grid">${inputs}
+      <div class="ficha-campo" style="grid-column:1/-1;">
+        <div class="ficha-campo-lbl" style="margin-bottom:6px;">Pie</div>
+        <div class="anam-pie">${pieRadios}</div>
+      </div>
+      <div class="ficha-campo" style="grid-column:1/-1;">
+        <label class="ficha-campo-lbl">Observaciones</label>
+        <textarea class="anam-input" id="anam_observaciones" rows="3" style="resize:vertical;">${v('observaciones')}</textarea>
+      </div>
+    </div>
+    <div style="display:flex; justify-content:flex-end; margin-top:14px;">
+      <button class="btn btn-primary-sm" onclick="guardarAnamnesis('${pacienteId}')">Guardar anamnesis</button>
+    </div>`;
+}
+
 async function verFichaPaciente(pacienteId) {
   const { data: paciente } = await sb.from('pacientes').select('*').eq('id', pacienteId).single();
   if (!paciente) {
@@ -29,6 +94,10 @@ async function verFichaPaciente(pacienteId) {
   const ultimaVisita = (turnos && turnos.length)
     ? new Date(turnos[0].fecha_hora).toLocaleDateString('es-AR')
     : '—';
+
+  const { data: anam } = await sb.from('anamnesis').select('*').eq('paciente_id', pacienteId).maybeSingle();
+  const anamPendiente = !anam;
+  const puedeEditarClinica = puede(usuarioActual, 'atender');   // profesional/negocio/full editan; recepción solo ve
 
   const puedeEditar = ['recepcion', 'negocio'].includes(usuarioActual.rol);
 
@@ -65,7 +134,7 @@ async function verFichaPaciente(pacienteId) {
         <div class="ficha-main">
           <div class="ficha-tabs">
             <button class="ficha-tab active" data-ftab="personales" onclick="fichaTab('personales')">Datos personales</button>
-            <button class="ficha-tab" data-ftab="clinica" onclick="fichaTab('clinica')">Datos clínicos</button>
+            <button class="ficha-tab" data-ftab="clinica" onclick="fichaTab('clinica')">Datos clínicos${anamPendiente ? ` <span class="ficha-tab-alerta" title="Pendiente de carga"></span>` : ''}</button>
             <button class="ficha-tab" data-ftab="consultas" onclick="fichaTab('consultas')">Últimas consultas</button>
           </div>
 
@@ -82,10 +151,7 @@ async function verFichaPaciente(pacienteId) {
           </div>
 
           <div class="ficha-panel" data-fpanel="clinica">
-            <div class="panel-placeholder" style="padding:2rem 1rem;">
-              <div class="panel-placeholder-icono"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M9 12h6"/><path d="M9 16h6"/></svg></div>
-              <div>La sección de anamnesis se está definiendo.<br>La completa el profesional cuando llega el paciente.</div>
-            </div>
+            ${panelAnamnesisHTML(anam, puedeEditarClinica, paciente.id)}
           </div>
 
           <div class="ficha-panel" data-fpanel="consultas">
@@ -117,6 +183,32 @@ async function verFichaPaciente(pacienteId) {
 function fichaTab(id) {
   document.querySelectorAll('.ficha-tab').forEach(t => t.classList.toggle('active', t.dataset.ftab === id));
   document.querySelectorAll('.ficha-panel').forEach(p => p.classList.toggle('active', p.dataset.fpanel === id));
+}
+
+// Guarda la anamnesis del paciente (una por paciente). La completa el profesional/negocio.
+async function guardarAnamnesis(pacienteId) {
+  const val = (k) => {
+    const el = document.getElementById('anam_' + k);
+    return el ? (el.value.trim() || null) : null;
+  };
+  const pieEl = document.querySelector('input[name="anam_pie"]:checked');
+
+  const datos = {
+    paciente_id: pacienteId,
+    negocio_id: usuarioActual.negocio_id,
+    actualizado_por: usuarioActual.id,
+    actualizado_en: new Date().toISOString()
+  };
+  ANAMNESIS_CAMPOS.forEach(c => { datos[c.k] = val(c.k); });
+  datos.observaciones = val('observaciones');
+  datos.pie = pieEl ? pieEl.value : null;
+
+  const { error } = await sb.from('anamnesis').upsert(datos, { onConflict: 'paciente_id' });
+  if (error) { mostrarMensaje('No se pudo guardar la anamnesis: ' + error.message, 'error'); return; }
+
+  mostrarMensaje('Anamnesis guardada', 'exito');
+  const dot = document.querySelector('.ficha-tab-alerta');
+  if (dot) dot.remove();   // ya no está pendiente
 }
 
 
