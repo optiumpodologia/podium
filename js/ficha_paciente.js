@@ -30,8 +30,7 @@ async function verFichaPaciente(pacienteId) {
     ? new Date(turnos[0].fecha_hora).toLocaleDateString('es-AR')
     : '—';
 
-  const puedeEditar  = usuarioActual.rol === 'recepcion';   // mismo criterio que la lista de pacientes
-  const puedeClinica = puede(usuarioActual, 'atender');     // profesional / negocio / profesional_full
+  const puedeEditar = ['recepcion', 'negocio'].includes(usuarioActual.rol);
 
   const dato = (lbl, val, full) => `
     <div class="ficha-campo"${full ? ' style="grid-column:1/-1;"' : ''}>
@@ -66,7 +65,7 @@ async function verFichaPaciente(pacienteId) {
         <div class="ficha-main">
           <div class="ficha-tabs">
             <button class="ficha-tab active" data-ftab="personales" onclick="fichaTab('personales')">Datos personales</button>
-            ${puedeClinica ? `<button class="ficha-tab" data-ftab="clinica" onclick="fichaTab('clinica')">Datos clínicos</button>` : ''}
+            <button class="ficha-tab" data-ftab="clinica" onclick="fichaTab('clinica')">Datos clínicos</button>
             <button class="ficha-tab" data-ftab="consultas" onclick="fichaTab('consultas')">Últimas consultas</button>
           </div>
 
@@ -82,16 +81,12 @@ async function verFichaPaciente(pacienteId) {
             </div>
           </div>
 
-          ${puedeClinica ? `
           <div class="ficha-panel" data-fpanel="clinica">
-            <label class="ficha-campo-lbl" style="display:block; margin-bottom:6px;">Anamnesis</label>
-            <textarea id="ficha-anamnesis" rows="8"
-              style="width:100%; padding:10px 12px; border:1px solid var(--borde); border-radius:var(--radio); resize:vertical; outline:none;"
-              placeholder="Antecedentes personales y familiares, motivo de consulta, alergias, medicación...">${paciente.anamnesis || ''}</textarea>
-            <div style="display:flex; justify-content:flex-end; margin-top:10px;">
-              <button class="btn btn-primary-sm" onclick="guardarAnamnesis('${paciente.id}')">Guardar anamnesis</button>
+            <div class="panel-placeholder" style="padding:2rem 1rem;">
+              <div class="panel-placeholder-icono"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M9 12h6"/><path d="M9 16h6"/></svg></div>
+              <div>La sección de anamnesis se está definiendo.<br>La completa el profesional cuando llega el paciente.</div>
             </div>
-          </div>` : ''}
+          </div>
 
           <div class="ficha-panel" data-fpanel="consultas">
             ${turnos && turnos.length > 0 ? `
@@ -124,15 +119,6 @@ function fichaTab(id) {
   document.querySelectorAll('.ficha-panel').forEach(p => p.classList.toggle('active', p.dataset.fpanel === id));
 }
 
-// Guarda la anamnesis (campo pacientes.anamnesis). La completa el profesional.
-async function guardarAnamnesis(pacienteId) {
-  const ta = document.getElementById('ficha-anamnesis');
-  if (!ta) return;
-  const texto = ta.value.trim() || null;
-  const { error } = await sb.from('pacientes').update({ anamnesis: texto }).eq('id', pacienteId);
-  if (error) { mostrarMensaje('No se pudo guardar la anamnesis: ' + error.message, 'error'); return; }
-  mostrarMensaje('Anamnesis guardada', 'exito');
-}
 
 
 async function abrirFichaAtencion(turnoId, soloLectura = false) {
