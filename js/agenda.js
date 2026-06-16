@@ -446,6 +446,10 @@ async function dibujarAgenda() {
   // ¿Este usuario gestiona la agenda (puede recibir/bloquear/cobrar/sobreturno)?
   const esGestor = ['negocio', 'recepcion'].includes(usuarioActual.rol);
 
+  // ¿Puede CREAR turnos? Negocio, Recepción y Profesional Full (no el profesional común).
+  // La RLS igual bloquea de fondo; esto solo evita mostrarle una acción que va a rebotar.
+  const puedeCrearTurno = puede(usuarioActual, 'crear_turno');
+
   // Paso de la grilla (regla de la izquierda) = duración por defecto del negocio.
   const negocioSlot = parseInt(config?.duracion_turno_minutos) || 45;
 
@@ -547,7 +551,8 @@ async function dibujarAgenda() {
 
         // Huecos: uno por cada renglón de la grilla del negocio que caiga dentro
         // de la franja del profesional y no choque con un turno ni esté bloqueado.
-        slotsRegla.forEach(t => {
+        // Solo para quien puede crear turnos; el profesional común no ve el "+".
+        if (puedeCrearTurno) slotsRegla.forEach(t => {
           if (t + negocioSlot > finMin) return;
           const dentro = franjas.some(fr => t >= fr.ini && t + negocioSlot <= fr.fin);
           if (!dentro) return;
@@ -603,7 +608,7 @@ async function dibujarAgenda() {
           <div class="agenda-libre-icono">&#128197;</div>
           <div class="agenda-libre-titulo">Agenda libre</div>
           <div class="agenda-libre-texto">Agregá un profesional para<br>comenzar a asignar turnos</div>
-          ${esPasado ? '' : `<button class="btn btn-primary-sm" style="margin-top:10px;" onclick="agendaAgregarProfesional(${numero})">+ Agregar profesional</button>`}
+          ${(!esPasado && esGestor) ? `<button class="btn btn-primary-sm" style="margin-top:10px;" onclick="agendaAgregarProfesional(${numero})">+ Agregar profesional</button>` : ''}
         </div>
       `;
     }
