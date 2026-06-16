@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#534AB7">
+<meta name="theme-color" content="#6D5BD0">
 <title>Podología</title>
 <link rel="stylesheet" href="css/styles.css">
 </head>
@@ -12,7 +12,7 @@
 
 <aside class="sidebar">
   <div class="sidebar-logo">
-    <div class="sidebar-logo-icon">⚕</div>
+    <div class="sidebar-logo-icon"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle"><path d="M4 16v-2.38C4 11.5 2.97 10.5 3 8c.03-2.72 1.49-6 4.5-6C9.37 2 10 3.8 10 5.5c0 3.11-2 5.66-2 8.68V16a2 2 0 1 1-4 0Z"/><path d="M20 20v-2.38c0-2.12 1.03-3.12 1-5.62-.03-2.72-1.49-6-4.5-6C14.63 6 14 7.8 14 9.5c0 3.11 2 5.66 2 8.68V20a2 2 0 1 0 4 0Z"/><path d="M16 17h4"/><path d="M4 13h4"/></svg></div>
     <div class="sidebar-logo-text">Podología</div>
   </div>
 
@@ -25,7 +25,7 @@
       <div class="user-name" id="user-name">...</div>
       <div class="user-role" id="user-role">...</div>
     </div>
-    <button class="btn-logout" onclick="cerrarSesion()" title="Cerrar sesión">⏏</button>
+    <button class="btn-logout" onclick="cerrarSesion()" title="Cerrar sesión"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg></button>
   </div>
 </aside>
 
@@ -65,21 +65,40 @@ let usuarioActual = null;
 // refrescar (F5) vuelva a la misma pantalla en vez de ir siempre a Inicio.
 const MODULO_KEY = 'podium_modulo_activo';
 
+// Iconos de línea (estilo Lucide), embebidos como SVG. Heredan el color del
+// ítem (gris normal, violeta cuando está activo) vía stroke="currentColor".
+const svgIcon = (paths) =>
+  `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle">${paths}</svg>`;
+
+const ICONS = {
+  negocios:       svgIcon('<path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/>'),
+  planes:         svgIcon('<path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r=".5" fill="currentColor"/>'),
+  dashboard:      svgIcon('<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/>'),
+  agenda:         svgIcon('<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>'),
+  pacientes:      svgIcon('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'),
+  consultorios:   svgIcon('<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>'),
+  profesionales:  svgIcon('<path d="M16 18a4 4 0 0 0-8 0"/><circle cx="12" cy="11" r="3"/><rect width="18" height="18" x="3" y="3" rx="2"/>'),
+  tipos_atencion: svgIcon('<path d="M11 2v2"/><path d="M5 2v2"/><path d="M5 3H4a2 2 0 0 0-2 2v4a6 6 0 0 0 12 0V5a2 2 0 0 0-2-2h-1"/><path d="M8 15a6 6 0 0 0 6 6 4 4 0 0 0 4-4 2 2 0 0 0-2-2 2 2 0 0 0-2 2"/><circle cx="20" cy="10" r="2"/>'),
+  productos:      svgIcon('<path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/>'),
+  usuarios:       svgIcon('<path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/>'),
+  configuracion:  svgIcon('<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>')
+};
+
 // Catálogo ÚNICO de módulos (id, etiqueta, ícono, función que lo dibuja).
 // Quién ve cada uno lo decide permisos.js (MODULOS_ACCESO), no este archivo.
 // El orden de acá es el orden en que aparecen en el menú.
 const MODULOS = [
-  { id: 'negocios',       label: 'Negocios',       icon: '🏢',   render: renderNegocios },
-  { id: 'planes',         label: 'Planes',          icon: '🏷️',  render: renderPlanes },
-  { id: 'dashboard',      label: 'Inicio',         icon: '⌂',    render: renderDashboard },
-  { id: 'agenda',         label: 'Agenda',         icon: '📅',   render: renderAgenda },
-  { id: 'pacientes',      label: 'Pacientes',      icon: '👥',   render: renderPacientes },
-  { id: 'consultorios',   label: 'Consultorios',   icon: '📍',   render: renderConsultorios },
-  { id: 'profesionales',  label: 'Mi equipo',      icon: '👨‍⚕', render: renderProfesionales },
-  { id: 'tipos_atencion', label: 'Atenciones',     icon: '🩺',   render: renderTiposAtencion },
-  { id: 'productos',      label: 'Productos',       icon: '📦',   render: renderProductos },
-  { id: 'usuarios',       label: 'Usuarios',        icon: '🔑',   render: renderUsuarios },
-  { id: 'configuracion',  label: 'Configuración',   icon: '⚙',    render: renderConfiguracion }
+  { id: 'negocios',       label: 'Negocios',        icon: ICONS.negocios,       render: renderNegocios },
+  { id: 'planes',         label: 'Planes',          icon: ICONS.planes,         render: renderPlanes },
+  { id: 'dashboard',      label: 'Inicio',          icon: ICONS.dashboard,      render: renderDashboard },
+  { id: 'agenda',         label: 'Agenda',          icon: ICONS.agenda,         render: renderAgenda },
+  { id: 'pacientes',      label: 'Pacientes',       icon: ICONS.pacientes,      render: renderPacientes },
+  { id: 'consultorios',   label: 'Consultorios',    icon: ICONS.consultorios,   render: renderConsultorios },
+  { id: 'profesionales',  label: 'Mi equipo',       icon: ICONS.profesionales,  render: renderProfesionales },
+  { id: 'tipos_atencion', label: 'Atenciones',      icon: ICONS.tipos_atencion, render: renderTiposAtencion },
+  { id: 'productos',      label: 'Productos',        icon: ICONS.productos,      render: renderProductos },
+  { id: 'usuarios',       label: 'Usuarios',         icon: ICONS.usuarios,       render: renderUsuarios },
+  { id: 'configuracion',  label: 'Configuración',    icon: ICONS.configuracion,  render: renderConfiguracion }
 ];
 
 (async () => {
