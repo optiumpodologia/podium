@@ -60,11 +60,11 @@ async function renderAgenda(container) {
         <div id="agenda-grid-container"></div>
 
         <div class="leyenda">
-          <div class="leyenda-item"><div class="leyenda-color" style="background:#EFEDFB; border-left-color:#6D5BD0;"></div><span>Agendado</span></div>
-          <div class="leyenda-item"><div class="leyenda-color" style="background:#E3F6EC; border-left-color:#1F9D6B;"></div><span>Llegó</span></div>
-          <div class="leyenda-item"><div class="leyenda-color" style="background:#FCF1DC; border-left-color:#B7791F;"></div><span>En atención</span></div>
-          <div class="leyenda-item"><div class="leyenda-color" style="background:#E6F0FB; border-left-color:#2E6FB8;"></div><span>Finalizado</span></div>
-          <div class="leyenda-item"><div class="leyenda-color" style="background:#EFEFF2; border-left-color:#9A9AA8;"></div><span>Cobrado</span></div>
+          <span class="leyenda-chip lc-agendado">Agendado</span>
+          <span class="leyenda-chip lc-llego">Llegó</span>
+          <span class="leyenda-chip lc-en_atencion">En atención</span>
+          <span class="leyenda-chip lc-finalizado">Finalizado</span>
+          <span class="leyenda-chip lc-cobrado">Cobrado</span>
         </div>
       </div>
 

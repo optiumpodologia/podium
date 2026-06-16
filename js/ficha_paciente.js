@@ -44,11 +44,11 @@ function panelAnamnesisHTML(anam, editable, pacienteId) {
     const campos = ANAMNESIS_CAMPOS.map(c => `
       <div class="ficha-campo">
         <div class="ficha-campo-lbl">${c.label}</div>
-        <div class="ficha-campo-val${v(c.k) ? '' : ' vacio'}">${v(c.k) || '—'}</div>
+        <div class="ficha-campo-val${v(c.k) ? '' : ' sin-dato'}">${v(c.k) || '—'}</div>
       </div>`).join('');
     return `<div class="ficha-grid">${campos}
-      <div class="ficha-campo"><div class="ficha-campo-lbl">Pie</div><div class="ficha-campo-val${v('pie') ? '' : ' vacio'}">${v('pie') || '—'}</div></div>
-      <div class="ficha-campo" style="grid-column:1/-1;"><div class="ficha-campo-lbl">Observaciones</div><div class="ficha-campo-val${v('observaciones') ? '' : ' vacio'}">${v('observaciones') || '—'}</div></div>
+      <div class="ficha-campo"><div class="ficha-campo-lbl">Pie</div><div class="ficha-campo-val${v('pie') ? '' : ' sin-dato'}">${v('pie') || '—'}</div></div>
+      <div class="ficha-campo" style="grid-column:1/-1;"><div class="ficha-campo-lbl">Observaciones</div><div class="ficha-campo-val${v('observaciones') ? '' : ' sin-dato'}">${v('observaciones') || '—'}</div></div>
     </div>`;
   }
 
@@ -119,7 +119,7 @@ async function verFichaPaciente(pacienteId) {
   const cardDato = (iconKey, lbl, val, full) => `
     <div class="ficha-card${full ? ' full' : ''}">
       <div class="ficha-card-head"><span class="ficha-card-ico">${ic(ICO[iconKey], 16)}</span><span class="ficha-card-lbl">${lbl}</span></div>
-      <div class="ficha-card-val${val ? '' : ' vacio'}">${val || 'Sin cargar'}</div>
+      <div class="ficha-card-val${val ? '' : ' sin-dato'}">${val || 'Sin cargar'}</div>
     </div>`;
 
   const fechaNacLinda = paciente.fecha_nacimiento
@@ -151,7 +151,7 @@ async function verFichaPaciente(pacienteId) {
             <div class="ficha-nota-head"><span class="ficha-nota-ico">${ic(ICO.nota, 15)}</span> Nota rápida</div>
             ${puedeEditar
               ? `<textarea id="nota-input" class="ficha-nota-area" rows="3" placeholder="+ Agregar nota..." onblur="guardarNota('${paciente.id}')">${paciente.notas || ''}</textarea>`
-              : `<div class="ficha-nota-texto${paciente.notas ? '' : ' vacio'}">${paciente.notas || 'Sin notas'}</div>`}
+              : `<div class="ficha-nota-texto${paciente.notas ? '' : ' sin-dato'}">${paciente.notas || 'Sin notas'}</div>`}
           </div>
         </aside>
 

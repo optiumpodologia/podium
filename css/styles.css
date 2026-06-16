@@ -806,26 +806,25 @@ input, select, textarea {
 
 .leyenda {
   display: flex;
-  gap: 14px;
-  padding: 10px 16px;
+  gap: 8px;
+  padding: 12px 16px;
   border-top: 1px solid var(--borde-tenue);
-  font-size: 12px;
-  color: var(--texto-secundario);
   flex-wrap: wrap;
 }
 
-.leyenda-item {
-  display: flex;
-  align-items: center;
-  gap: 5px;
+.leyenda-chip {
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 999px;
+  line-height: 1.4;
+  border: 1px solid transparent;
 }
-
-.leyenda-color {
-  width: 12px;
-  height: 12px;
-  border-radius: 3px;
-  border-left: 3px solid;
-}
+.lc-agendado    { background: #EFEDFB; color: #5A4BB8; border-color: #DAD3F4; }
+.lc-llego       { background: #E3F6EC; color: #157A52; border-color: #C5EAD5; }
+.lc-en_atencion { background: #FCF1DC; color: #8C5E14; border-color: #F2E2BE; }
+.lc-finalizado  { background: #E6F0FB; color: #1F5894; border-color: #CADEF3; }
+.lc-cobrado     { background: #EFEFF2; color: #5A5A6B; border-color: #E0E0E6; }
 
 /* ===== TABLAS ===== */
 .tabla {
@@ -1284,7 +1283,7 @@ input, select, textarea {
 }
 .ficha-campo-lbl { font-size: 12px; color: var(--texto-secundario); margin-bottom: 3px; }
 .ficha-campo-val { font-size: 14px; }
-.ficha-campo-val.vacio { color: var(--texto-tenue); }
+.ficha-campo-val.sin-dato { color: var(--texto-tenue); }
 
 @media (max-width: 720px) {
   .ficha-cols { grid-template-columns: 1fr; }
@@ -1342,7 +1341,7 @@ input, select, textarea {
 .ficha-card-ico { color: var(--primario); display: inline-flex; }
 .ficha-card-lbl { font-size: 12px; font-weight: 500; color: var(--texto-secundario); }
 .ficha-card-val { font-size: 14px; color: var(--texto); }
-.ficha-card-val.vacio { color: var(--texto-tenue); font-size: 13px; }
+.ficha-card-val.sin-dato { color: var(--texto-tenue); font-size: 13px; }
 
 .ficha-footer-conf {
   display: flex; align-items: center; gap: 6px;
@@ -1372,4 +1371,4 @@ input, select, textarea {
 }
 .ficha-nota-area:focus { background: #fff; border-color: var(--primario-medio); }
 .ficha-nota-texto { font-size: 13px; line-height: 1.5; white-space: pre-wrap; }
-.ficha-nota-texto.vacio { color: var(--texto-tenue); }
+.ficha-nota-texto.sin-dato { color: var(--texto-tenue); }
