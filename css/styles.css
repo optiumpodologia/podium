@@ -643,9 +643,9 @@ input, select, textarea {
 /* color por AUTOR del mensaje */
 .msg-recepcion   { background: var(--primario-claro); border: 1px solid var(--primario-medio); color: var(--texto); }
 .msg-profesional { background: #E3F6EC; border: 1px solid #C5EAD5; color: #14543A; }
-/* alineación por DUEÑO (quién lo escribió desde mi punto de vista) */
-.msg-mio  { align-self: flex-end; }
-.msg-otro { align-self: flex-start; }
+/* alineación por DUEÑO: lo propio a la IZQUIERDA, lo recibido a la DERECHA */
+.msg-mio  { align-self: flex-start; }
+.msg-otro { align-self: flex-end; }
 
 .msg-envio { display: flex; gap: 6px; }
 .msg-input {
@@ -664,6 +664,19 @@ input, select, textarea {
   transition: background 0.15s;
 }
 .msg-enviar-btn:hover { background: var(--primario-hover); }
+.msg-campanita-btn {
+  flex: none; width: 34px;
+  border: 1px solid var(--borde); border-radius: var(--radio);
+  background: #fff; color: var(--primario);
+  font-size: 15px; line-height: 1; cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.msg-campanita-btn:hover { background: var(--primario-claro); }
+.msg-badge.pulso { animation: msgPulso 0.55s ease-in-out 3; }
+@keyframes msgPulso {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.18); background: var(--peligro); }
+}
 
 /* ----- Placeholder de tarjeta futura ----- */
 .panel-placeholder {

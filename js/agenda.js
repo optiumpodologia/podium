@@ -29,6 +29,7 @@ let _ttPacientes = [];         // cache de pacientes para el typeahead del alta 
 let _msgPollId = null;         // setInterval del poll de no leídos; se limpia al salir de la agenda
 let _msgProfIdActual = null;   // profesional_id del usuario profesional (cache, para ENVIAR)
 let _msgHiloProfId = null;     // (gestor) profesional cuyo hilo está abierto en el selector
+let _msgUltUrgentes = 0;       // baseline de llamadas (urgentes) sin leer, para no repetir el sonido
 
 async function renderAgenda(container) {
   if (_msgPollId) { clearInterval(_msgPollId); _msgPollId = null; }  // no acumular polls al re-renderizar
@@ -816,6 +817,7 @@ function esGestorMsg() {
 
 async function initMensajes() {
   await contarNoLeidos();
+  _msgUltUrgentes = await contarUrgentesNoLeidos();  // arranca sin sonar por llamadas viejas
   if (_msgPollId) { clearInterval(_msgPollId); _msgPollId = null; }
   _msgPollId = setInterval(_msgPoll, 30000);
 }
@@ -826,7 +828,15 @@ function _msgPoll() {
     if (_msgPollId) { clearInterval(_msgPollId); _msgPollId = null; }
     return;
   }
-  contarNoLeidos();
+  refrescarMensajes();
+}
+
+// Refresca badge y detecta llamadas nuevas (suena la campanita una vez por llamada).
+async function refrescarMensajes() {
+  await contarNoLeidos();
+  const u = await contarUrgentesNoLeidos();
+  if (u > _msgUltUrgentes) { sonarCampanita(); destacarBadge(); }
+  _msgUltUrgentes = u;
 }
 
 // Cuenta los mensajes entrantes sin leer y actualiza el badge.
@@ -868,6 +878,7 @@ function toggleMensajes() {
 function barraEnvioMsgHTML() {
   return `
     <div class="msg-envio">
+      <button class="msg-campanita-btn" onclick="enviarLlamada()" title="Llamar la atención (suena del otro lado)">&#128276;</button>
       <input id="msg-input" class="msg-input" maxlength="500" placeholder="Escribir mensaje..."
              onkeydown="if(event.key==='Enter'){event.preventDefault();enviarMensaje();}">
       <button class="msg-enviar-btn" onclick="enviarMensaje()" title="Enviar">&#10148;</button>
@@ -980,6 +991,65 @@ async function enviarMensaje() {
   if (error) { mostrarMensaje('No se pudo enviar: ' + error.message, 'error'); return; }
   inp.value = '';
   await cargarHilo(profId);
+}
+
+// --- Campanita (llamada de atención con sonido) -----------------------
+// Cuenta las llamadas (urgente=true) entrantes sin leer.
+async function contarUrgentesNoLeidos() {
+  const { count } = await sb.from('mensajes')
+    .select('id', { count: 'exact', head: true })
+    .eq('leido', false)
+    .eq('de_recepcion', !esGestorMsg())
+    .eq('urgente', true);
+  return count || 0;
+}
+
+async function enviarLlamada() {
+  const gestor = esGestorMsg();
+  const profId = gestor ? _msgHiloProfId : _msgProfIdActual;
+  if (!profId) { mostrarMensaje('No hay un hilo activo.', 'advertencia'); return; }
+  const { error } = await sb.from('mensajes').insert({
+    negocio_id: usuarioActual.negocio_id,
+    profesional_id: profId,
+    de_recepcion: gestor,
+    texto: '\u{1F514} Llamada de atención',
+    urgente: true
+  });
+  if (error) { mostrarMensaje('No se pudo llamar: ' + error.message, 'error'); return; }
+  sonarCampanita();                 // feedback inmediato para quien llama
+  mostrarMensaje('Llamada enviada', 'exito');
+  await cargarHilo(profId);
+}
+
+// Beep corto de dos tonos con Web Audio (sin archivo de audio).
+// Algunos navegadores exigen una interacción previa antes de permitir sonido.
+function sonarCampanita() {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    [880, 1175].forEach((f, i) => {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = 'sine';
+      o.frequency.value = f;
+      o.connect(g); g.connect(ctx.destination);
+      const t0 = ctx.currentTime + i * 0.18;
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(0.25, t0 + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.16);
+      o.start(t0); o.stop(t0 + 0.18);
+    });
+    setTimeout(() => ctx.close(), 700);
+  } catch (e) { /* navegador bloqueó el audio: se ignora */ }
+}
+
+function destacarBadge() {
+  const badge = document.getElementById('msg-badge');
+  if (!badge) return;
+  badge.classList.remove('pulso');
+  void badge.offsetWidth;   // reinicia la animación si ya estaba puesta
+  badge.classList.add('pulso');
 }
 
 // ============================================================
