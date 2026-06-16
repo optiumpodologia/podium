@@ -1324,22 +1324,24 @@ input, select, textarea {
   display: inline-flex; align-items: center; justify-content: center;
 }
 
+/* Tarjetas de dato: fondo suave (contraste sin marco), compactas */
 .ficha-cards {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 14px;
+  gap: 10px;
+  align-items: start;
 }
 .ficha-card {
-  border: 1px solid var(--borde-tenue);
-  border-radius: var(--radio-lg);
-  padding: 14px 16px;
-  background: #fff;
+  background: var(--fondo);
+  border: none;
+  border-radius: var(--radio);
+  padding: 10px 13px;
 }
 .ficha-card.full { grid-column: 1 / -1; }
-.ficha-card-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.ficha-card-head { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; }
 .ficha-card-ico { color: var(--primario); display: inline-flex; }
-.ficha-card-lbl { font-size: 13px; font-weight: 600; color: var(--texto); }
-.ficha-card-val { font-size: 14px; }
+.ficha-card-lbl { font-size: 12px; font-weight: 500; color: var(--texto-secundario); }
+.ficha-card-val { font-size: 14px; color: var(--texto); }
 .ficha-card-val.vacio { color: var(--texto-tenue); font-size: 13px; }
 
 .ficha-footer-conf {
@@ -1347,30 +1349,27 @@ input, select, textarea {
   font-size: 12px; color: var(--texto-tenue);
 }
 
-.ficha-nota {
-  width: 100%;
-  margin-top: 16px;
-  padding: 14px;
-  border: 1px solid var(--borde-tenue);
-  border-radius: var(--radio-lg);
-  text-align: left;
-}
+/* Nota rápida: campo simple, sin marco pesado; guarda al salir */
+.ficha-nota { width: 100%; margin-top: 16px; text-align: left; }
 .ficha-nota-head {
-  display: flex; align-items: center; gap: 7px;
-  font-size: 13px; font-weight: 600;
-  margin-bottom: 8px;
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 500; color: var(--texto-secundario);
+  margin-bottom: 6px;
 }
 .ficha-nota-ico { color: var(--primario); display: inline-flex; }
+.ficha-nota-area {
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: var(--radio);
+  background: var(--fondo);
+  padding: 9px 11px;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+  outline: none;
+  transition: background 0.15s, border-color 0.15s;
+}
+.ficha-nota-area:focus { background: #fff; border-color: var(--primario-medio); }
 .ficha-nota-texto { font-size: 13px; line-height: 1.5; white-space: pre-wrap; }
 .ficha-nota-texto.vacio { color: var(--texto-tenue); }
-.ficha-nota-btn {
-  margin-top: 10px;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--primario);
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-}
-.ficha-nota-btn:hover { text-decoration: underline; }

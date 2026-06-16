@@ -100,6 +100,7 @@ async function verFichaPaciente(pacienteId) {
   const puedeEditarClinica = puede(usuarioActual, 'atender');   // profesional/negocio/full editan; recepción solo ve
 
   const puedeEditar = ['recepcion', 'negocio'].includes(usuarioActual.rol);
+  _notaOriginal = paciente.notas || '';
 
   const ic = (p, s = 18) => `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0">${p}</svg>`;
 
@@ -117,7 +118,7 @@ async function verFichaPaciente(pacienteId) {
 
   const cardDato = (iconKey, lbl, val, full) => `
     <div class="ficha-card${full ? ' full' : ''}">
-      <div class="ficha-card-head"><span class="ficha-card-ico">${ic(ICO[iconKey])}</span><span class="ficha-card-lbl">${lbl}</span></div>
+      <div class="ficha-card-head"><span class="ficha-card-ico">${ic(ICO[iconKey], 16)}</span><span class="ficha-card-lbl">${lbl}</span></div>
       <div class="ficha-card-val${val ? '' : ' vacio'}">${val || 'Sin cargar'}</div>
     </div>`;
 
@@ -147,19 +148,10 @@ async function verFichaPaciente(pacienteId) {
           ${puedeEditar ? `<button class="btn btn-primary-sm ficha-editar" onclick="abrirModalPaciente('${paciente.id}')">Editar datos</button>` : ''}
 
           <div class="ficha-nota">
-            <div class="ficha-nota-head"><span class="ficha-nota-ico">${ic(ICO.nota, 16)}</span> Nota rápida</div>
-            <div id="nota-display">
-              <div class="ficha-nota-texto${paciente.notas ? '' : ' vacio'}">${paciente.notas || 'Sin notas agregadas'}</div>
-              ${puedeEditar ? `<button class="ficha-nota-btn" onclick="fichaNotaEditar()">${paciente.notas ? 'Editar nota' : '+ Agregar nota'}</button>` : ''}
-            </div>
-            ${puedeEditar ? `
-            <div id="nota-editor" style="display:none;">
-              <textarea id="nota-input" class="anam-input" rows="4" placeholder="Ej: avisar 1 día antes, paga en efectivo...">${paciente.notas || ''}</textarea>
-              <div style="display:flex; gap:6px; justify-content:flex-end; margin-top:8px;">
-                <button class="btn" onclick="fichaNotaCancelar()">Cancelar</button>
-                <button class="btn btn-primary-sm" onclick="guardarNota('${paciente.id}')">Guardar</button>
-              </div>
-            </div>` : ''}
+            <div class="ficha-nota-head"><span class="ficha-nota-ico">${ic(ICO.nota, 15)}</span> Nota rápida</div>
+            ${puedeEditar
+              ? `<textarea id="nota-input" class="ficha-nota-area" rows="3" placeholder="+ Agregar nota..." onblur="guardarNota('${paciente.id}')">${paciente.notas || ''}</textarea>`
+              : `<div class="ficha-nota-texto${paciente.notas ? '' : ' vacio'}">${paciente.notas || 'Sin notas'}</div>`}
           </div>
         </aside>
 
@@ -211,30 +203,17 @@ async function verFichaPaciente(pacienteId) {
   `);
 }
 
-// --- Nota rápida (campo pacientes.notas) ---
-function fichaNotaEditar() {
-  const d = document.getElementById('nota-display'), e = document.getElementById('nota-editor');
-  if (d) d.style.display = 'none';
-  if (e) e.style.display = 'block';
-}
-function fichaNotaCancelar() {
-  const d = document.getElementById('nota-display'), e = document.getElementById('nota-editor');
-  if (e) e.style.display = 'none';
-  if (d) d.style.display = 'block';
-}
+// --- Nota rápida (campo pacientes.notas) — se guarda sola al salir del campo ---
+let _notaOriginal = '';
 async function guardarNota(pacienteId) {
   const ta = document.getElementById('nota-input');
   if (!ta) return;
-  const texto = ta.value.trim() || null;
-  const { error } = await sb.from('pacientes').update({ notas: texto }).eq('id', pacienteId);
+  const texto = ta.value.trim();
+  if (texto === (_notaOriginal || '').trim()) return;   // sin cambios, no guarda ni avisa
+  const { error } = await sb.from('pacientes').update({ notas: texto || null }).eq('id', pacienteId);
   if (error) { mostrarMensaje('No se pudo guardar la nota: ' + error.message, 'error'); return; }
+  _notaOriginal = texto;
   mostrarMensaje('Nota guardada', 'exito');
-  const disp = document.getElementById('nota-display');
-  const txtEl = disp ? disp.querySelector('.ficha-nota-texto') : null;
-  if (txtEl) { txtEl.textContent = texto || 'Sin notas agregadas'; txtEl.classList.toggle('vacio', !texto); }
-  const btn = disp ? disp.querySelector('.ficha-nota-btn') : null;
-  if (btn) btn.textContent = texto ? 'Editar nota' : '+ Agregar nota';
-  fichaNotaCancelar();
 }
 
 // Cambia de pestaña dentro de la ficha.
