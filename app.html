@@ -31,7 +31,12 @@
 
 <main class="main" id="main">
   <div class="vacio">
-    <div class="vacio-icon">⏳</div>
+    <svg width="34" height="34" viewBox="0 0 50 50" style="margin-bottom:0.5rem" aria-label="Cargando">
+      <circle cx="25" cy="25" r="20" fill="none" stroke="#E6E3F7" stroke-width="5"/>
+      <circle cx="25" cy="25" r="20" fill="none" stroke="#6D5BD0" stroke-width="5" stroke-linecap="round" stroke-dasharray="90 150">
+        <animateTransform attributeName="transform" type="rotate" from="0 25 25" to="360 25 25" dur="0.9s" repeatCount="indefinite"/>
+      </circle>
+    </svg>
     Cargando...
   </div>
 </main>

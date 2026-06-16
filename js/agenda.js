@@ -653,6 +653,11 @@ function iniciales(nombre) {
   return ((p[0]?.[0] || '') + (p[1]?.[0] || '')).toUpperCase() || '?';
 }
 
+// Icono de línea para los tiles del resumen (hereda el color del recuadro).
+function svgMini(paths) {
+  return `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="display:block">${paths}</svg>`;
+}
+
 function renderPanelDia(columnas, turnos) {
   // --- Profesionales del día (panel izquierdo) ---
   const cont = document.getElementById('agenda-profes-dia');
@@ -692,10 +697,10 @@ function renderPanelDia(columnas, turnos) {
         </div>
       </div>`;
     res.innerHTML = `<div class="resumen-grid">
-      ${tile('&#128197;', '', total, 'Turnos')}
-      ${tile('&#9203;', 'advertencia', pendientes, 'Pendientes')}
-      ${tile('&#10003;', 'exito', atendidos, 'Atendidos')}
-      ${tile('&#128100;', 'info', ausencias, 'Ausencias')}
+      ${tile(svgMini('<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>'), '', total, 'Turnos')}
+      ${tile(svgMini('<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>'), 'advertencia', pendientes, 'Pendientes')}
+      ${tile(svgMini('<path d="M21.8 10A10 10 0 1 1 17 3.3"/><path d="m9 11 3 3L22 4"/>'), 'exito', atendidos, 'Atendidos')}
+      ${tile(svgMini('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="17" x2="22" y1="8" y2="13"/><line x1="22" x2="17" y1="8" y2="13"/>'), 'info', ausencias, 'Ausencias')}
     </div>`;
   }
 }
