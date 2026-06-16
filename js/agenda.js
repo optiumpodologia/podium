@@ -492,7 +492,7 @@ async function dibujarAgenda() {
   const altoTotal = slotsRegla.length * negocioSlot;
 
   let html = `<div class="agenda-grid-col ${esPasado ? 'es-pasado' : ''}"
-    style="grid-template-columns: 56px repeat(${cantColumnas}, 260px); width:max-content;">`;
+    style="grid-template-columns: 56px repeat(${cantColumnas}, minmax(0, 1fr)); width:100%; max-width:${56 + cantColumnas * 220}px;">`;
 
   // Encabezados
   html += `<div class="agenda-col-esquina"></div>`;
@@ -721,7 +721,7 @@ async function cargarNotasAgenda() {
   if (!cont) return;
   const { data, error } = await sb.from('notas_agenda')
     .select('id, texto')
-    .eq('negocio_id', usuarioActual.negocio_id)
+    .eq('usuario_id', usuarioActual.id)
     .order('creado_en', { ascending: true });
   if (error) { cont.innerHTML = `<div class="notas-vacio">No se pudieron cargar las notas.</div>`; return; }
   _notasAgenda = data || [];
@@ -748,7 +748,7 @@ async function agregarNotaAgenda() {
   const texto = inp.value.trim();
   if (!texto) return;
   const { error } = await sb.from('notas_agenda')
-    .insert({ negocio_id: usuarioActual.negocio_id, texto });
+    .insert({ negocio_id: usuarioActual.negocio_id, usuario_id: usuarioActual.id, texto });
   if (error) { mostrarMensaje('No se pudo agregar la nota: ' + error.message, 'error'); return; }
   inp.value = '';
   await cargarNotasAgenda();
