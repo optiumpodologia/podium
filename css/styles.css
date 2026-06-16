@@ -1,26 +1,48 @@
+/* ============================================================
+   PODIUM · Optium Podología — Hoja de estilos
+   Refresh estético (igualando la referencia de Agenda).
+   - Se conservan TODAS las clases existentes (no rompe el JS).
+   - Para volver al violeta original: --primario: #534AB7;
+   ============================================================ */
+
 :root {
-  --primario: #534AB7;
-  --primario-claro: #EEEDFE;
-  --primario-medio: #CECBF6;
-  --texto: #1a1a1a;
-  --texto-secundario: #666;
-  --texto-tenue: #999;
-  --borde: #e5e5e5;
-  --borde-tenue: #f0f0f0;
-  --fondo: #fafafa;
-  --fondo-card: #ffffff;
-  --exito: #0F6E56;
-  --exito-claro: #E1F5EE;
-  --peligro: #A32D2D;
-  --peligro-claro: #FCEBEB;
-  --advertencia: #854F0B;
-  --advertencia-claro: #FAEEDA;
-  --info: #185FA5;
-  --info-claro: #E6F1FB;
-  --sombra: 0 1px 3px rgba(0,0,0,0.05);
-  --sombra-fuerte: 0 4px 12px rgba(0,0,0,0.08);
-  --radio: 8px;
-  --radio-lg: 12px;
+  /* Marca */
+  --primario:        #6D5BD0;
+  --primario-hover:  #5E4DC2;
+  --primario-claro:  #EEEBFB;
+  --primario-medio:  #D6CFF4;
+
+  /* Texto (negros levemente fríos, combinan con el violeta) */
+  --texto:            #1B1B2B;
+  --texto-secundario: #6B6B7B;
+  --texto-tenue:      #A0A0B0;
+
+  /* Bordes y fondos */
+  --borde:        #ECECF2;
+  --borde-tenue:  #F2F2F7;
+  --fondo:        #F6F6FB;
+  --fondo-sutil:  #FAFAFE;
+  --fondo-card:   #FFFFFF;
+
+  /* Semánticos */
+  --exito:           #1F9D6B;
+  --exito-claro:     #E3F6EC;
+  --peligro:         #CB3A3A;
+  --peligro-claro:   #FBEAEA;
+  --advertencia:     #B7791F;
+  --advertencia-claro: #FBF0DA;
+  --info:            #2E6FB8;
+  --info-claro:      #E6F0FB;
+
+  /* Sombras (suaves y difusas, look "flotante") */
+  --sombra:        0 1px 2px rgba(17,24,39,0.04), 0 1px 3px rgba(17,24,39,0.05);
+  --sombra-card:   0 1px 2px rgba(17,24,39,0.04), 0 1px 2px rgba(17,24,39,0.03);
+  --sombra-fuerte: 0 12px 32px -10px rgba(17,24,39,0.16), 0 4px 12px -6px rgba(17,24,39,0.10);
+
+  /* Radios */
+  --radio-sm: 8px;
+  --radio:    10px;
+  --radio-lg: 16px;
 }
 
 * {
@@ -30,11 +52,14 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  /* Si más adelante cargás Inter por <link>, mejora solo. Hoy usa la del sistema. */
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   background: var(--fondo);
   color: var(--texto);
   font-size: 14px;
   line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 button {
@@ -51,6 +76,11 @@ input, select, textarea {
   font-size: 14px;
 }
 
+/* Números tabulares para horas / métricas (alinean prolijo) */
+.stat-value, .turno-row-hora, .agenda-hora-label, .agenda-hora, .agenda-dia-numero {
+  font-variant-numeric: tabular-nums;
+}
+
 /* ===== LOGIN ===== */
 .login-wrap {
   min-height: 100vh;
@@ -58,34 +88,37 @@ input, select, textarea {
   align-items: center;
   justify-content: center;
   padding: 1rem;
-  background: linear-gradient(135deg, var(--primario-claro) 0%, #fff 100%);
+  background: radial-gradient(120% 120% at 50% 0%, var(--primario-claro) 0%, var(--fondo) 55%, #fff 100%);
 }
 
 .login-card {
-  background: white;
+  background: #fff;
   border-radius: var(--radio-lg);
   padding: 2.5rem;
   width: 100%;
   max-width: 400px;
   box-shadow: var(--sombra-fuerte);
+  border: 1px solid var(--borde-tenue);
 }
 
 .login-logo {
   width: 56px;
   height: 56px;
-  border-radius: var(--radio);
-  background: var(--primario);
-  color: white;
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--primario) 0%, #8676E0 100%);
+  color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 28px;
   margin: 0 auto 1.5rem;
+  box-shadow: 0 8px 18px -6px rgba(109,91,208,0.55);
 }
 
 .login-card h1 {
   font-size: 22px;
   font-weight: 600;
+  letter-spacing: -0.02em;
   text-align: center;
   margin-bottom: 0.5rem;
 }
@@ -115,30 +148,36 @@ input, select, textarea {
   padding: 10px 12px;
   border: 1px solid var(--borde);
   border-radius: var(--radio);
-  background: white;
+  background: #fff;
+  color: var(--texto);
   outline: none;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 
 .input-group input:focus,
 .input-group select:focus,
 .input-group textarea:focus {
   border-color: var(--primario);
+  box-shadow: 0 0 0 3px rgba(109,91,208,0.15);
 }
+
+.input-group input::placeholder,
+.input-group textarea::placeholder { color: var(--texto-tenue); }
 
 .btn-primary {
   width: 100%;
   background: var(--primario);
-  color: white;
+  color: #fff;
   padding: 12px;
   border-radius: var(--radio);
-  font-weight: 500;
+  font-weight: 600;
   font-size: 14px;
-  transition: opacity 0.15s;
+  transition: background 0.15s, box-shadow 0.15s;
+  box-shadow: 0 6px 14px -6px rgba(109,91,208,0.5);
 }
 
-.btn-primary:hover { opacity: 0.92; }
-.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-primary:hover { background: var(--primario-hover); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
 
 .error-msg {
   background: var(--peligro-claro);
@@ -152,14 +191,14 @@ input, select, textarea {
 /* ===== APP LAYOUT ===== */
 .app {
   display: grid;
-  grid-template-columns: 220px 1fr;
+  grid-template-columns: 232px 1fr;
   min-height: 100vh;
 }
 
 .sidebar {
-  background: white;
+  background: #fff;
   border-right: 1px solid var(--borde);
-  padding: 1.25rem;
+  padding: 1.25rem 0.9rem;
   display: flex;
   flex-direction: column;
 }
@@ -168,45 +207,47 @@ input, select, textarea {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 0 8px 1.25rem;
-  border-bottom: 1px solid var(--borde-tenue);
-  margin-bottom: 1rem;
+  padding: 0 8px 1.1rem;
+  margin-bottom: 0.9rem;
 }
 
 .sidebar-logo-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radio);
-  background: var(--primario);
-  color: white;
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  background: linear-gradient(135deg, var(--primario) 0%, #8676E0 100%);
+  color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 18px;
+  box-shadow: 0 6px 14px -6px rgba(109,91,208,0.55);
+  flex-shrink: 0;
 }
 
 .sidebar-logo-text {
-  font-weight: 600;
-  font-size: 15px;
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: -0.02em;
 }
 
 .sidebar-nav {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
 }
 
 .nav-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 9px 10px;
+  gap: 11px;
+  padding: 10px 11px;
   border-radius: var(--radio);
   color: var(--texto-secundario);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
-  transition: background 0.12s;
+  transition: background 0.12s, color 0.12s;
   text-decoration: none;
   width: 100%;
   text-align: left;
@@ -220,16 +261,19 @@ input, select, textarea {
 .nav-item.active {
   background: var(--primario-claro);
   color: var(--primario);
+  font-weight: 600;
 }
 
 .nav-item-icon {
-  font-size: 17px;
+  font-size: 18px;
   width: 20px;
   text-align: center;
+  flex-shrink: 0;
 }
 
 .sidebar-user {
-  padding-top: 1rem;
+  padding: 0.75rem 8px 0;
+  margin-top: 0.5rem;
   border-top: 1px solid var(--borde-tenue);
   display: flex;
   align-items: center;
@@ -237,16 +281,16 @@ input, select, textarea {
 }
 
 .user-avatar {
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
-  background: var(--primario-medio);
+  background: var(--primario-claro);
   color: var(--primario);
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 600;
-  font-size: 12px;
+  font-size: 13px;
   flex-shrink: 0;
 }
 
@@ -257,7 +301,7 @@ input, select, textarea {
 }
 
 .user-name {
-  font-weight: 500;
+  font-weight: 600;
   font-size: 13px;
   white-space: nowrap;
   overflow: hidden;
@@ -280,7 +324,7 @@ input, select, textarea {
 
 /* ===== MAIN ===== */
 .main {
-  padding: 1.5rem 2rem;
+  padding: 1.75rem 2rem;
   overflow-x: hidden;
 }
 
@@ -294,13 +338,14 @@ input, select, textarea {
 }
 
 .page-title {
-  font-size: 22px;
-  font-weight: 600;
-  margin-bottom: 4px;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  margin-bottom: 3px;
 }
 
 .page-subtitle {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--texto-secundario);
 }
 
@@ -308,45 +353,50 @@ input, select, textarea {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 14px;
+  padding: 9px 14px;
   border-radius: var(--radio);
   font-weight: 500;
   font-size: 13px;
-  background: white;
+  color: var(--texto);
+  background: #fff;
   border: 1px solid var(--borde);
-  transition: all 0.12s;
+  transition: background 0.12s, border-color 0.12s, box-shadow 0.12s;
 }
 
-.btn:hover { background: var(--fondo); }
+.btn:hover { background: var(--fondo); border-color: var(--primario-medio); }
 
 .btn-primary-sm {
   background: var(--primario);
-  color: white;
+  color: #fff;
   border-color: var(--primario);
+  font-weight: 600;
+  box-shadow: 0 6px 14px -7px rgba(109,91,208,0.6);
 }
 
-.btn-primary-sm:hover { opacity: 0.92; background: var(--primario); }
+.btn-primary-sm:hover { background: var(--primario-hover); border-color: var(--primario-hover); }
 
 .btn-danger {
-  background: white;
+  background: #fff;
   color: var(--peligro);
   border-color: var(--borde);
 }
 
-.btn-danger:hover { background: var(--peligro-claro); }
+.btn-danger:hover { background: var(--peligro-claro); border-color: var(--peligro-claro); }
 
 /* ===== CARDS ===== */
 .card {
-  background: white;
-  border: 1px solid var(--borde);
+  background: #fff;
+  border: 1px solid var(--borde-tenue);
   border-radius: var(--radio-lg);
-  padding: 1.25rem;
+  padding: 1.4rem;
   margin-bottom: 1rem;
+  box-shadow: var(--sombra-card);
 }
 
 .card-title {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
+  letter-spacing: -0.01em;
   margin-bottom: 1rem;
   display: flex;
   justify-content: space-between;
@@ -362,10 +412,11 @@ input, select, textarea {
 }
 
 .stat-card {
-  background: white;
-  border: 1px solid var(--borde);
-  padding: 1rem 1.25rem;
+  background: #fff;
+  border: 1px solid var(--borde-tenue);
+  padding: 1.1rem 1.25rem;
   border-radius: var(--radio-lg);
+  box-shadow: var(--sombra-card);
 }
 
 .stat-label {
@@ -375,8 +426,9 @@ input, select, textarea {
 }
 
 .stat-value {
-  font-size: 24px;
-  font-weight: 600;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 .grid-2 {
@@ -385,11 +437,48 @@ input, select, textarea {
   gap: 1rem;
 }
 
+/* ============================================================
+   PANEL DERECHO / TARJETAS DE RESUMEN  (preparado para Paso 2)
+   Tile con ícono en cuadrado tintado + número grande + label.
+   ============================================================ */
+.tile-stat {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tile-icono {
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+  background: var(--primario-claro);
+  color: var(--primario);
+}
+.tile-icono.exito       { background: var(--exito-claro);       color: var(--exito); }
+.tile-icono.advertencia { background: var(--advertencia-claro); color: var(--advertencia); }
+.tile-icono.info        { background: var(--info-claro);        color: var(--info); }
+
+.tile-num {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+.tile-label {
+  font-size: 12px;
+  color: var(--texto-secundario);
+}
+
 /* ===== AGENDA / CALENDARIO ===== */
 .agenda-layout {
   display: grid;
-  grid-template-columns: 220px 1fr;
-  gap: 1rem;
+  grid-template-columns: 232px 1fr;
+  gap: 1.25rem;
   align-items: start;
 }
 
@@ -406,17 +495,18 @@ input, select, textarea {
 }
 
 .agenda-wrap {
-  background: white;
-  border: 1px solid var(--borde);
+  background: #fff;
+  border: 1px solid var(--borde-tenue);
   border-radius: var(--radio-lg);
   overflow: hidden;
+  box-shadow: var(--sombra-card);
 }
 
 .agenda-controles {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 12px 16px;
+  padding: 14px 18px;
   border-bottom: 1px solid var(--borde-tenue);
   flex-wrap: wrap;
 }
@@ -429,45 +519,61 @@ input, select, textarea {
 
 .agenda-fecha-titulo {
   font-weight: 600;
-  font-size: 14px;
+  font-size: 15px;
+  letter-spacing: -0.01em;
   margin: 0 8px;
   min-width: 200px;
+  text-transform: capitalize;
 }
 
 .btn-icon {
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   border-radius: var(--radio);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: white;
+  background: #fff;
   border: 1px solid var(--borde);
-  font-size: 14px;
+  color: var(--texto-secundario);
+  font-size: 15px;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
 }
 
-.btn-icon:hover { background: var(--fondo); }
+.btn-icon:hover { background: var(--fondo); border-color: var(--primario-medio); color: var(--texto); }
 
+/* Selector de vista (Día / Semana / Mes) — control segmentado */
 .agenda-vistas {
   display: flex;
-  gap: 4px;
+  gap: 2px;
   margin-left: auto;
+  background: var(--fondo);
+  border: 1px solid var(--borde-tenue);
+  border-radius: var(--radio);
+  padding: 3px;
 }
 
 .btn-vista {
-  padding: 6px 12px;
-  border-radius: var(--radio);
-  background: white;
-  border: 1px solid var(--borde);
+  padding: 6px 14px;
+  border-radius: 7px;
+  background: transparent;
+  border: none;
+  color: var(--texto-secundario);
   font-size: 13px;
+  font-weight: 500;
+  transition: background 0.12s, color 0.12s, box-shadow 0.12s;
 }
+
+.btn-vista:hover { color: var(--texto); }
 
 .btn-vista.active {
-  background: var(--primario-claro);
+  background: #fff;
   color: var(--primario);
-  border-color: var(--primario-medio);
+  font-weight: 600;
+  box-shadow: var(--sombra-card);
 }
 
+/* ----- Grilla "clásica" semana/día (se conserva) ----- */
 .agenda-grid {
   display: grid;
   grid-template-columns: 60px repeat(6, 1fr);
@@ -486,12 +592,12 @@ input, select, textarea {
 }
 
 .agenda-header-dia.hoy {
-  background: var(--info-claro);
+  background: var(--primario-claro);
 }
 
 .agenda-header-dia.hoy .agenda-dia-nombre,
 .agenda-header-dia.hoy .agenda-dia-numero {
-  color: var(--info);
+  color: var(--primario);
   font-weight: 600;
 }
 
@@ -518,14 +624,14 @@ input, select, textarea {
 }
 
 .agenda-col-dia.hoy {
-  background: #fafafe;
+  background: var(--fondo-sutil);
 }
 
 .agenda-hora {
   height: 60px;
   padding: 6px 8px;
   font-size: 11px;
-  color: var(--texto-secundario);
+  color: var(--texto-tenue);
   text-align: right;
   border-bottom: 1px dashed var(--borde-tenue);
 }
@@ -539,30 +645,32 @@ input, select, textarea {
 }
 
 .agenda-celda-hora:hover {
-  background: rgba(83, 74, 183, 0.04);
+  background: rgba(109,91,208,0.05);
 }
 
+/* ----- Tarjeta de turno ----- */
 .turno-card {
   position: absolute;
-  left: 3px;
-  right: 3px;
-  padding: 4px 6px;
-  border-radius: 4px;
+  left: 4px;
+  right: 4px;
+  padding: 6px 9px;
+  border-radius: var(--radio-sm);
   border-left: 3px solid;
-  font-size: 11px;
+  font-size: 11.5px;
   cursor: pointer;
   overflow: hidden;
   z-index: 2;
-  background: #F1EFE8;
-  border-left-color: #888780;
-  color: #2C2C2A;
-  transition: all 0.2s;
+  /* default = AGENDADO (violeta suave, en línea con la referencia) */
+  background: #EFEDFB;
+  border-left-color: var(--primario);
+  color: #3D348B;
+  transition: box-shadow 0.18s, transform 0.18s;
 }
 
 .turno-card:hover {
   z-index: 3;
   box-shadow: var(--sombra-fuerte);
-  transform: scale(1.02);
+  transform: translateY(-1px);
 }
 
 .turno-card-nombre {
@@ -573,42 +681,48 @@ input, select, textarea {
 }
 
 .turno-card-detalle {
-  opacity: 0.85;
+  opacity: 0.8;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
+/* Estados (pasteles limpios, acento a la izquierda) */
 .turno-card.estado-llego {
-  background: #9FE1CB;
-  border-left-color: #0F6E56;
-  color: #04342C;
-  animation: pulso-llego 1.5s ease-in-out infinite;
+  background: var(--exito-claro);
+  border-left-color: var(--exito);
+  color: #0B5E3E;
+  animation: pulso-llego 1.6s ease-in-out infinite;
 }
 
 .turno-card.estado-en_atencion {
-  background: #FAC775;
-  border-left-color: #854F0B;
-  color: #412402;
+  background: #FCF1DC;
+  border-left-color: var(--advertencia);
+  color: #6B4A12;
 }
 
 .turno-card.estado-finalizado {
-  background: #B5D4F4;
-  border-left-color: #0C447C;
-  color: #042C53;
+  background: var(--info-claro);
+  border-left-color: var(--info);
+  color: #14457A;
 }
 
 .turno-card.estado-cancelado,
 .turno-card.estado-ausente {
   background: var(--peligro-claro);
   border-left-color: var(--peligro);
-  opacity: 0.65;
+  color: var(--peligro);
+  opacity: 0.7;
   text-decoration: line-through;
 }
 
 @keyframes pulso-llego {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(15, 110, 86, 0.4); }
-  50% { box-shadow: 0 0 0 6px rgba(15, 110, 86, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(31,157,107,0.35); }
+  50%      { box-shadow: 0 0 0 5px rgba(31,157,107,0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .turno-card.estado-llego { animation: none; }
 }
 
 .leyenda {
@@ -641,7 +755,7 @@ input, select, textarea {
 }
 
 .tabla th, .tabla td {
-  padding: 10px 12px;
+  padding: 11px 12px;
   text-align: left;
   border-bottom: 1px solid var(--borde-tenue);
   font-size: 13px;
@@ -649,13 +763,13 @@ input, select, textarea {
 
 .tabla th {
   font-weight: 600;
-  font-size: 12px;
-  color: var(--texto-secundario);
+  font-size: 11px;
+  color: var(--texto-tenue);
   text-transform: uppercase;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.4px;
 }
 
-.tabla tr:hover { background: var(--fondo); }
+.tabla tr:hover { background: var(--fondo-sutil); }
 
 .tabla-acciones {
   display: flex;
@@ -673,24 +787,25 @@ input, select, textarea {
 .badge {
   display: inline-flex;
   padding: 3px 10px;
-  border-radius: 12px;
+  border-radius: 999px;
   font-size: 11px;
-  font-weight: 500;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.3px;
 }
 
-.badge-agendado { background: #F1EFE8; color: #444441; }
-.badge-llego { background: #9FE1CB; color: #04342C; }
-.badge-en_atencion { background: #FAC775; color: #412402; }
-.badge-finalizado { background: #B5D4F4; color: #042C53; }
+.badge-agendado   { background: var(--primario-claro);  color: var(--primario); }
+.badge-llego      { background: var(--exito-claro);     color: var(--exito); }
+.badge-en_atencion{ background: #FCF1DC;                 color: var(--advertencia); }
+.badge-finalizado { background: var(--info-claro);      color: var(--info); }
 .badge-cancelado, .badge-ausente { background: var(--peligro-claro); color: var(--peligro); }
 
 /* ===== MODAL ===== */
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.45);
+  background: rgba(20,20,35,0.45);
+  backdrop-filter: blur(2px);
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -700,7 +815,7 @@ input, select, textarea {
 }
 
 .modal {
-  background: white;
+  background: #fff;
   border-radius: var(--radio-lg);
   max-width: 520px;
   width: 100%;
@@ -719,6 +834,7 @@ input, select, textarea {
 .modal-titulo {
   font-size: 17px;
   font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 .modal-cerrar {
@@ -732,7 +848,7 @@ input, select, textarea {
   justify-content: center;
 }
 
-.modal-cerrar:hover { background: var(--fondo); }
+.modal-cerrar:hover { background: var(--fondo); color: var(--texto); }
 
 .modal-body { padding: 1.5rem; }
 
@@ -758,7 +874,7 @@ input, select, textarea {
   padding: 12px 18px;
   border-radius: var(--radio);
   background: var(--texto);
-  color: white;
+  color: #fff;
   font-size: 13px;
   font-weight: 500;
   box-shadow: var(--sombra-fuerte);
@@ -773,15 +889,15 @@ input, select, textarea {
   opacity: 1;
 }
 
-.toast-exito { background: var(--exito); }
-.toast-error { background: var(--peligro); }
+.toast-exito       { background: var(--exito); }
+.toast-error       { background: var(--peligro); }
 .toast-advertencia { background: var(--advertencia); }
 
 /* ===== LISTA DE TURNOS DEL DÍA ===== */
 .turnos-dia-lista {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .turno-row {
@@ -795,7 +911,7 @@ input, select, textarea {
   transition: background 0.12s;
 }
 
-.turno-row:hover { background: #f0f0f0; }
+.turno-row:hover { background: var(--primario-claro); }
 
 .turno-row-hora {
   font-weight: 600;
@@ -834,7 +950,7 @@ input, select, textarea {
   opacity: 0.5;
 }
 
-/* ===== RESPONSIVE ===== */
+/* ===== RESPONSIVE (la app es de escritorio; esto es solo red de contención) ===== */
 @media (max-width: 900px) {
   .app { grid-template-columns: 1fr; }
   .sidebar {
@@ -848,11 +964,11 @@ input, select, textarea {
     border-bottom: 1px solid var(--borde);
     overflow-x: auto;
   }
-  .sidebar-logo { border: none; margin: 0; padding: 0; flex-shrink: 0; }
+  .sidebar-logo { margin: 0; padding: 0; flex-shrink: 0; }
   .sidebar-nav { flex-direction: row; gap: 4px; }
   .nav-item { white-space: nowrap; padding: 6px 10px; font-size: 12px; }
   .nav-item span:not(.nav-item-icon) { display: none; }
-  .sidebar-user { border: none; padding: 0; flex-shrink: 0; }
+  .sidebar-user { border: none; padding: 0; margin: 0; flex-shrink: 0; }
   .user-info { display: none; }
   .main { padding: 1rem; }
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
@@ -884,7 +1000,7 @@ input, select, textarea {
   color: var(--texto-secundario);
   font-size: 12px;
   text-align: center;
-  padding: 6px;
+  padding: 7px;
   border-bottom: 1px solid var(--borde-tenue);
 }
 
@@ -894,7 +1010,7 @@ input, select, textarea {
 }
 
 .agenda-col-head {
-  padding: 12px 10px;
+  padding: 13px 10px;
   text-align: center;
   border-left: 1px solid var(--borde-tenue);
   border-bottom: 1px solid var(--borde-tenue);
@@ -903,6 +1019,7 @@ input, select, textarea {
 .agenda-col-titulo {
   font-size: 14px;
   font-weight: 600;
+  letter-spacing: -0.01em;
   text-transform: capitalize;
 }
 
@@ -937,7 +1054,7 @@ input, select, textarea {
 .agenda-hora-label {
   height: 60px;
   font-size: 11px;
-  color: var(--texto-secundario);
+  color: var(--texto-tenue);
   text-align: right;
   padding: 4px 8px 0 0;
   box-sizing: border-box;
