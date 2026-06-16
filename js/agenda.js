@@ -25,7 +25,13 @@ let _agendaCols = [];          // estado del día: [{columna, profesional, regis
 let _agendaArrastreCol = null; // columna origen durante un drag
 let _ttPacientes = [];         // cache de pacientes para el typeahead del alta de turno
 
+// --- Chat recepción <-> consultorio (tabla mensajes) ---
+let _msgPollId = null;         // setInterval del poll de no leídos; se limpia al salir de la agenda
+let _msgProfIdActual = null;   // profesional_id del usuario profesional (cache, para ENVIAR)
+let _msgHiloProfId = null;     // (gestor) profesional cuyo hilo está abierto en el selector
+
 async function renderAgenda(container) {
+  if (_msgPollId) { clearInterval(_msgPollId); _msgPollId = null; }  // no acumular polls al re-renderizar
   inyectarEstilosAgenda();
   agendaFechaActual = new Date();
   container.innerHTML = `
@@ -75,6 +81,14 @@ async function renderAgenda(container) {
           </div>
           <div id="agenda-notas" class="notas-lista"></div>
         </div>
+        <div class="card" style="padding: 16px;">
+          <div class="msg-card-head" onclick="toggleMensajes()">
+            <span class="card-title" style="font-size: 14px;">Mensajes</span>
+            <span id="msg-badge" class="msg-badge" style="display:none;"></span>
+            <span id="msg-chevron" class="msg-chevron">&rsaquo;</span>
+          </div>
+          <div id="msg-cuerpo" class="msg-cuerpo" style="display:none;"></div>
+        </div>
       </div>
     </div>
   `;
@@ -82,6 +96,7 @@ async function renderAgenda(container) {
   await dibujarAgenda();
   dibujarMiniCalendario();
   cargarNotasAgenda();
+  initMensajes();
 }
 
 // ============================================================
@@ -781,6 +796,190 @@ function editarNotaAgenda(id) {
     }
     pintarNotasAgenda();
   }, { once: true });
+}
+
+// ============================================================
+// CHAT recepción <-> consultorio (tabla mensajes)
+//   - Card "Mensajes" en el panel derecho, cerrada por defecto.
+//   - Gestor (negocio/recepción): selector de profesional + hilo; envía de_recepcion=true.
+//   - Profesional: su único hilo con recepción; envía de_recepcion=false.
+//   - La RLS de mensajes ya aísla por negocio y por hilo: para LEER no filtramos
+//     a mano; para ENVIAR como profesional sí necesitamos su profesional_id.
+//   - Badge "no leídos" con poll liviano cada 30s (sin Realtime). El poll se
+//     auto-apaga si la agenda ya no está en pantalla (#msg-badge fuera del DOM).
+//   - NUNCA abrimos popups automáticos: el profesional decide cuándo mirar
+//     (para que el mensaje no quede a la vista del paciente).
+// ============================================================
+function esGestorMsg() {
+  return ['negocio', 'recepcion'].includes(usuarioActual.rol);
+}
+
+async function initMensajes() {
+  await contarNoLeidos();
+  if (_msgPollId) { clearInterval(_msgPollId); _msgPollId = null; }
+  _msgPollId = setInterval(_msgPoll, 30000);
+}
+
+function _msgPoll() {
+  // Si la agenda ya no está en pantalla, el poll se apaga solo.
+  if (!document.getElementById('msg-badge')) {
+    if (_msgPollId) { clearInterval(_msgPollId); _msgPollId = null; }
+    return;
+  }
+  contarNoLeidos();
+}
+
+// Cuenta los mensajes entrantes sin leer y actualiza el badge.
+// Entrante = lo que mandó el OTRO lado: el profesional recibe de_recepcion=true;
+// el gestor recibe de_recepcion=false.
+async function contarNoLeidos() {
+  const badge = document.getElementById('msg-badge');
+  if (!badge) return 0;
+  const gestor = esGestorMsg();
+  const { count } = await sb.from('mensajes')
+    .select('id', { count: 'exact', head: true })
+    .eq('leido', false)
+    .eq('de_recepcion', !gestor);
+  const n = count || 0;
+  if (n > 0) {
+    badge.textContent = gestor ? `${n} sin leer` : 'nuevo mensaje';
+    badge.style.display = '';
+  } else {
+    badge.style.display = 'none';
+  }
+  return n;
+}
+
+function toggleMensajes() {
+  const cuerpo = document.getElementById('msg-cuerpo');
+  const chevron = document.getElementById('msg-chevron');
+  if (!cuerpo) return;
+  const abierto = cuerpo.style.display !== 'none';
+  if (abierto) {
+    cuerpo.style.display = 'none';
+    if (chevron) chevron.classList.remove('abierto');
+  } else {
+    cuerpo.style.display = '';
+    if (chevron) chevron.classList.add('abierto');
+    renderCuerpoMensajes();
+  }
+}
+
+function barraEnvioMsgHTML() {
+  return `
+    <div class="msg-envio">
+      <input id="msg-input" class="msg-input" maxlength="500" placeholder="Escribir mensaje..."
+             onkeydown="if(event.key==='Enter'){event.preventDefault();enviarMensaje();}">
+      <button class="msg-enviar-btn" onclick="enviarMensaje()" title="Enviar">&#10148;</button>
+    </div>`;
+}
+
+async function renderCuerpoMensajes() {
+  const cuerpo = document.getElementById('msg-cuerpo');
+  if (!cuerpo) return;
+
+  if (esGestorMsg()) {
+    const { data: profes } = await sb.from('profesionales')
+      .select('id, nombre')
+      .eq('negocio_id', usuarioActual.negocio_id)
+      .order('nombre');
+    const lista = profes || [];
+    if (lista.length === 0) {
+      cuerpo.innerHTML = `<div class="notas-vacio">No hay profesionales para mensajear.</div>`;
+      return;
+    }
+    if (!_msgHiloProfId || !lista.some(p => p.id === _msgHiloProfId)) _msgHiloProfId = lista[0].id;
+    const opciones = lista.map(p =>
+      `<option value="${p.id}"${p.id === _msgHiloProfId ? ' selected' : ''}>${escHtmlNota(p.nombre)}</option>`).join('');
+    cuerpo.innerHTML = `
+      <select class="msg-selector" onchange="gestorCambiarProfesional(this.value)">${opciones}</select>
+      <div id="msg-hilo" class="msg-hilo"></div>
+      ${barraEnvioMsgHTML()}`;
+    cargarHilo(_msgHiloProfId);
+  } else {
+    // Profesional: necesito mi profesional_id (una vez) para poder ENVIAR.
+    if (!_msgProfIdActual) {
+      const { data: yo } = await sb.from('profesionales')
+        .select('id').eq('usuario_id', usuarioActual.id).maybeSingle();
+      _msgProfIdActual = yo ? yo.id : null;
+    }
+    if (!_msgProfIdActual) {
+      cuerpo.innerHTML = `<div class="notas-vacio">Tu usuario no está vinculado a una agenda de profesional.</div>`;
+      return;
+    }
+    cuerpo.innerHTML = `
+      <div id="msg-hilo" class="msg-hilo"></div>
+      ${barraEnvioMsgHTML()}`;
+    cargarHilo(_msgProfIdActual);
+  }
+}
+
+function gestorCambiarProfesional(profId) {
+  _msgHiloProfId = profId;
+  cargarHilo(profId);
+}
+
+async function cargarHilo(profId) {
+  const hilo = document.getElementById('msg-hilo');
+  if (!hilo || !profId) return;
+  const { data, error } = await sb.from('mensajes')
+    .select('id, de_recepcion, texto, creado_en')
+    .eq('profesional_id', profId)
+    .order('creado_en', { ascending: true });
+  if (error) { hilo.innerHTML = `<div class="notas-vacio">No se pudieron cargar los mensajes.</div>`; return; }
+  pintarHilo(data || []);
+  await marcarLeidos(profId);
+}
+
+function pintarHilo(lista) {
+  const hilo = document.getElementById('msg-hilo');
+  if (!hilo) return;
+  if (lista.length === 0) {
+    hilo.innerHTML = `<div class="notas-vacio">Sin mensajes todavía.</div>`;
+    return;
+  }
+  const gestor = esGestorMsg();
+  hilo.innerHTML = lista.map(m => {
+    // "mío" = lo mandé yo. Color por AUTOR (recepción vs profesional); lado por dueño.
+    const mio = gestor ? m.de_recepcion : !m.de_recepcion;
+    const lado = mio ? 'msg-mio' : 'msg-otro';
+    const quien = m.de_recepcion ? 'msg-recepcion' : 'msg-profesional';
+    return `
+      <div class="msg-burbuja ${lado} ${quien}">
+        <div class="msg-texto">${escHtmlNota(m.texto)}</div>
+        <div class="msg-hora">${formatearHora(m.creado_en)}</div>
+      </div>`;
+  }).join('');
+  hilo.scrollTop = hilo.scrollHeight;
+}
+
+// Marca como leídos los entrantes de ESE hilo y refresca el badge.
+async function marcarLeidos(profId) {
+  await sb.from('mensajes')
+    .update({ leido: true })
+    .eq('profesional_id', profId)
+    .eq('de_recepcion', !esGestorMsg())
+    .eq('leido', false);
+  contarNoLeidos();
+}
+
+async function enviarMensaje() {
+  const inp = document.getElementById('msg-input');
+  if (!inp) return;
+  const texto = inp.value.trim();
+  if (!texto) return;
+  const gestor = esGestorMsg();
+  const profId = gestor ? _msgHiloProfId : _msgProfIdActual;
+  if (!profId) { mostrarMensaje('No hay un hilo activo.', 'advertencia'); return; }
+  const { error } = await sb.from('mensajes').insert({
+    negocio_id: usuarioActual.negocio_id,
+    profesional_id: profId,
+    de_recepcion: gestor,
+    texto
+  });
+  if (error) { mostrarMensaje('No se pudo enviar: ' + error.message, 'error'); return; }
+  inp.value = '';
+  await cargarHilo(profId);
 }
 
 // ============================================================
