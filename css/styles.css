@@ -1206,3 +1206,88 @@ input, select, textarea {
   background: var(--peligro-claro);
   color: var(--peligro);
 }
+
+/* ============================================================
+   FICHA DE PACIENTE — Vista rápida (dos paneles + pestañas)
+   ============================================================ */
+.ficha-cols {
+  display: grid;
+  grid-template-columns: 210px minmax(0, 1fr);
+}
+
+.ficha-resumen {
+  padding: 24px 20px;
+  border-right: 1px solid var(--borde-tenue);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.ficha-avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: var(--primario-claro);
+  color: var(--primario);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.ficha-nombre { margin-top: 12px; font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
+.ficha-dni { font-size: 12px; color: var(--texto-secundario); margin-top: 2px; }
+
+.ficha-resumen-datos {
+  width: 100%;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--borde-tenue);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ficha-resumen-datos > div { display: flex; justify-content: space-between; font-size: 13px; }
+.ficha-resumen-datos span { color: var(--texto-secundario); }
+
+.ficha-editar { width: 100%; margin-top: 18px; justify-content: center; }
+
+.ficha-main { padding: 18px 22px; min-width: 0; }
+
+.ficha-tabs {
+  display: flex;
+  gap: 20px;
+  border-bottom: 1px solid var(--borde-tenue);
+  margin-bottom: 18px;
+}
+.ficha-tab {
+  padding: 10px 2px;
+  font-size: 13px;
+  color: var(--texto-secundario);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+}
+.ficha-tab:hover { color: var(--texto); }
+.ficha-tab.active { color: var(--primario); border-bottom-color: var(--primario); font-weight: 600; }
+
+.ficha-panel { display: none; }
+.ficha-panel.active { display: block; }
+
+.ficha-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px 20px;
+}
+.ficha-campo-lbl { font-size: 12px; color: var(--texto-secundario); margin-bottom: 3px; }
+.ficha-campo-val { font-size: 14px; }
+.ficha-campo-val.vacio { color: var(--texto-tenue); }
+
+@media (max-width: 720px) {
+  .ficha-cols { grid-template-columns: 1fr; }
+  .ficha-resumen { border-right: none; border-bottom: 1px solid var(--borde-tenue); }
+  .ficha-grid { grid-template-columns: 1fr; }
+}

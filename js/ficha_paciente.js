@@ -1,3 +1,16 @@
+// ============================================================
+// FICHA DE PACIENTE — Vista rápida (dos paneles + pestañas)
+// ============================================================
+
+function calcularEdad(fechaNac) {
+  if (!fechaNac) return null;
+  const f = new Date(fechaNac + 'T00:00'), h = new Date();
+  let e = h.getFullYear() - f.getFullYear();
+  const m = h.getMonth() - f.getMonth();
+  if (m < 0 || (m === 0 && h.getDate() < f.getDate())) e--;
+  return e;
+}
+
 async function verFichaPaciente(pacienteId) {
   const { data: paciente } = await sb.from('pacientes').select('*').eq('id', pacienteId).single();
   if (!paciente) {
@@ -11,83 +24,116 @@ async function verFichaPaciente(pacienteId) {
     .order('fecha_hora', { ascending: false })
     .limit(20);
 
-  let fichas = [];
-  if (usuarioActual.rol === 'profesional') {
-    const { data } = await sb.from('fichas_atencion')
-      .select('*, turnos(fecha_hora)')
-      .eq('paciente_id', pacienteId)
-      .order('creado_en', { ascending: false });
-    fichas = data || [];
-  }
+  const edad = calcularEdad(paciente.fecha_nacimiento);
+  const inic = ((paciente.apellido?.[0] || '') + (paciente.nombre?.[0] || '')).toUpperCase() || '?';
+  const ultimaVisita = (turnos && turnos.length)
+    ? new Date(turnos[0].fecha_hora).toLocaleDateString('es-AR')
+    : '—';
 
-  const edad = paciente.fecha_nacimiento
-    ? Math.floor((Date.now() - new Date(paciente.fecha_nacimiento)) / (365.25 * 24 * 60 * 60 * 1000))
-    : null;
+  const puedeEditar  = usuarioActual.rol === 'recepcion';   // mismo criterio que la lista de pacientes
+  const puedeClinica = puede(usuarioActual, 'atender');     // profesional / negocio / profesional_full
+
+  const dato = (lbl, val, full) => `
+    <div class="ficha-campo"${full ? ' style="grid-column:1/-1;"' : ''}>
+      <div class="ficha-campo-lbl">${lbl}</div>
+      <div class="ficha-campo-val${val ? '' : ' vacio'}">${val || 'Sin cargar'}</div>
+    </div>`;
+
+  const fechaNacLinda = paciente.fecha_nacimiento
+    ? new Date(paciente.fecha_nacimiento + 'T00:00').toLocaleDateString('es-AR')
+    : '';
 
   abrirModal(`
+    <style>.modal{max-width:740px;}</style>
     <div class="modal-header">
-      <div class="modal-titulo">Ficha de paciente</div>
+      <div class="modal-titulo">Vista rápida</div>
       <button class="modal-cerrar" onclick="cerrarModal()">×</button>
     </div>
-    <div class="modal-body">
-      <div style="margin-bottom: 1.5rem;">
-        <div style="font-size: 18px; font-weight: 600;">${paciente.apellido}, ${paciente.nombre}</div>
-        <div style="color: var(--texto-secundario); font-size: 13px;">
-          ${edad !== null ? `${edad} años · ` : ''}
-          ${paciente.dni ? 'DNI ' + paciente.dni : 'Sin DNI'}
+    <div class="modal-body" style="padding:0;">
+      <div class="ficha-cols">
+        <aside class="ficha-resumen">
+          <div class="ficha-avatar">${inic}</div>
+          <div class="ficha-nombre">${paciente.apellido}, ${paciente.nombre}</div>
+          <div class="ficha-dni">${paciente.dni ? 'DNI ' + paciente.dni : 'Sin DNI'}</div>
+          <div class="ficha-resumen-datos">
+            <div><span>Edad</span><strong>${edad !== null ? edad : '—'}</strong></div>
+            <div><span>Obra social</span><strong>${paciente.obra_social || '—'}</strong></div>
+            <div><span>Última visita</span><strong>${ultimaVisita}</strong></div>
+          </div>
+          ${puedeEditar ? `<button class="btn btn-primary-sm ficha-editar" onclick="abrirModalPaciente('${paciente.id}')">Editar</button>` : ''}
+        </aside>
+
+        <div class="ficha-main">
+          <div class="ficha-tabs">
+            <button class="ficha-tab active" data-ftab="personales" onclick="fichaTab('personales')">Datos personales</button>
+            ${puedeClinica ? `<button class="ficha-tab" data-ftab="clinica" onclick="fichaTab('clinica')">Datos clínicos</button>` : ''}
+            <button class="ficha-tab" data-ftab="consultas" onclick="fichaTab('consultas')">Últimas consultas</button>
+          </div>
+
+          <div class="ficha-panel active" data-fpanel="personales">
+            <div class="ficha-grid">
+              ${dato('Teléfono', paciente.telefono)}
+              ${dato('Email', paciente.email)}
+              ${dato('Fecha de nacimiento', fechaNacLinda)}
+              ${dato('N° de afiliado', paciente.numero_afiliado)}
+              ${dato('Dirección', paciente.direccion, true)}
+              ${dato('Obra social', paciente.obra_social, true)}
+              ${paciente.notas ? dato('Notas', paciente.notas, true) : ''}
+            </div>
+          </div>
+
+          ${puedeClinica ? `
+          <div class="ficha-panel" data-fpanel="clinica">
+            <label class="ficha-campo-lbl" style="display:block; margin-bottom:6px;">Anamnesis</label>
+            <textarea id="ficha-anamnesis" rows="8"
+              style="width:100%; padding:10px 12px; border:1px solid var(--borde); border-radius:var(--radio); resize:vertical; outline:none;"
+              placeholder="Antecedentes personales y familiares, motivo de consulta, alergias, medicación...">${paciente.anamnesis || ''}</textarea>
+            <div style="display:flex; justify-content:flex-end; margin-top:10px;">
+              <button class="btn btn-primary-sm" onclick="guardarAnamnesis('${paciente.id}')">Guardar anamnesis</button>
+            </div>
+          </div>` : ''}
+
+          <div class="ficha-panel" data-fpanel="consultas">
+            ${turnos && turnos.length > 0 ? `
+              <div class="turnos-dia-lista">
+                ${turnos.map(t => `
+                  <div class="turno-row" onclick="cerrarModal(); setTimeout(() => abrirModalTurno('${t.id}'), 100);">
+                    <div class="turno-row-hora">${new Date(t.fecha_hora).toLocaleDateString('es-AR')}</div>
+                    <div class="turno-row-info">
+                      <div class="turno-row-nombre">${t.tipos_atencion?.nombre || 'Pendiente'}</div>
+                      <div class="turno-row-tipo">${t.profesionales?.nombre || ''} · ${formatearHora(t.fecha_hora)}</div>
+                    </div>
+                    <span class="badge badge-${t.estado}">${etiquetaEstado(t.estado)}</span>
+                  </div>
+                `).join('')}
+              </div>
+            ` : '<div class="vacio" style="padding:1.5rem;">Sin turnos registrados</div>'}
+          </div>
         </div>
       </div>
-
-      <table style="width:100%; font-size: 13px; margin-bottom: 1.5rem;">
-        ${paciente.telefono ? `<tr><td style="color:var(--texto-secundario); padding:4px 0; width:120px;">Teléfono</td><td>${paciente.telefono}</td></tr>` : ''}
-        ${paciente.email ? `<tr><td style="color:var(--texto-secundario); padding:4px 0;">Email</td><td>${paciente.email}</td></tr>` : ''}
-        ${paciente.direccion ? `<tr><td style="color:var(--texto-secundario); padding:4px 0;">Dirección</td><td>${paciente.direccion}</td></tr>` : ''}
-        ${paciente.obra_social ? `<tr><td style="color:var(--texto-secundario); padding:4px 0;">Obra social</td><td>${paciente.obra_social}${paciente.numero_afiliado ? ' · ' + paciente.numero_afiliado : ''}</td></tr>` : ''}
-        ${paciente.notas ? `<tr><td style="color:var(--texto-secundario); padding:4px 0; vertical-align:top;">Notas</td><td>${paciente.notas}</td></tr>` : ''}
-      </table>
-
-      <div style="margin-bottom: 0.75rem; font-weight: 600; font-size: 14px;">Historial de turnos</div>
-      ${turnos && turnos.length > 0 ? `
-        <div class="turnos-dia-lista" style="margin-bottom: 1.5rem;">
-          ${turnos.map(t => `
-            <div class="turno-row" onclick="cerrarModal(); setTimeout(() => abrirModalTurno('${t.id}'), 100);">
-              <div class="turno-row-hora">${new Date(t.fecha_hora).toLocaleDateString('es-AR')}</div>
-              <div class="turno-row-info">
-                <div class="turno-row-nombre">${t.tipos_atencion?.nombre || 'Pendiente'}</div>
-                <div class="turno-row-tipo">${t.profesionales?.nombre || ''} · ${formatearHora(t.fecha_hora)}</div>
-              </div>
-              <span class="badge badge-${t.estado}">${etiquetaEstado(t.estado)}</span>
-            </div>
-          `).join('')}
-        </div>
-      ` : '<div class="vacio" style="padding: 1rem;">Sin turnos registrados</div>'}
-
-      ${usuarioActual.rol === 'profesional' ? `
-        <div style="margin-bottom: 0.75rem; font-weight: 600; font-size: 14px;">Historia clínica</div>
-        ${fichas.length > 0 ? `
-          <div style="display: flex; flex-direction: column; gap: 10px;">
-            ${fichas.map(f => `
-              <div style="padding: 12px; background: var(--fondo); border-radius: var(--radio);">
-                <div style="font-size: 12px; color: var(--texto-secundario); margin-bottom: 4px;">
-                  ${f.turnos ? new Date(f.turnos.fecha_hora).toLocaleDateString('es-AR') : new Date(f.creado_en).toLocaleDateString('es-AR')}
-                  ${f.tipos_atencion ? ' · ' + f.tipos_atencion.nombre : ''}
-                </div>
-                ${f.motivo_consulta ? `<div style="margin-bottom: 4px;"><strong>Motivo:</strong> ${f.motivo_consulta}</div>` : ''}
-                ${f.diagnostico ? `<div style="margin-bottom: 4px;"><strong>Diagnóstico:</strong> ${f.diagnostico}</div>` : ''}
-                ${f.tratamiento ? `<div style="margin-bottom: 4px;"><strong>Tratamiento:</strong> ${f.tratamiento}</div>` : ''}
-                ${f.observaciones ? `<div style="font-size: 13px;">${f.observaciones}</div>` : ''}
-                ${f.proxima_visita_nota ? `<div style="font-size: 12px; color: var(--texto-secundario); margin-top: 4px;">Próxima visita: ${f.proxima_visita_nota}</div>` : ''}
-              </div>
-            `).join('')}
-          </div>
-        ` : '<div class="vacio" style="padding: 1rem;">Sin fichas cargadas</div>'}
-      ` : ''}
     </div>
     <div class="modal-footer">
       <button class="btn" onclick="cerrarModal()">Cerrar</button>
     </div>
   `);
 }
+
+// Cambia de pestaña dentro de la ficha.
+function fichaTab(id) {
+  document.querySelectorAll('.ficha-tab').forEach(t => t.classList.toggle('active', t.dataset.ftab === id));
+  document.querySelectorAll('.ficha-panel').forEach(p => p.classList.toggle('active', p.dataset.fpanel === id));
+}
+
+// Guarda la anamnesis (campo pacientes.anamnesis). La completa el profesional.
+async function guardarAnamnesis(pacienteId) {
+  const ta = document.getElementById('ficha-anamnesis');
+  if (!ta) return;
+  const texto = ta.value.trim() || null;
+  const { error } = await sb.from('pacientes').update({ anamnesis: texto }).eq('id', pacienteId);
+  if (error) { mostrarMensaje('No se pudo guardar la anamnesis: ' + error.message, 'error'); return; }
+  mostrarMensaje('Anamnesis guardada', 'exito');
+}
+
 
 async function abrirFichaAtencion(turnoId, soloLectura = false) {
   if (usuarioActual.rol !== 'profesional') {
