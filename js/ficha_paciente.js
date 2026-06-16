@@ -12,23 +12,59 @@ function calcularEdad(fechaNac) {
 }
 
 // --- Anamnesis: campos y armado del panel clínico ---
-const ANAMNESIS_CAMPOS = [
-  { k: 'primera_visita',       label: 'Primera visita' },
-  { k: 'enfermedad_base',      label: 'Enfermedad de base' },
-  { k: 'bajo_tratamiento',     label: 'Bajo tratamiento' },
-  { k: 'medicacion',           label: 'Medicación' },
-  { k: 'antitetanica',         label: 'Antitetánica' },
-  { k: 'presion_arterial',     label: 'Presión arterial' },
-  { k: 'diabetico',            label: 'Diabético' },
-  { k: 'discrasias',           label: 'Discrasias sanguíneas' },
-  { k: 'procesos_infecciosos', label: 'Procesos infecciosos' },
-  { k: 'valoracion_piel',      label: 'Valoración de la piel' },
-  { k: 'cianosis',             label: 'Cianosis' },
-  { k: 'turgencia',            label: 'Turgencia' },
-  { k: 'problemas_vasculares', label: 'Problemas vasculares' },
-  { k: 'alergias',             label: 'Alergias' },
+// Modelo de datos (todas las columnas ya existen en la tabla anamnesis, son text):
+//   - texto    -> se guarda el texto tal cual.
+//   - unica    -> radio; se guarda la opción elegida (ej. "Hipertenso").
+//   - multiple -> checkboxes; se guardan las elegidas unidas por ", " (ej. "Hemofilia, Anticoagulado").
+//   - check    -> un solo checkbox; se guarda "Sí" o null.
+//   - pie      -> única columna que combina temperatura (única) + estado de piel (múltiple),
+//                 serializadas como JSON: {"temp":"Frío","piel":["Resequedad"]}.
+// Nota: primera_visita y observaciones se manejan como texto, igual que antes.
+const ANAM_TEXTO = [
+  { k: 'primera_visita',   label: 'Primera visita' },
+  { k: 'enfermedad_base',  label: 'Enfermedad de base' },
+  { k: 'bajo_tratamiento', label: '¿Bajo tratamiento médico?' },
+  { k: 'medicacion',       label: 'Medicación que toma' },
 ];
-const PIE_OPCIONES = ['Normal', 'Frío', 'Caliente', 'Húmedo', 'Intertrigo'];
+const ANAM_GRUPOS = [
+  { k: 'antitetanica',         label: 'Vacuna antitetánica',   tipo: 'unica',    ops: ['Sí', 'No'] },
+  { k: 'presion_arterial',     label: 'Presión arterial',      tipo: 'unica',    ops: ['Hipotenso', 'Normal', 'Hipertenso'] },
+  { k: 'diabetico',            label: 'Diabético',             tipo: 'unica',    ops: ['Sí', 'No'] },
+  { k: 'discrasias',           label: 'Discrasias sanguíneas', tipo: 'multiple', ops: ['Hemofilia', 'Anticoagulado'] },
+  { k: 'procesos_infecciosos', label: 'Procesos infecciosos',  tipo: 'multiple', ops: ['Infección', 'Adenitis', 'Linfangitis'] },
+  { k: 'valoracion_piel',      label: 'Valoración de la piel', tipo: 'unica',    ops: ['Normal', 'Palidez'] },
+  { k: 'cianosis',             label: 'Cianosis',              tipo: 'unica',    ops: ['Sí', 'No'] },
+  { k: 'turgencia',            label: 'Turgencia',             tipo: 'unica',    ops: ['Normal', 'Anormal'] },
+  { k: 'problemas_vasculares', label: 'Problemas vasculares',  tipo: 'check',    ops: ['Presenta'] },
+  { k: 'alergias',             label: 'Alergias',              tipo: 'check',    ops: ['Presenta'] },
+];
+const PIE_TEMP = ['Frío', 'Caliente'];
+const PIE_PIEL = ['Resequedad', 'Humedad', 'Intertrigo'];
+
+// "Hemofilia, Anticoagulado" -> ['Hemofilia','Anticoagulado'] (tolerante a vacío/null)
+function anamLista(valor) {
+  return String(valor || '').split(',').map(s => s.trim()).filter(Boolean);
+}
+// Parsea la columna pie. Si es JSON la usa; si es dato viejo en texto plano, no fuerza nada.
+function piePartes(valor) {
+  if (!valor) return { temp: '', piel: [] };
+  try {
+    const o = JSON.parse(valor);
+    return { temp: o.temp || '', piel: Array.isArray(o.piel) ? o.piel : [] };
+  } catch (e) {
+    return { temp: '', piel: [] };
+  }
+}
+
+function anamOpsUnicaHTML(k, ops, valor) {
+  return ops.map(op =>
+    `<label class="anam-op"><input type="radio" name="anam_${k}" value="${op}" ${valor === op ? 'checked' : ''}> ${op}</label>`).join('');
+}
+function anamOpsMultiHTML(campo, ops, seleccion) {
+  const set = seleccion.map(s => s.toLowerCase());
+  return ops.map(op =>
+    `<label class="anam-op"><input type="checkbox" class="anam-chk" data-campo="${campo}" value="${op}" ${set.includes(op.toLowerCase()) ? 'checked' : ''}> ${op}</label>`).join('');
+}
 
 function panelAnamnesisHTML(anam, editable, pacienteId) {
   const v = (k) => (anam && anam[k]) ? anam[k] : '';
@@ -41,35 +77,50 @@ function panelAnamnesisHTML(anam, editable, pacienteId) {
         <div>Anamnesis pendiente de carga.<br>La completa el profesional en la primera atención.</div>
       </div>`;
     }
-    const campos = ANAMNESIS_CAMPOS.map(c => `
-      <div class="ficha-campo">
-        <div class="ficha-campo-lbl">${c.label}</div>
-        <div class="ficha-campo-val${v(c.k) ? '' : ' sin-dato'}">${v(c.k) || '—'}</div>
-      </div>`).join('');
-    return `<div class="ficha-grid">${campos}
-      <div class="ficha-campo"><div class="ficha-campo-lbl">Pie</div><div class="ficha-campo-val${v('pie') ? '' : ' sin-dato'}">${v('pie') || '—'}</div></div>
+    const fila = (lbl, valor) =>
+      `<div class="ficha-campo"><div class="ficha-campo-lbl">${lbl}</div><div class="ficha-campo-val${valor ? '' : ' sin-dato'}">${valor || '—'}</div></div>`;
+    const textos = ANAM_TEXTO.map(c => fila(c.label, v(c.k))).join('');
+    const grupos = ANAM_GRUPOS.map(g => fila(g.label, g.tipo === 'check' ? (v(g.k) ? 'Sí' : '') : v(g.k))).join('');
+    const pie = piePartes(v('pie'));
+    const pieTxt = [pie.temp, pie.piel.join(', ')].filter(Boolean).join(' · ');
+    return `<div class="ficha-grid">${textos}${grupos}
+      ${fila('Pie', pieTxt)}
       <div class="ficha-campo" style="grid-column:1/-1;"><div class="ficha-campo-lbl">Observaciones</div><div class="ficha-campo-val${v('observaciones') ? '' : ' sin-dato'}">${v('observaciones') || '—'}</div></div>
     </div>`;
   }
 
   // Editable (profesional / negocio)
-  const inputs = ANAMNESIS_CAMPOS.map(c => `
-    <div class="ficha-campo">
-      <label class="ficha-campo-lbl">${c.label}</label>
+  const textos = ANAM_TEXTO.map(c => `
+    <div class="anam-texto">
+      <label class="anam-texto-lbl">${c.label}</label>
       <input class="anam-input" id="anam_${c.k}" value="${esc(v(c.k))}">
     </div>`).join('');
-  const pieRadios = PIE_OPCIONES.map(op => `
-    <label class="anam-pie-op"><input type="radio" name="anam_pie" value="${op}" ${v('pie') === op ? 'checked' : ''}> ${op}</label>`).join('');
+
+  const grupos = ANAM_GRUPOS.map(g => {
+    let ops;
+    if (g.tipo === 'unica') ops = anamOpsUnicaHTML(g.k, g.ops, v(g.k));
+    else if (g.tipo === 'multiple') ops = anamOpsMultiHTML(g.k, g.ops, anamLista(v(g.k)));
+    else ops = `<label class="anam-op"><input type="checkbox" id="anam_chk_${g.k}" value="Sí" ${v(g.k) ? 'checked' : ''}> ${g.ops[0]}</label>`;
+    return `<div class="anam-grupo"><div class="anam-grupo-lbl">${g.label}</div><div class="anam-ops">${ops}</div></div>`;
+  }).join('');
+
+  const pie = piePartes(v('pie'));
+  const pieTempHTML = PIE_TEMP.map(op =>
+    `<label class="anam-op"><input type="radio" name="anam_pie_temp" value="${op}" ${pie.temp === op ? 'checked' : ''}> ${op}</label>`).join('');
+  const pielSet = pie.piel.map(s => s.toLowerCase());
+  const piePielHTML = PIE_PIEL.map(op =>
+    `<label class="anam-op"><input type="checkbox" class="anam-chk" data-campo="pie_piel" value="${op}" ${pielSet.includes(op.toLowerCase()) ? 'checked' : ''}> ${op}</label>`).join('');
+
   return `
-    <div class="ficha-grid">${inputs}
-      <div class="ficha-campo" style="grid-column:1/-1;">
-        <div class="ficha-campo-lbl" style="margin-bottom:6px;">Pie</div>
-        <div class="anam-pie">${pieRadios}</div>
-      </div>
-      <div class="ficha-campo" style="grid-column:1/-1;">
-        <label class="ficha-campo-lbl">Observaciones</label>
-        <textarea class="anam-input" id="anam_observaciones" rows="3" style="resize:vertical;">${v('observaciones')}</textarea>
-      </div>
+    <div class="anam-textos">${textos}</div>
+    <div class="anam-grid">
+      ${grupos}
+      <div class="anam-grupo"><div class="anam-grupo-lbl">Pie · temperatura</div><div class="anam-ops">${pieTempHTML}</div></div>
+      <div class="anam-grupo"><div class="anam-grupo-lbl">Pie · piel</div><div class="anam-ops">${piePielHTML}</div></div>
+    </div>
+    <div style="margin-top:12px;">
+      <label class="ficha-campo-lbl" style="display:block; margin-bottom:5px;">Observaciones</label>
+      <textarea class="anam-input" id="anam_observaciones" rows="3" style="resize:vertical;">${v('observaciones')}</textarea>
     </div>
     <div style="display:flex; justify-content:flex-end; margin-top:14px;">
       <button class="btn btn-primary-sm" onclick="guardarAnamnesis('${pacienteId}')">Guardar anamnesis</button>
@@ -224,11 +275,13 @@ function fichaTab(id) {
 
 // Guarda la anamnesis del paciente (una por paciente). La completa el profesional/negocio.
 async function guardarAnamnesis(pacienteId) {
-  const val = (k) => {
-    const el = document.getElementById('anam_' + k);
-    return el ? (el.value.trim() || null) : null;
+  const txt = (k) => { const el = document.getElementById('anam_' + k); return el ? (el.value.trim() || null) : null; };
+  const radio = (name) => { const el = document.querySelector(`input[name="${name}"]:checked`); return el ? el.value : null; };
+  const multi = (campo) => {
+    const els = document.querySelectorAll(`.anam-chk[data-campo="${campo}"]:checked`);
+    const vals = Array.from(els).map(e => e.value);
+    return vals.length ? vals.join(', ') : null;
   };
-  const pieEl = document.querySelector('input[name="anam_pie"]:checked');
 
   const datos = {
     paciente_id: pacienteId,
@@ -236,9 +289,22 @@ async function guardarAnamnesis(pacienteId) {
     actualizado_por: usuarioActual.id,
     actualizado_en: new Date().toISOString()
   };
-  ANAMNESIS_CAMPOS.forEach(c => { datos[c.k] = val(c.k); });
-  datos.observaciones = val('observaciones');
-  datos.pie = pieEl ? pieEl.value : null;
+
+  // Campos de texto (incluye primera_visita) + observaciones
+  ANAM_TEXTO.forEach(c => { datos[c.k] = txt(c.k); });
+  datos.observaciones = txt('observaciones');
+
+  // Grupos de opciones
+  ANAM_GRUPOS.forEach(g => {
+    if (g.tipo === 'unica') datos[g.k] = radio('anam_' + g.k);
+    else if (g.tipo === 'multiple') datos[g.k] = multi(g.k);
+    else { const el = document.getElementById('anam_chk_' + g.k); datos[g.k] = (el && el.checked) ? 'Sí' : null; }
+  });
+
+  // Pie: temperatura (única) + estado de piel (múltiple) en una sola columna (JSON)
+  const pieTemp = radio('anam_pie_temp');
+  const piePiel = Array.from(document.querySelectorAll('.anam-chk[data-campo="pie_piel"]:checked')).map(e => e.value);
+  datos.pie = (pieTemp || piePiel.length) ? JSON.stringify({ temp: pieTemp || '', piel: piePiel }) : null;
 
   const { error } = await sb.from('anamnesis').upsert(datos, { onConflict: 'paciente_id' });
   if (error) { mostrarMensaje('No se pudo guardar la anamnesis: ' + error.message, 'error'); return; }

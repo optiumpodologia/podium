@@ -1440,6 +1440,18 @@ input, select, textarea {
 .anam-pie { display: flex; flex-wrap: wrap; gap: 14px; }
 .anam-pie-op { display: flex; align-items: center; gap: 5px; font-size: 13px; cursor: pointer; }
 
+/* Checklist de anamnesis: campos de texto + grupos de opciones */
+.anam-textos { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
+.anam-texto { display: flex; align-items: center; gap: 12px; }
+.anam-texto-lbl { font-size: 13px; font-weight: 500; color: var(--texto); min-width: 185px; flex: none; }
+.anam-texto .anam-input { flex: 1; }
+.anam-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.anam-grupo { background: var(--fondo); border-radius: var(--radio); padding: 9px 12px; }
+.anam-grupo-lbl { font-size: 13px; font-weight: 600; color: var(--primario-hover); margin-bottom: 6px; }
+.anam-ops { display: flex; flex-wrap: wrap; gap: 7px 14px; }
+.anam-op { display: flex; align-items: center; gap: 5px; font-size: 13px; cursor: pointer; color: var(--texto); }
+.anam-op input { accent-color: var(--primario); cursor: pointer; }
+
 /* ----- Ficha: header, tarjetas con ícono, footer, nota rápida ----- */
 .ficha-header-ico {
   width: 32px; height: 32px;
