@@ -41,15 +41,9 @@ async function renderAgenda(container) {
         <div class="card" style="padding: 12px;">
           <div id="mini-calendario"></div>
         </div>
-        <div class="card" style="padding: 12px;">
-          <div class="card-title" style="font-size: 13px; margin-bottom: 8px;">Leyenda</div>
-          <div style="display: flex; flex-direction: column; gap: 6px;">
-            <div class="leyenda-item"><div class="leyenda-color" style="background: #F1EFE8; border-left: 3px solid #888780;"></div><span style="font-size: 12px;">Agendado</span></div>
-            <div class="leyenda-item"><div class="leyenda-color" style="background: #9FE1CB; border-left: 3px solid #0F6E56;"></div><span style="font-size: 12px;">Llegó</span></div>
-            <div class="leyenda-item"><div class="leyenda-color" style="background: #FAC775; border-left: 3px solid #854F0B;"></div><span style="font-size: 12px;">En atención</span></div>
-            <div class="leyenda-item"><div class="leyenda-color" style="background: #B5D4F4; border-left: 3px solid #0C447C;"></div><span style="font-size: 12px;">Finalizado</span></div>
-            <div class="leyenda-item"><div class="leyenda-color" style="background: #ECECEC; border-left: 3px solid #777;"></div><span style="font-size: 12px;">Cobrado</span></div>
-          </div>
+        <div class="card" style="padding: 14px;">
+          <div class="card-title" style="font-size: 14px; margin-bottom: 10px;">Profesionales disponibles</div>
+          <div id="agenda-profes-dia"></div>
         </div>
       </div>
 
@@ -64,6 +58,28 @@ async function renderAgenda(container) {
         </div>
 
         <div id="agenda-grid-container"></div>
+
+        <div class="leyenda">
+          <div class="leyenda-item"><div class="leyenda-color" style="background:#EFEDFB; border-left-color:#6D5BD0;"></div><span>Agendado</span></div>
+          <div class="leyenda-item"><div class="leyenda-color" style="background:#E3F6EC; border-left-color:#1F9D6B;"></div><span>Llegó</span></div>
+          <div class="leyenda-item"><div class="leyenda-color" style="background:#FCF1DC; border-left-color:#B7791F;"></div><span>En atención</span></div>
+          <div class="leyenda-item"><div class="leyenda-color" style="background:#E6F0FB; border-left-color:#2E6FB8;"></div><span>Finalizado</span></div>
+          <div class="leyenda-item"><div class="leyenda-color" style="background:#EFEFF2; border-left-color:#9A9AA8;"></div><span>Cobrado</span></div>
+        </div>
+      </div>
+
+      <div class="agenda-panel-derecho">
+        <div class="card" style="padding: 16px;">
+          <div class="card-title" style="font-size: 14px; margin-bottom: 14px;">Resumen del día</div>
+          <div id="agenda-resumen-dia"></div>
+        </div>
+        <div class="card" style="padding: 16px;">
+          <div class="card-title" style="font-size: 14px; margin-bottom: 10px;">Notas del día</div>
+          <div class="panel-placeholder">
+            <div class="panel-placeholder-icono">&#128221;</div>
+            <div>Espacio reservado para anotaciones, lista de espera y recordatorios.</div>
+          </div>
+        </div>
       </div>
     </div>
   `;
@@ -239,9 +255,9 @@ function inyectarEstilosAgenda() {
   const st = document.createElement('style');
   st.id = 'estilos-agenda-etapa3';
   st.textContent = `
-    .agenda-franja-band { position:absolute; left:2px; right:2px; background:rgba(83,74,183,0.05); border-radius:4px; z-index:0; pointer-events:none; }
-    .agenda-hueco { position:absolute; left:2px; right:2px; z-index:1; cursor:pointer; border-radius:4px; border:1px dashed var(--primario-medio); background:rgba(83,74,183,0.04); box-sizing:border-box; display:flex; align-items:center; justify-content:center; transition:background .12s, border-color .12s; }
-    .agenda-hueco:hover { background:rgba(83,74,183,0.16); border-style:solid; }
+    .agenda-franja-band { position:absolute; left:2px; right:2px; background:rgba(109,91,208,0.05); border-radius:4px; z-index:0; pointer-events:none; }
+    .agenda-hueco { position:absolute; left:2px; right:2px; z-index:1; cursor:pointer; border-radius:4px; border:1px dashed var(--primario-medio); background:rgba(109,91,208,0.04); box-sizing:border-box; display:flex; align-items:center; justify-content:center; transition:background .12s, border-color .12s; }
+    .agenda-hueco:hover { background:rgba(109,91,208,0.16); border-style:solid; }
     .agenda-hueco-mas { opacity:0.45; font-size:15px; font-weight:600; color:var(--primario); }
     .agenda-hueco:hover .agenda-hueco-mas { opacity:1; }
     .agenda-sin-franja { position:absolute; top:8px; left:6px; right:6px; text-align:center; font-size:11px; color:var(--texto-tenue); }
@@ -622,6 +638,66 @@ async function dibujarAgenda() {
   }
 
   grilla.innerHTML = html;
+
+  // Paneles laterales (profesionales del día + resumen) — usan datos ya cargados.
+  renderPanelDia(columnas, turnos);
+}
+
+// ============================================================
+// PANELES LATERALES (Paso 2 del rediseño)
+//   Izquierda: profesionales asignados ese día.
+//   Derecha:   resumen del día (contadores de los turnos ya cargados).
+// ============================================================
+function iniciales(nombre) {
+  const p = (nombre || '').trim().split(/\s+/);
+  return ((p[0]?.[0] || '') + (p[1]?.[0] || '')).toUpperCase() || '?';
+}
+
+function renderPanelDia(columnas, turnos) {
+  // --- Profesionales del día (panel izquierdo) ---
+  const cont = document.getElementById('agenda-profes-dia');
+  if (cont) {
+    const profes = (columnas || []).filter(c => c && c.profesional).map(c => c.profesional);
+    cont.innerHTML = profes.length === 0
+      ? `<div class="panel-vacio">No hay profesionales asignados a este día.</div>`
+      : profes.map(p => {
+          const color = (p.color && /^#[0-9a-f]{6}$/i.test(p.color)) ? p.color : '#6D5BD0';
+          return `
+            <div class="prof-dia-row">
+              <div class="prof-dia-avatar" style="background:${color}22; color:${color};">${iniciales(p.nombre)}</div>
+              <div class="prof-dia-info">
+                <div class="prof-dia-nombre">${p.nombre}</div>
+                <div class="prof-dia-rol">Profesional</div>
+              </div>
+              <span class="agenda-col-dot" style="background:${color};"></span>
+            </div>`;
+        }).join('');
+  }
+
+  // --- Resumen del día (panel derecho) ---
+  const res = document.getElementById('agenda-resumen-dia');
+  if (res) {
+    const ts = turnos || [];
+    const en = (...estados) => ts.filter(t => estados.includes(t.estado)).length;
+    const total = ts.filter(t => t.estado !== 'cancelado').length;
+    const pendientes = en('agendado', 'llego', 'en_atencion');
+    const atendidos = en('finalizado', 'cobrado');
+    const ausencias = en('ausente');
+    const tile = (icono, clase, num, label) => `
+      <div class="tile-stat">
+        <div class="tile-icono ${clase}">${icono}</div>
+        <div>
+          <div class="tile-num">${num}</div>
+          <div class="tile-label">${label}</div>
+        </div>
+      </div>`;
+    res.innerHTML = `<div class="resumen-grid">
+      ${tile('&#128197;', '', total, 'Turnos')}
+      ${tile('&#9203;', 'advertencia', pendientes, 'Pendientes')}
+      ${tile('&#10003;', 'exito', atendidos, 'Atendidos')}
+      ${tile('&#128100;', 'info', ausencias, 'Ausencias')}
+    </div>`;
+  }
 }
 
 // ============================================================
