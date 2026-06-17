@@ -399,28 +399,35 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
 
   const dis = soloLectura ? 'disabled' : '';
 
-  // --- Cronómetro -------------------------------------------------------
+  // --- Cabecera: paciente + cronómetro (en una sola línea) -------------
+  const pac = turno.pacientes || {};
+  const inic = ((pac.apellido?.[0] || '') + (pac.nombre?.[0] || '')).toUpperCase() || '?';
+  const fechaTurno = new Date(turno.fecha_hora).toLocaleDateString('es-AR');
+
   const inicioAtencion = turno.hora_inicio_atencion ? new Date(turno.hora_inicio_atencion) : null;
   const mostrarCrono = turno.estado === 'en_atencion' && inicioAtencion && !soloLectura;
+  const RELOJ_SVG = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="10" x2="14" y1="2" y2="2"/><line x1="12" x2="15" y1="14" y2="11"/><circle cx="12" cy="14" r="8"/></svg>';
 
-  let cronoHTML = '';
+  let cronoChip = '';
   if (mostrarCrono) {
-    cronoHTML = `
-      <div style="background: var(--fondo); border-left: 3px solid var(--exito); padding: 10px 14px; border-radius: var(--radio); margin-bottom: 1rem; display: flex; align-items: center; gap: 12px;">
-        <span style="font-size: 20px;">⏱</span>
+    cronoChip = `
+      <div class="atn-crono">
+        <span class="atn-crono-ico">${RELOJ_SVG}</span>
         <div>
-          <div style="font-size: 11px; color: var(--texto-secundario); text-transform: uppercase; letter-spacing: .5px;">En atención</div>
-          <div id="ficha-cronometro" style="font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; color: var(--exito);">00:00</div>
+          <div class="atn-crono-lbl">En atención</div>
+          <div id="ficha-cronometro" class="atn-crono-val">00:00</div>
         </div>
-      </div>
-    `;
+      </div>`;
   } else if (turno.estado === 'finalizado' && inicioAtencion && turno.hora_fin_atencion) {
     const totalMin = Math.max(0, Math.round((new Date(turno.hora_fin_atencion) - inicioAtencion) / 60000));
-    cronoHTML = `
-      <div style="background: var(--fondo); padding: 8px 12px; border-radius: var(--radio); margin-bottom: 1rem; font-size: 13px; color: var(--texto-secundario);">
-        ⏱ Duración de la atención: <strong style="color: var(--texto);">${totalMin} min</strong>
-      </div>
-    `;
+    cronoChip = `
+      <div class="atn-crono atn-crono-fin">
+        <span class="atn-crono-ico">${RELOJ_SVG}</span>
+        <div>
+          <div class="atn-crono-lbl">Duración</div>
+          <div class="atn-crono-val">${totalMin} min</div>
+        </div>
+      </div>`;
   }
 
   // --- Próxima visita: botones (o texto en solo-lectura) ---------------
@@ -548,18 +555,23 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
   };
 
   abrirModal(`
+    <style>.modal{max-width:760px;}</style>
     <div class="modal-header">
       <div class="modal-titulo">${soloLectura ? 'Ficha de atención · solo lectura' : 'Ficha de atención'}</div>
       <button class="modal-cerrar" onclick="cerrarModal()">×</button>
     </div>
     <form id="form-ficha">
       <div class="modal-body">
-        <div style="background: var(--fondo); padding: 10px 12px; border-radius: var(--radio); margin-bottom: 1rem; font-size: 13px;">
-          <strong>${turno.pacientes?.apellido}, ${turno.pacientes?.nombre}</strong>
-          <span style="color: var(--texto-secundario);"> · ${new Date(turno.fecha_hora).toLocaleDateString('es-AR')}</span>
+        <div class="atn-head">
+          <div class="atn-id">
+            <div class="atn-avatar">${inic}</div>
+            <div>
+              <div class="atn-nombre">${pac.apellido || ''}, ${pac.nombre || ''}</div>
+              <div class="atn-sub">Paciente · ${fechaTurno}</div>
+            </div>
+          </div>
+          ${cronoChip}
         </div>
-
-        ${cronoHTML}
 
         <div style="font-weight:600; font-size:14px; margin-bottom:8px;">Atenciones</div>
         ${soloLectura ? '' : `
@@ -571,7 +583,7 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
             <button type="button" class="btn btn-primary-sm" onclick="_ficha.agregarAt()">Agregar</button>
           </div>
         `}
-        <table class="tabla" style="font-size:13px; margin-bottom:1.25rem;">
+        <table class="tabla" style="font-size:13px; margin-bottom:1rem;">
           <thead><tr>
             <th>Atención</th><th style="text-align:center;">Cant.</th>
             <th style="text-align:right;">Precio</th><th style="text-align:right;">Subtotal</th>
@@ -599,14 +611,14 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
           <tbody id="ficha-tbody-prod"></tbody>
         </table>
 
-        <div style="text-align:right; font-size:14px; margin-bottom:1.25rem;">
+        <div style="text-align:right; font-size:14px; margin-bottom:0.85rem;">
           Total: <strong id="ficha-total" style="font-size:18px;">${formatearPrecio(0)}</strong>
           <div style="font-size:11px; color:var(--texto-secundario);">El cobro lo registra recepción</div>
         </div>
 
         <div class="input-group">
           <label>Observaciones / evolución</label>
-          <textarea name="observaciones" rows="3" ${dis}>${fichaExistente?.observaciones || ''}</textarea>
+          <textarea name="observaciones" rows="2" ${dis}>${fichaExistente?.observaciones || ''}</textarea>
         </div>
 
         <div class="input-group">

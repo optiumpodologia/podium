@@ -1453,6 +1453,44 @@ input, select, textarea {
 .anam-op input { accent-color: var(--primario); cursor: pointer; }
 .anam-detalle { flex-basis: 100%; margin-top: 5px; padding: 5px 8px; font-size: 12px; }
 
+/* ----- Ficha de atención: cabecera compacta (paciente + cronómetro) ----- */
+.atn-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  background: var(--fondo-sutil);
+  border: 1px solid var(--borde-tenue);
+  border-radius: var(--radio);
+  padding: 12px 16px;
+  margin-bottom: 16px;
+}
+.atn-id { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.atn-avatar {
+  width: 46px; height: 46px; flex: none;
+  border-radius: 50%;
+  background: var(--primario-claro);
+  color: var(--primario);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; font-weight: 700;
+}
+.atn-nombre { font-size: 19px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.15; }
+.atn-sub { font-size: 12px; color: var(--texto-secundario); margin-top: 2px; }
+.atn-crono {
+  display: flex; align-items: center; gap: 10px; flex: none;
+  background: var(--exito-claro);
+  border: 1px solid var(--exito);
+  border-radius: var(--radio);
+  padding: 7px 14px;
+  color: var(--exito);
+}
+.atn-crono-ico { display: flex; }
+.atn-crono-lbl { font-size: 10px; text-transform: uppercase; letter-spacing: .6px; color: var(--texto-secundario); }
+.atn-crono-val { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.05; }
+.atn-crono-fin { background: #fff; border-color: var(--borde); color: var(--texto-secundario); }
+.atn-crono-fin .atn-crono-val { color: var(--texto); font-size: 16px; }
+
 /* ----- Ficha: header, tarjetas con ícono, footer, nota rápida ----- */
 .ficha-header-ico {
   width: 32px; height: 32px;
