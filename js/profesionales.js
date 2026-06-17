@@ -413,7 +413,7 @@ async function quitarFotoProfesional(profId) {
 }
 
 // Ficha completa del profesional (formato ficha de paciente: panel lateral + pestañas)
-async function verFichaProfesional(id) {
+async function verFichaProfesional(id, opts = {}) {
   const { data: prof } = await sb.from('profesionales').select('*').eq('id', id).single();
   if (!prof) { mostrarMensaje('Profesional no encontrado', 'error'); return; }
 
@@ -423,8 +423,13 @@ async function verFichaProfesional(id) {
     if (u) { email = u.email || ''; cuentaActiva = u.activo; tieneLogin = true; }
   }
 
-  const puedeEditar = puede(usuarioActual, 'crear_profesional') || usuarioActual.rol === 'recepcion';
-  const inic = profInic(prof.nombre);
+  // Estado que usa la lógica de horarios (reutilizada tal cual).
+  _horariosProf = prof;
+
+  // Negocio = gestiona todo. Recepción = solo Horarios.
+  const esNegocio = puede(usuarioActual, 'crear_profesional');
+  const editarInicial = !!opts.editar && esNegocio;
+
   const estadoBadge = prof.activo
     ? '<span class="badge badge-llego">Activo</span>'
     : '<span class="badge badge-cancelado">Inactivo</span>';
@@ -444,9 +449,11 @@ async function verFichaProfesional(id) {
       <div class="ficha-card-val${val ? '' : ' sin-dato'}">${val || 'Sin cargar'}</div>
     </div>`;
   const colorChip = `<span style="display:inline-flex; align-items:center; gap:8px;"><span style="width:16px; height:16px; border-radius:4px; background:${prof.color}; display:inline-block;"></span>${prof.color}</span>`;
+  const escA = s => String(s || '').replace(/"/g, '&quot;');
+  const escJ = s => String(s || '').replace(/'/g, "\\'");
 
   abrirModal(`
-    <style>.modal{max-width:820px;}</style>
+    <style>.modal{max-width:860px;}</style>
     <div class="modal-header">
       <div class="modal-titulo" style="font-size:15px; font-weight:600;">Ficha del profesional</div>
       <button class="modal-cerrar" onclick="cerrarModal()">×</button>
@@ -456,12 +463,12 @@ async function verFichaProfesional(id) {
         <aside class="ficha-resumen">
           <div class="ficha-avatar-wrap">
             ${avatarHTML(prof.nombre, prof.color, prof.foto_url, 72)}
-            ${puedeEditar ? `
+            ${esNegocio ? `
               <button type="button" class="ficha-foto-btn" title="Cambiar foto" onclick="document.getElementById('foto-input-${prof.id}').click()">${CAMARA_SVG}</button>
               <input type="file" id="foto-input-${prof.id}" accept="image/*" style="display:none" onchange="subirFotoProfesional('${prof.id}', this.files[0])">
             ` : ''}
           </div>
-          ${(puedeEditar && prof.foto_url) ? `<button type="button" class="ficha-foto-quitar" onclick="quitarFotoProfesional('${prof.id}')">Quitar foto</button>` : ''}
+          ${(esNegocio && prof.foto_url) ? `<button type="button" class="ficha-foto-quitar" onclick="quitarFotoProfesional('${prof.id}')">Quitar foto</button>` : ''}
           <div class="ficha-nombre">${prof.nombre}</div>
           <div class="ficha-dni">Profesional</div>
           <div style="margin-top:10px;">${estadoBadge}</div>
@@ -470,40 +477,79 @@ async function verFichaProfesional(id) {
             <div><span>Teléfono</span><strong>${prof.telefono || '—'}</strong></div>
             <div><span>Cuenta</span><strong>${tieneLogin ? (cuentaActiva ? 'Activa' : 'Inactiva') : 'Sin login'}</strong></div>
           </div>
-          ${puedeEditar ? `<button class="btn btn-primary-sm ficha-editar" onclick="cerrarModal(); setTimeout(()=>abrirModalProfesional('${prof.id}'),60);">Editar datos</button>` : ''}
-          <button class="btn ficha-editar" style="margin-top:8px;" onclick="cerrarModal(); setTimeout(()=>abrirModalHorarios('${prof.id}'),60);">Horarios de atención</button>
+          ${esNegocio ? `<button class="btn btn-primary-sm ficha-editar" onclick="fichaEditarDatos()">Editar datos</button>` : ''}
         </aside>
 
         <div class="ficha-main">
           <div class="ficha-tabs">
             <button class="ficha-tab active" data-ftab="datos" onclick="fichaTab('datos')">Datos</button>
-            <button class="ficha-tab" data-ftab="cuenta" onclick="fichaTab('cuenta')">Cuenta</button>
+            <button class="ficha-tab" data-ftab="horarios" onclick="fichaTab('horarios')">Horarios</button>
+            ${esNegocio ? `<button class="ficha-tab" data-ftab="cuenta" onclick="fichaTab('cuenta')">Cuenta</button>` : ''}
           </div>
 
           <div class="ficha-panel active" data-fpanel="datos">
-            <div class="ficha-cards">
-              ${card('mat', 'Matrícula', prof.matricula)}
-              ${card('tel', 'Teléfono', prof.telefono)}
-              ${card('mail', 'Email', email, true)}
-              ${card('color', 'Color en agenda', colorChip, true)}
+            <div id="fp-datos-read">
+              <div class="ficha-cards">
+                ${card('mat', 'Matrícula', prof.matricula)}
+                ${card('tel', 'Teléfono', prof.telefono)}
+                ${card('mail', 'Email', email, true)}
+                ${card('color', 'Color en agenda', colorChip, true)}
+              </div>
+            </div>
+            <div id="fp-datos-edit" style="display:none;">
+              <div class="input-group">
+                <label>Nombre completo *</label>
+                <input type="text" id="fp-nombre" value="${escA(prof.nombre)}" required>
+              </div>
+              <div class="form-row">
+                <div class="input-group"><label>Matrícula</label><input type="text" id="fp-matricula" value="${escA(prof.matricula)}"></div>
+                <div class="input-group"><label>Teléfono</label><input type="text" id="fp-telefono" value="${escA(prof.telefono)}"></div>
+              </div>
+              <div class="form-row">
+                <div class="input-group"><label>Color en agenda</label><input type="color" id="fp-color" value="${prof.color || '#534AB7'}"></div>
+                <div class="input-group"><label>Estado</label>
+                  <select id="fp-activo">
+                    <option value="true" ${prof.activo ? 'selected' : ''}>Activo</option>
+                    <option value="false" ${!prof.activo ? 'selected' : ''}>Inactivo</option>
+                  </select>
+                </div>
+              </div>
+              <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:6px;">
+                <button type="button" class="btn" onclick="fichaCancelarDatos()">Cancelar</button>
+                <button type="button" class="btn btn-primary-sm" id="fp-guardar" onclick="fichaGuardarDatos('${prof.id}')">Guardar</button>
+              </div>
             </div>
           </div>
 
+          <div class="ficha-panel" data-fpanel="horarios">
+            <div style="margin-bottom: 1.25rem;">
+              <div style="font-weight:600; font-size:14px; margin-bottom:0.25rem;">Días laborales (semana fija)</div>
+              <div style="font-size:12px; color:var(--texto-secundario); margin-bottom:0.75rem;">El horario habitual que se repite todas las semanas. Podés agregar más de una franja al mismo día (ej: mañana y tarde).</div>
+              <div id="lista-laborales"><div class="vacio" style="padding:1rem;">Cargando...</div></div>
+              <button class="btn" style="margin-top:0.75rem; font-size:12px; padding:6px 12px;" onclick="agregarFranjaLaboral()">+ Agregar franja</button>
+            </div>
+            <div style="border-top:1px solid var(--borde-tenue); padding-top:1.25rem;">
+              <div style="font-weight:600; font-size:14px; margin-bottom:0.25rem;">Días especiales (excepciones)</div>
+              <div style="font-size:12px; color:var(--texto-secundario); margin-bottom:0.75rem;">Una fecha puntual: que venga un día que normalmente no trabaja, o que falte un día que sí.</div>
+              <div id="lista-especiales"><div class="vacio" style="padding:1rem;">Cargando...</div></div>
+              <button class="btn" style="margin-top:0.75rem; font-size:12px; padding:6px 12px;" onclick="agregarDiaEspecial()">+ Agregar día especial</button>
+            </div>
+          </div>
+
+          ${esNegocio ? `
           <div class="ficha-panel" data-fpanel="cuenta">
             ${tieneLogin ? `
               <div class="ficha-cards">
                 ${card('mail', 'Email de acceso', email, true)}
                 ${card('user', 'Estado de la cuenta', cuentaActiva ? 'Activa' : 'Inactiva')}
               </div>
-              ${(puede(usuarioActual, 'crear_profesional') || usuarioActual.id === prof.usuario_id) ? `
-                <div style="margin-top:14px;">
-                  <button type="button" class="btn btn-primary-sm" onclick="cerrarModal(); setTimeout(()=>abrirGestionCuenta('${prof.usuario_id}','${(prof.nombre || '').replace(/'/g, "\\'")}','${(email || '').replace(/'/g, "\\'")}'),60);">Cambiar contraseña / email</button>
-                </div>
-              ` : ''}
+              <div style="margin-top:14px;">
+                <button type="button" class="btn btn-primary-sm" onclick="abrirGestionCuenta('${prof.usuario_id}','${escJ(prof.nombre)}','${escJ(email)}')">Cambiar contraseña / email</button>
+              </div>
             ` : `
               <div class="vacio" style="padding:1.5rem;">Este profesional no tiene login propio (atiende con la cuenta del dueño).</div>
             `}
-          </div>
+          </div>` : ''}
         </div>
       </div>
     </div>
@@ -512,7 +558,49 @@ async function verFichaProfesional(id) {
       <button class="btn" onclick="cerrarModal()">Cerrar</button>
     </div>
   `);
+
+  // Cargar horarios en su skeleton (existe aunque la pestaña esté oculta).
+  cargarHorarios();
+  // Tab inicial / modo edición si vino del lápiz.
+  if (opts.tab && opts.tab !== 'datos') fichaTab(opts.tab);
+  if (editarInicial) fichaEditarDatos();
 }
+
+// --- Datos: edición inline dentro de la ficha (sin abrir otro modal) ---
+function fichaEditarDatos() {
+  const r = document.getElementById('fp-datos-read');
+  const e = document.getElementById('fp-datos-edit');
+  if (!r || !e) return;
+  fichaTab('datos');
+  r.style.display = 'none';
+  e.style.display = '';
+}
+function fichaCancelarDatos() {
+  const r = document.getElementById('fp-datos-read');
+  const e = document.getElementById('fp-datos-edit');
+  if (!r || !e) return;
+  e.style.display = 'none';
+  r.style.display = '';
+}
+async function fichaGuardarDatos(profId) {
+  const nombre = document.getElementById('fp-nombre').value.trim();
+  if (!nombre) { mostrarMensaje('El nombre es obligatorio', 'advertencia'); return; }
+  const datos = {
+    nombre,
+    matricula: document.getElementById('fp-matricula').value.trim() || null,
+    telefono: document.getElementById('fp-telefono').value.trim() || null,
+    color: document.getElementById('fp-color').value,
+    activo: document.getElementById('fp-activo').value === 'true'
+  };
+  const btn = document.getElementById('fp-guardar');
+  btn.disabled = true; btn.textContent = 'Guardando...';
+  const { error } = await sb.from('profesionales').update(datos).eq('id', profId);
+  if (error) { mostrarMensaje('Error: ' + error.message, 'error'); btn.disabled = false; btn.textContent = 'Guardar'; return; }
+  mostrarMensaje('Datos actualizados', 'exito');
+  if (document.getElementById('tabla-profesionales')) cargarProfesionales();
+  verFichaProfesional(profId, { tab: 'datos' });   // re-render: vuelve a modo lectura con los datos nuevos
+}
+
 
 async function cargarProfesionales() {
   const { data, error } = await sb.from('profesionales').select('*').order('nombre');
@@ -527,6 +615,7 @@ async function cargarProfesionales() {
     return;
   }
 
+  const esNegocioLista = puede(usuarioActual, 'crear_profesional');
   tbody.innerHTML = data.map(p => `
     <tr>
       <td>
@@ -545,8 +634,10 @@ async function cargarProfesionales() {
         <div class="lista-acciones">
           <button class="lista-acc-btn" onclick="verFichaProfesional('${p.id}')" title="Ver ficha">${PROF_ICO.ojo}</button>
           <button class="lista-acc-btn" onclick="abrirModalHorarios('${p.id}')" title="Horarios">${PROF_ICO.reloj}</button>
-          <button class="lista-acc-btn" onclick="abrirModalProfesional('${p.id}')" title="Editar">${PROF_ICO.lapiz}</button>
-          <button class="lista-acc-btn peligro" onclick="eliminarProfesional('${p.id}')" title="Eliminar">${PROF_ICO.tacho}</button>
+          ${esNegocioLista ? `
+            <button class="lista-acc-btn" onclick="verFichaProfesional('${p.id}', {editar:true})" title="Editar">${PROF_ICO.lapiz}</button>
+            <button class="lista-acc-btn peligro" onclick="eliminarProfesional('${p.id}')" title="Eliminar">${PROF_ICO.tacho}</button>
+          ` : ''}
         </div>
       </td>
     </tr>
@@ -804,45 +895,10 @@ let _horariosProf = null;       // { id, nombre, negocio_id }
 let _horariosLaborales = [];    // filas de dias_laborales_profesional
 let _horariosEspeciales = [];   // filas de dias_especiales_profesional
 
+// Horarios ahora vive como pestaña dentro de la ficha del profesional.
+// Mantenemos el nombre porque los sub-modales (agregar franja / día) vuelven acá.
 async function abrirModalHorarios(profesionalId) {
-  const { data: prof, error } = await sb.from('profesionales')
-    .select('id, nombre, negocio_id')
-    .eq('id', profesionalId)
-    .single();
-
-  if (error || !prof) { mostrarMensaje('No se pudo cargar el profesional', 'error'); return; }
-  _horariosProf = prof;
-
-  abrirModal(`
-    <div class="modal-header">
-      <div class="modal-titulo">Horarios · ${prof.nombre}</div>
-      <button class="modal-cerrar" onclick="cerrarModal()">×</button>
-    </div>
-    <div class="modal-body">
-      <div style="margin-bottom: 1.5rem;">
-        <div style="font-weight: 600; font-size: 14px; margin-bottom: 0.25rem;">Días laborales (semana fija)</div>
-        <div style="font-size: 12px; color: var(--texto-secundario); margin-bottom: 0.75rem;">
-          El horario habitual que se repite todas las semanas. Podés agregar más de una franja al mismo día (ej: mañana y tarde).
-        </div>
-        <div id="lista-laborales"><div class="vacio" style="padding:1rem;">Cargando...</div></div>
-        <button class="btn" style="margin-top: 0.75rem; font-size: 12px; padding: 6px 12px;" onclick="agregarFranjaLaboral()">+ Agregar franja</button>
-      </div>
-
-      <div style="border-top: 1px solid var(--borde-tenue); padding-top: 1.25rem;">
-        <div style="font-weight: 600; font-size: 14px; margin-bottom: 0.25rem;">Días especiales (excepciones)</div>
-        <div style="font-size: 12px; color: var(--texto-secundario); margin-bottom: 0.75rem;">
-          Una fecha puntual: que venga un día que normalmente no trabaja, o que falte un día que sí.
-        </div>
-        <div id="lista-especiales"><div class="vacio" style="padding:1rem;">Cargando...</div></div>
-        <button class="btn" style="margin-top: 0.75rem; font-size: 12px; padding: 6px 12px;" onclick="agregarDiaEspecial()">+ Agregar día especial</button>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn" onclick="cerrarModal()">Cerrar</button>
-    </div>
-  `);
-
-  await cargarHorarios();
+  return verFichaProfesional(profesionalId, { tab: 'horarios' });
 }
 
 async function cargarHorarios() {
