@@ -287,6 +287,50 @@ function profInic(nombre) {
   return (nombre || '?').split(' ').filter(Boolean).map(x => x[0]).slice(0, 2).join('').toUpperCase() || '?';
 }
 
+// Avatar reutilizable: muestra la foto si hay, o las iniciales con el color del profesional.
+// Se usa en la ficha, el listado de "Mi equipo" y el panel de agenda.
+function avatarHTML(nombre, color, foto, size = 36) {
+  const c = (color && /^#[0-9a-fA-F]{6}$/.test(color)) ? color : '#6D5BD0';
+  const base = `width:${size}px; height:${size}px; border-radius:50%; flex:none;`;
+  if (foto) {
+    return `<div style="${base} overflow:hidden; background:#eee;"><img src="${foto}" alt="" style="width:100%; height:100%; object-fit:cover; display:block;"></div>`;
+  }
+  return `<div style="${base} background:${c}; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:${Math.round(size * 0.34)}px;">${profInic(nombre)}</div>`;
+}
+
+const FOTOS_BUCKET = 'fotos';
+const CAMARA_SVG = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>';
+
+async function subirFotoProfesional(profId, file) {
+  if (!file) return;
+  if (!file.type.startsWith('image/')) { mostrarMensaje('Elegí un archivo de imagen', 'advertencia'); return; }
+  if (file.size > 3 * 1024 * 1024) { mostrarMensaje('La imagen no puede superar 3 MB', 'advertencia'); return; }
+
+  const negId = usuarioActual.negocio_id;
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+  const path = `${negId}/${profId}-${Date.now()}.${ext}`;
+
+  const { error: upErr } = await sb.storage.from(FOTOS_BUCKET).upload(path, file, { upsert: true, contentType: file.type });
+  if (upErr) { mostrarMensaje('No se pudo subir la foto: ' + upErr.message, 'error'); return; }
+
+  const { data: pub } = sb.storage.from(FOTOS_BUCKET).getPublicUrl(path);
+  const { error: dbErr } = await sb.from('profesionales').update({ foto_url: pub.publicUrl }).eq('id', profId);
+  if (dbErr) { mostrarMensaje('Foto subida, pero no se guardó: ' + dbErr.message, 'error'); return; }
+
+  mostrarMensaje('Foto actualizada', 'exito');
+  verFichaProfesional(profId);
+  if (document.getElementById('tabla-profesionales')) cargarProfesionales();
+}
+
+async function quitarFotoProfesional(profId) {
+  if (!confirm('¿Quitar la foto del profesional?')) return;
+  const { error } = await sb.from('profesionales').update({ foto_url: null }).eq('id', profId);
+  if (error) { mostrarMensaje('Error: ' + error.message, 'error'); return; }
+  mostrarMensaje('Foto quitada', 'exito');
+  verFichaProfesional(profId);
+  if (document.getElementById('tabla-profesionales')) cargarProfesionales();
+}
+
 // Ficha completa del profesional (formato ficha de paciente: panel lateral + pestañas)
 async function verFichaProfesional(id) {
   const { data: prof } = await sb.from('profesionales').select('*').eq('id', id).single();
@@ -329,7 +373,14 @@ async function verFichaProfesional(id) {
     <div class="modal-body" style="padding:0;">
       <div class="ficha-cols">
         <aside class="ficha-resumen">
-          <div class="ficha-avatar" style="background:${prof.color}; color:#fff;">${inic}</div>
+          <div class="ficha-avatar-wrap">
+            ${avatarHTML(prof.nombre, prof.color, prof.foto_url, 72)}
+            ${puedeEditar ? `
+              <button type="button" class="ficha-foto-btn" title="Cambiar foto" onclick="document.getElementById('foto-input-${prof.id}').click()">${CAMARA_SVG}</button>
+              <input type="file" id="foto-input-${prof.id}" accept="image/*" style="display:none" onchange="subirFotoProfesional('${prof.id}', this.files[0])">
+            ` : ''}
+          </div>
+          ${(puedeEditar && prof.foto_url) ? `<button type="button" class="ficha-foto-quitar" onclick="quitarFotoProfesional('${prof.id}')">Quitar foto</button>` : ''}
           <div class="ficha-nombre">${prof.nombre}</div>
           <div class="ficha-dni">Profesional</div>
           <div style="margin-top:10px;">${estadoBadge}</div>
@@ -397,7 +448,7 @@ async function cargarProfesionales() {
     <tr>
       <td>
         <div class="lista-nombre">
-          <div class="lista-avatar" style="background:${p.color}; color:#fff;">${profInic(p.nombre)}</div>
+          ${avatarHTML(p.nombre, p.color, p.foto_url, 36)}
           <span class="lista-nombre-txt">${p.nombre}</span>
         </div>
       </td>

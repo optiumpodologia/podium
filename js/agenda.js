@@ -318,7 +318,7 @@ async function obtenerDiaAgenda(fecha, cantColumnas, esPasado) {
 
   // 1) Ya está guardado este día?
   const { data: guardado } = await sb.from('agenda_dia')
-    .select('id, columna, profesional_id, profesionales(id, nombre, color, usuario_id)')
+    .select('id, columna, profesional_id, profesionales(id, nombre, color, usuario_id, foto_url)')
     .eq('negocio_id', negId)
     .eq('fecha', fechaStr)
     .order('columna');
@@ -355,7 +355,7 @@ async function obtenerDiaAgenda(fecha, cantColumnas, esPasado) {
       // Si falla (ej: otra pestaña sembró en paralelo), releemos lo que haya.
       console.error('siembra:', error);
       const { data: reread } = await sb.from('agenda_dia')
-        .select('id, columna, profesional_id, profesionales(id, nombre, color, usuario_id)')
+        .select('id, columna, profesional_id, profesionales(id, nombre, color, usuario_id, foto_url)')
         .eq('negocio_id', negId)
         .eq('fecha', fechaStr)
         .order('columna');
@@ -681,7 +681,7 @@ function renderPanelDia(columnas, turnos) {
           const color = (p.color && /^#[0-9a-f]{6}$/i.test(p.color)) ? p.color : '#6D5BD0';
           return `
             <div class="prof-dia-row">
-              <div class="prof-dia-avatar" style="background:${color}22; color:${color};">${iniciales(p.nombre)}</div>
+              ${avatarHTML(p.nombre, color, p.foto_url, 36)}
               <div class="prof-dia-info">
                 <div class="prof-dia-nombre">${p.nombre}</div>
                 <div class="prof-dia-rol">Profesional</div>
