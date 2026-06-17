@@ -21,7 +21,6 @@ function calcularEdad(fechaNac) {
 //                 serializadas como JSON: {"temp":"Frío","piel":["Resequedad"]}.
 // Nota: primera_visita y observaciones se manejan como texto, igual que antes.
 const ANAM_TEXTO = [
-  { k: 'primera_visita',   label: 'Primera visita' },
   { k: 'enfermedad_base',  label: 'Enfermedad de base' },
   { k: 'bajo_tratamiento', label: '¿Bajo tratamiento médico?' },
   { k: 'medicacion',       label: 'Medicación que toma' },
@@ -36,10 +35,10 @@ const ANAM_GRUPOS = [
   { k: 'cianosis',             label: 'Cianosis',              tipo: 'unica',    ops: ['Sí', 'No'] },
   { k: 'turgencia',            label: 'Turgencia',             tipo: 'unica',    ops: ['Normal', 'Anormal'] },
   { k: 'problemas_vasculares', label: 'Problemas vasculares',  tipo: 'check',    ops: ['Presenta'] },
-  { k: 'alergias',             label: 'Alergias',              tipo: 'check',    ops: ['Presenta'] },
+  { k: 'alergias',             label: 'Alergias',              tipo: 'check',    ops: ['Presenta'], detalle: true },
 ];
-const PIE_TEMP = ['Frío', 'Caliente'];
-const PIE_PIEL = ['Resequedad', 'Humedad', 'Intertrigo'];
+const PIE_TEMP = ['Frío', 'Normal', 'Caliente'];
+const PIE_PIEL = ['Normal', 'Resequedad', 'Humedad', 'Intertrigo'];
 
 // "Hemofilia, Anticoagulado" -> ['Hemofilia','Anticoagulado'] (tolerante a vacío/null)
 function anamLista(valor) {
@@ -80,7 +79,12 @@ function panelAnamnesisHTML(anam, editable, pacienteId) {
     const fila = (lbl, valor) =>
       `<div class="ficha-campo"><div class="ficha-campo-lbl">${lbl}</div><div class="ficha-campo-val${valor ? '' : ' sin-dato'}">${valor || '—'}</div></div>`;
     const textos = ANAM_TEXTO.map(c => fila(c.label, v(c.k))).join('');
-    const grupos = ANAM_GRUPOS.map(g => fila(g.label, g.tipo === 'check' ? (v(g.k) ? 'Sí' : '') : v(g.k))).join('');
+    const grupos = ANAM_GRUPOS.map(g => {
+      let val;
+      if (g.tipo === 'check') val = v(g.k) ? ((g.detalle && v(g.k) !== 'Sí') ? v(g.k) : 'Sí') : '';
+      else val = v(g.k);
+      return fila(g.label, val);
+    }).join('');
     const pie = piePartes(v('pie'));
     const pieTxt = [pie.temp, pie.piel.join(', ')].filter(Boolean).join(' · ');
     return `<div class="ficha-grid">${textos}${grupos}
@@ -100,7 +104,15 @@ function panelAnamnesisHTML(anam, editable, pacienteId) {
     let ops;
     if (g.tipo === 'unica') ops = anamOpsUnicaHTML(g.k, g.ops, v(g.k));
     else if (g.tipo === 'multiple') ops = anamOpsMultiHTML(g.k, g.ops, anamLista(v(g.k)));
-    else ops = `<label class="anam-op"><input type="checkbox" id="anam_chk_${g.k}" value="Sí" ${v(g.k) ? 'checked' : ''}> ${g.ops[0]}</label>`;
+    else {
+      const marcado = v(g.k) ? 'checked' : '';
+      ops = `<label class="anam-op"><input type="checkbox" id="anam_chk_${g.k}" value="Sí" ${marcado} ${g.detalle ? `onchange="anamToggleDetalle('${g.k}')"` : ''}> ${g.ops[0]}</label>`;
+      if (g.detalle) {
+        const det = (v(g.k) && v(g.k) !== 'Sí') ? esc(v(g.k)) : '';
+        const oculto = v(g.k) ? '' : 'style="display:none;"';
+        ops += `<input class="anam-input anam-detalle" id="anam_det_${g.k}" placeholder="Alergia a..." value="${det}" ${oculto}>`;
+      }
+    }
     return `<div class="anam-grupo"><div class="anam-grupo-lbl">${g.label}</div><div class="anam-ops">${ops}</div></div>`;
   }).join('');
 
@@ -144,6 +156,17 @@ async function verFichaPaciente(pacienteId) {
   const inic = ((paciente.apellido?.[0] || '') + (paciente.nombre?.[0] || '')).toUpperCase() || '?';
   const ultimaVisita = (turnos && turnos.length)
     ? new Date(turnos[0].fecha_hora).toLocaleDateString('es-AR')
+    : '—';
+
+  const { data: primeraVisitaRow } = await sb.from('turnos')
+    .select('fecha_hora')
+    .eq('paciente_id', pacienteId)
+    .in('estado', ['finalizado', 'cobrado'])
+    .order('fecha_hora', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  const primeraVisita = primeraVisitaRow
+    ? new Date(primeraVisitaRow.fecha_hora).toLocaleDateString('es-AR')
     : '—';
 
   const { data: anam } = await sb.from('anamnesis').select('*').eq('paciente_id', pacienteId).maybeSingle();
@@ -194,6 +217,7 @@ async function verFichaPaciente(pacienteId) {
           <div class="ficha-resumen-datos">
             <div><span>Edad</span><strong>${edad !== null ? edad : '—'}</strong></div>
             <div><span>Obra social</span><strong>${paciente.obra_social || '—'}</strong></div>
+            <div><span>Primera visita</span><strong>${primeraVisita}</strong></div>
             <div><span>Última visita</span><strong>${ultimaVisita}</strong></div>
           </div>
           ${puedeEditar ? `<button class="btn btn-primary-sm ficha-editar" onclick="abrirModalPaciente('${paciente.id}')">Editar datos</button>` : ''}
@@ -298,7 +322,15 @@ async function guardarAnamnesis(pacienteId) {
   ANAM_GRUPOS.forEach(g => {
     if (g.tipo === 'unica') datos[g.k] = radio('anam_' + g.k);
     else if (g.tipo === 'multiple') datos[g.k] = multi(g.k);
-    else { const el = document.getElementById('anam_chk_' + g.k); datos[g.k] = (el && el.checked) ? 'Sí' : null; }
+    else {
+      const el = document.getElementById('anam_chk_' + g.k);
+      if (!el || !el.checked) { datos[g.k] = null; }
+      else if (g.detalle) {
+        const det = document.getElementById('anam_det_' + g.k);
+        const t = det ? det.value.trim() : '';
+        datos[g.k] = t || 'Sí';
+      } else { datos[g.k] = 'Sí'; }
+    }
   });
 
   // Pie: temperatura (única) + estado de piel (múltiple) en una sola columna (JSON)
@@ -310,8 +342,17 @@ async function guardarAnamnesis(pacienteId) {
   if (error) { mostrarMensaje('No se pudo guardar la anamnesis: ' + error.message, 'error'); return; }
 
   mostrarMensaje('Anamnesis guardada', 'exito');
-  const dot = document.querySelector('.ficha-tab-alerta');
-  if (dot) dot.remove();   // ya no está pendiente
+  cerrarModal();
+}
+
+// Muestra/oculta el campo de detalle (ej. alergias) según el check.
+function anamToggleDetalle(k) {
+  const chk = document.getElementById('anam_chk_' + k);
+  const det = document.getElementById('anam_det_' + k);
+  if (!chk || !det) return;
+  det.style.display = chk.checked ? '' : 'none';
+  if (!chk.checked) det.value = '';
+  else det.focus();
 }
 
 
