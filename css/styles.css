@@ -1553,3 +1553,59 @@ input, select, textarea {
 .ficha-nota-area:focus { background: #fff; border-color: var(--primario-medio); }
 .ficha-nota-texto { font-size: 13px; line-height: 1.5; white-space: pre-wrap; }
 .ficha-nota-texto.sin-dato { color: var(--texto-tenue); }
+
+/* ===== LISTADOS (tabla de datos reutilizable: pacientes, profesionales, productos…) ===== */
+.lista-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+.lista-toolbar-sp { flex: 1 1 auto; }
+.lista-buscar { position: relative; min-width: 240px; }
+.lista-buscar input {
+  width: 100%; padding: 9px 12px 9px 36px;
+  border: 1px solid var(--borde); border-radius: var(--radio);
+  font-size: 13px; background: #fff; outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.lista-buscar input:focus { border-color: var(--primario); box-shadow: 0 0 0 3px rgba(109,91,208,0.15); }
+.lista-buscar svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--texto-tenue); pointer-events: none; }
+
+.lista-card { background: var(--fondo-card); border: 1px solid var(--borde-tenue); border-radius: var(--radio-lg); overflow: hidden; }
+.lista { width: 100%; border-collapse: collapse; }
+.lista th, .lista td { padding: 13px 16px; text-align: left; border-bottom: 1px solid var(--borde-tenue); font-size: 13.5px; vertical-align: middle; }
+.lista thead th { font-size: 12px; font-weight: 600; color: var(--texto-secundario); background: var(--fondo-sutil); white-space: nowrap; }
+.lista tbody tr { transition: background 0.1s; }
+.lista tbody tr:hover { background: var(--fondo-sutil); }
+.lista tbody tr:last-child td { border-bottom: none; }
+
+.lista-th-sort { cursor: pointer; user-select: none; }
+.lista-th-sort .sort-ico { opacity: 0.45; margin-left: 5px; font-size: 11px; }
+.lista-th-sort:hover .sort-ico { opacity: 0.8; }
+.lista-th-sort.activo { color: var(--primario); }
+.lista-th-sort.activo .sort-ico { opacity: 1; }
+
+.lista-nombre { display: flex; align-items: center; gap: 11px; }
+.lista-avatar { width: 36px; height: 36px; flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; }
+.lista-nombre-txt { font-weight: 600; }
+.lista-tel { display: inline-flex; align-items: center; gap: 7px; }
+.lista-tel svg { color: var(--primario); flex: none; }
+
+.lista-acciones { display: flex; gap: 6px; justify-content: flex-end; }
+.lista-acc-btn {
+  width: 34px; height: 34px; flex: none;
+  border: 1px solid var(--borde); border-radius: var(--radio);
+  background: #fff; color: var(--texto-secundario); cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+}
+.lista-acc-btn:hover { background: var(--fondo); color: var(--texto); border-color: var(--primario-medio); }
+.lista-acc-btn.peligro { color: var(--peligro); }
+.lista-acc-btn.peligro:hover { background: var(--peligro-claro); border-color: var(--peligro-claro); }
+
+.lista-pie { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 4px 2px; flex-wrap: wrap; }
+.lista-pie-info { font-size: 13px; color: var(--texto-secundario); }
+.lista-pag { display: flex; align-items: center; gap: 4px; }
+.lista-pag button { min-width: 32px; height: 32px; padding: 0 8px; border: 1px solid var(--borde); border-radius: 8px; background: #fff; color: var(--texto); font-size: 13px; cursor: pointer; transition: background 0.1s; }
+.lista-pag button:hover:not(:disabled):not(.activo) { background: var(--fondo); }
+.lista-pag button.activo { background: var(--primario); border-color: var(--primario); color: #fff; font-weight: 600; }
+.lista-pag button:disabled { opacity: 0.4; cursor: default; }
+.lista-pag .puntos { padding: 0 2px; color: var(--texto-tenue); }
+.lista-perpag { font-size: 13px; padding: 7px 10px; border: 1px solid var(--borde); border-radius: 8px; background: #fff; cursor: pointer; }
+.lista-vacio { padding: 2.5rem; text-align: center; color: var(--texto-secundario); }
