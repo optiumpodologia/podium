@@ -29,8 +29,8 @@
   --exito-claro:     #E3F6EC;
   --peligro:         #CB3A3A;
   --peligro-claro:   #FBEAEA;
-  --advertencia:     #B7791F;
-  --advertencia-claro: #FBF0DA;
+  --advertencia:     #E27A2E;
+  --advertencia-claro: #FCEAD6;
   --info:            #2E6FB8;
   --info-claro:      #E6F0FB;
 
@@ -894,7 +894,7 @@ input, select, textarea {
 }
 
 .turno-card.estado-en_atencion {
-  background: #FCF1DC;
+  background: #FCEAD6;
   border-left-color: var(--advertencia);
   color: #6B4A12;
 }
@@ -948,7 +948,7 @@ input, select, textarea {
 }
 .lc-agendado    { background: #EFEDFB; color: #5A4BB8; border-color: #DAD3F4; }
 .lc-llego       { background: #E3F6EC; color: #157A52; border-color: #C5EAD5; }
-.lc-en_atencion { background: #FCF1DC; color: #8C5E14; border-color: #F2E2BE; }
+.lc-en_atencion { background: #FCEAD6; color: #B85C18; border-color: #F6D9B8; }
 .lc-finalizado  { background: #E6F0FB; color: #1F5894; border-color: #CADEF3; }
 .lc-cobrado     { background: #EFEFF2; color: #5A5A6B; border-color: #E0E0E6; }
 
@@ -1000,7 +1000,7 @@ input, select, textarea {
 
 .badge-agendado   { background: var(--primario-claro);  color: var(--primario); }
 .badge-llego      { background: var(--exito-claro);     color: var(--exito); }
-.badge-en_atencion{ background: #FCF1DC;                 color: var(--advertencia); }
+.badge-en_atencion{ background: #FCEAD6;                 color: var(--advertencia); }
 .badge-finalizado { background: var(--info-claro);      color: var(--info); }
 .badge-cancelado, .badge-ausente { background: var(--peligro-claro); color: var(--peligro); }
 .badge-cobrado    { background: #EFEFF2;              color: #6B6B7B; }

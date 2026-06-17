@@ -1454,35 +1454,45 @@ function accionesTurnoHTML(t, numero, fechaStr, yaTieneSobre) {
   const esGestor = rol === 'negocio' || rol === 'recepcion';
   const puedeSobre = !t.es_sobreturno && !yaTieneSobre;
   const stop = 'event.stopPropagation();';
+  const sv = (p) => `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+  const ICO = {
+    ojo:    sv('<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>'),
+    ficha:  sv('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6"/><path d="M9 17h6"/>'),
+    check:  sv('<polyline points="20 6 9 17 4 12"/>'),
+    mas:    sv('<line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/>'),
+    tacho:  sv('<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>'),
+    volver: sv('<path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/>'),
+    cobro:  sv('<line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>')
+  };
   const btn = (icono, titulo, fn, extra) =>
     `<button class="turno-accion-btn ${extra || ''}" title="${titulo}" onclick="${stop}${fn}">${icono}</button>`;
   const out = [];
 
-  // Lupa = vista rápida del paciente (contexto antes de atender)
-  if (t.paciente_id) out.push(btn('&#128269;', 'Vista rápida del paciente', `verFichaPaciente('${t.paciente_id}')`));
+  // Ojo = vista rápida del paciente (contexto antes de atender)
+  if (t.paciente_id) out.push(btn(ICO.ojo, 'Vista rápida del paciente', `verFichaPaciente('${t.paciente_id}')`));
 
   if (esGestor) {
     if (t.estado === 'agendado') {
-      out.push(btn('&#10003;', 'Recibir paciente', `cambiarEstadoTurno('${t.id}','llego')`));
-      if (puedeSobre) out.push(btn('&#43;', 'Dar sobreturno', `abrirModalNuevoTurnoCasillero('${t.profesional_id}', ${numero}, '${fechaStr}', ${turnoMinInicio(t)}, null, true)`, 'violeta'));
-      out.push(btn('&#128465;', 'Eliminar turno', `eliminarTurno('${t.id}')`, 'peligro'));
+      out.push(btn(ICO.check, 'Recibir paciente', `cambiarEstadoTurno('${t.id}','llego')`));
+      if (puedeSobre) out.push(btn(ICO.mas, 'Dar sobreturno', `abrirModalNuevoTurnoCasillero('${t.profesional_id}', ${numero}, '${fechaStr}', ${turnoMinInicio(t)}, null, true)`, 'violeta'));
+      out.push(btn(ICO.tacho, 'Eliminar turno', `eliminarTurno('${t.id}')`, 'peligro'));
     } else if (t.estado === 'llego') {
-      out.push(btn('&#8617;', 'Cancelar recepción', `cambiarEstadoTurno('${t.id}','agendado')`));
-      if (puedeSobre) out.push(btn('&#43;', 'Dar sobreturno', `abrirModalNuevoTurnoCasillero('${t.profesional_id}', ${numero}, '${fechaStr}', ${turnoMinInicio(t)}, null, true)`, 'violeta'));
+      out.push(btn(ICO.volver, 'Cancelar recepción', `cambiarEstadoTurno('${t.id}','agendado')`));
+      if (puedeSobre) out.push(btn(ICO.mas, 'Dar sobreturno', `abrirModalNuevoTurnoCasillero('${t.profesional_id}', ${numero}, '${fechaStr}', ${turnoMinInicio(t)}, null, true)`, 'violeta'));
     } else if (t.estado === 'finalizado') {
-      out.push(btn('&#36;', 'Cobrar', `(typeof abrirCobro==='function' ? abrirCobro('${t.id}') : mostrarMensaje('El cobro se activa en el próximo paso','advertencia'))`, 'exito'));
+      out.push(btn(ICO.cobro, 'Cobrar', `(typeof abrirCobro==='function' ? abrirCobro('${t.id}') : mostrarMensaje('El cobro se activa en el próximo paso','advertencia'))`, 'exito'));
     }
   }
 
   if (esProf) {
     if (t.estado === 'llego') {
-      out.push(btn('&#129529;', 'Iniciar atención', `iniciarAtencion('${t.id}')`));
+      out.push(btn(ICO.ficha, 'Iniciar atención', `iniciarAtencion('${t.id}')`));
     } else if (t.estado === 'en_atencion') {
-      out.push(btn('&#129529;', 'Seguir ficha', `abrirFichaAtencion('${t.id}')`));
+      out.push(btn(ICO.ficha, 'Seguir ficha', `abrirFichaAtencion('${t.id}')`));
     } else if (t.estado === 'finalizado') {
-      out.push(btn('&#128065;', 'Ver ficha', `abrirFichaAtencion('${t.id}')`));
+      out.push(btn(ICO.ficha, 'Ver ficha', `abrirFichaAtencion('${t.id}')`));
     } else if (t.estado === 'cobrado') {
-      out.push(btn('&#128065;', 'Ver ficha', `abrirFichaAtencion('${t.id}', true)`));
+      out.push(btn(ICO.ficha, 'Ver ficha', `abrirFichaAtencion('${t.id}', true)`));
     }
   }
 

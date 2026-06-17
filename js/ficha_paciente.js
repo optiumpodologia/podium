@@ -439,7 +439,7 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
       <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
         ${PROX_FIJAS.map(p => `<button type="button" class="btn ficha-prox-btn" data-prox="${p}" onclick="_ficha.setProx('${p}')">${p}</button>`).join('')}
         <button type="button" class="btn ficha-prox-btn" data-prox="__otra__" onclick="_ficha.setProxOtra()">Otra</button>
-        <input type="text" id="ficha-prox-otra" class="ficha-prox-input" placeholder="Ej: en 2 meses" oninput="_ficha.prox = this.value" style="display:none;">
+        <input type="text" id="ficha-prox-otra" class="ficha-prox-input" placeholder="Ej: en 2 meses" oninput="_ficha.prox = this.value" style="display:none; width:170px; flex:none;">
       </div>
     `;
   }
@@ -542,7 +542,7 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
     },
     setProxOtra() {
       const inp = document.getElementById('ficha-prox-otra');
-      if (inp) { inp.style.display = ''; this.prox = inp.value; inp.focus(); }
+      if (inp) { inp.style.display = 'inline-block'; this.prox = inp.value; inp.focus(); }
       this.marcarProx();
     }
   };
@@ -642,7 +642,7 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
   if (!soloLectura && proxInicial) {
     if (!PROX_FIJAS.includes(proxInicial)) {
       const inp = document.getElementById('ficha-prox-otra');
-      if (inp) { inp.style.display = ''; inp.value = proxInicial; }
+      if (inp) { inp.style.display = 'inline-block'; inp.value = proxInicial; }
     }
     _ficha.marcarProx();
   }
