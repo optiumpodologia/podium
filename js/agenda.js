@@ -280,16 +280,16 @@ function inyectarEstilosAgenda() {
     .tt-vacio { color:var(--texto-tenue); cursor:default; }
 
     /* Botones de acción por celda (siempre visibles) */
-    .turno-acciones { position:absolute; top:3px; right:3px; display:flex; gap:3px; z-index:3; }
-    .turno-accion-btn { width:24px; height:24px; border:1px solid rgba(0,0,0,0.12); border-radius:5px; background:rgba(255,255,255,0.95); cursor:pointer; font-size:13px; line-height:1; display:flex; align-items:center; justify-content:center; padding:0; box-shadow:0 1px 2px rgba(0,0,0,0.12); transition:transform .08s, box-shadow .08s, background .08s; }
-    .turno-accion-btn:hover { background:#fff; transform:translateY(-1px); box-shadow:0 2px 6px rgba(0,0,0,0.22); border-color:rgba(0,0,0,0.25); }
-    .turno-accion-btn:active { transform:translateY(0); }
+    .turno-acciones { position:absolute; top:3px; right:3px; display:flex; gap:1px; z-index:3; }
+    .turno-accion-btn { width:22px; height:22px; border:none; border-radius:5px; background:transparent; color:inherit; cursor:pointer; line-height:1; display:flex; align-items:center; justify-content:center; padding:0; opacity:0.7; transition:opacity .1s, background .1s, color .1s; }
+    .turno-accion-btn:hover { opacity:1; background:rgba(0,0,0,0.08); }
+    .turno-accion-btn:active { background:rgba(0,0,0,0.14); }
     .turno-accion-btn.peligro { color:var(--peligro); }
-    .turno-accion-btn.peligro:hover { background:var(--peligro); color:#fff; border-color:var(--peligro); }
+    .turno-accion-btn.peligro:hover { background:var(--peligro-claro); }
     .turno-accion-btn.exito { color:var(--exito); }
-    .turno-accion-btn.exito:hover { background:var(--exito); color:#fff; border-color:var(--exito); }
-    .turno-accion-btn.violeta { color:#7c3aed; }
-    .turno-accion-btn.violeta:hover { background:#7c3aed; color:#fff; border-color:#7c3aed; }
+    .turno-accion-btn.exito:hover { background:var(--exito-claro); }
+    .turno-accion-btn.violeta { color:var(--primario); }
+    .turno-accion-btn.violeta:hover { background:var(--primario-claro); }
     /* El cuerpo de la tarjeta también responde al hover, para separar su zona de click de la de los íconos */
     .turno-card { transition:filter .1s, box-shadow .1s; }
     .turno-card:hover { filter:brightness(0.97); box-shadow:inset 0 0 0 2px rgba(0,0,0,0.10); }
