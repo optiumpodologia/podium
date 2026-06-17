@@ -123,6 +123,10 @@ async function cargarRecepcion() {
               ${r.activo ? 'Activo' : 'Inactivo'}
             </span>
             ${puedeGestionar ? `
+              <button class="lista-acc-btn" title="Gestionar cuenta (contraseña / email)"
+                onclick="abrirGestionCuenta('${r.id}','${(r.nombre || '').replace(/'/g, "\\'")}','${(r.email || '').replace(/'/g, "\\'")}')">
+                ${PROF_ICO.llave}
+              </button>
               <button class="lista-acc-btn ${r.activo ? 'peligro' : ''}" title="${r.activo ? 'Desactivar' : 'Activar'}"
                 onclick="toggleRecepcionActiva('${r.id}', ${!r.activo})"
                 ${r.activo ? '' : 'style="color: var(--exito);"'}>
@@ -281,7 +285,72 @@ const PROF_ICO = {
   tacho: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>',
   ban:   '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.9" x2="19.1" y1="4.9" y2="19.1"/></svg>',
   check: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+  llave: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></svg>',
 };
+
+// Modal reutilizable para fijar contraseña nueva y/o cambiar el email de una cuenta.
+// Llama a la Edge Function 'gestionar-cuenta' (que valida permisos del lado del server).
+function abrirGestionCuenta(usuarioId, nombre, emailActual) {
+  const emailOriginal = (emailActual || '').trim().toLowerCase();
+  abrirModal(`
+    <div class="modal-header">
+      <div class="modal-titulo" style="font-size:15px; font-weight:600;">Cuenta · ${nombre || ''}</div>
+      <button class="modal-cerrar" onclick="cerrarModal()">×</button>
+    </div>
+    <form id="form-cuenta">
+      <div class="modal-body">
+        <div class="input-group">
+          <label>Email de acceso</label>
+          <input type="email" name="email" value="${emailActual || ''}" placeholder="email@ejemplo.com">
+          <small style="color:var(--texto-tenue); display:block; margin-top:4px;">Cambialo solo si hace falta. Es con el que entra a la app.</small>
+        </div>
+        <div class="input-group">
+          <label>Nueva contraseña</label>
+          <input type="text" name="password" minlength="6" placeholder="Dejala vacía para no cambiarla">
+          <small style="color:var(--texto-tenue); display:block; margin-top:4px;">Mínimo 6 caracteres. Anotala: se la pasás a la persona.</small>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn" onclick="cerrarModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary-sm" id="btn-cuenta">Guardar cambios</button>
+      </div>
+    </form>
+  `);
+
+  document.getElementById('form-cuenta').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const email = (fd.get('email') || '').trim().toLowerCase();
+    const password = (fd.get('password') || '').trim();
+
+    const payload = { usuario_id: usuarioId };
+    if (email && email !== emailOriginal) payload.email = email;
+    if (password) {
+      if (password.length < 6) { mostrarMensaje('La contraseña debe tener al menos 6 caracteres', 'advertencia'); return; }
+      payload.password = password;
+    }
+    if (!payload.email && !payload.password) { mostrarMensaje('No cambiaste nada', 'advertencia'); return; }
+
+    const btn = document.getElementById('btn-cuenta');
+    btn.disabled = true; btn.textContent = 'Guardando...';
+    try {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) throw new Error('Sesión expirada');
+      const r = await fetch(`${SUPABASE_URL}/functions/v1/gestionar-cuenta`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify(payload)
+      });
+      const res = await r.json();
+      if (!r.ok || res.error) throw new Error(res.error || 'Error desconocido');
+      mostrarMensaje('Cuenta actualizada', 'exito');
+      cerrarModal();
+    } catch (err) {
+      mostrarMensaje('Error: ' + err.message, 'error');
+      btn.disabled = false; btn.textContent = 'Guardar cambios';
+    }
+  });
+}
 
 function profInic(nombre) {
   return (nombre || '?').split(' ').filter(Boolean).map(x => x[0]).slice(0, 2).join('').toUpperCase() || '?';
@@ -414,9 +483,11 @@ async function verFichaProfesional(id) {
                 ${card('mail', 'Email de acceso', email, true)}
                 ${card('user', 'Estado de la cuenta', cuentaActiva ? 'Activa' : 'Inactiva')}
               </div>
-              <div style="margin-top:14px; padding:12px 14px; background:var(--fondo); border-radius:var(--radio); font-size:13px; color:var(--texto-secundario); display:flex; gap:9px; align-items:flex-start;">
-                ${ic(ICO.lock, 15)}<span>El cambio de contraseña, de email y la foto se habilitan en el próximo paso (requieren configuración del backend).</span>
-              </div>
+              ${(puede(usuarioActual, 'crear_profesional') || usuarioActual.id === prof.usuario_id) ? `
+                <div style="margin-top:14px;">
+                  <button type="button" class="btn btn-primary-sm" onclick="cerrarModal(); setTimeout(()=>abrirGestionCuenta('${prof.usuario_id}','${(prof.nombre || '').replace(/'/g, "\\'")}','${(email || '').replace(/'/g, "\\'")}'),60);">Cambiar contraseña / email</button>
+                </div>
+              ` : ''}
             ` : `
               <div class="vacio" style="padding:1.5rem;">Este profesional no tiene login propio (atiende con la cuenta del dueño).</div>
             `}
