@@ -20,8 +20,8 @@
   </nav>
 
   <div class="sidebar-user">
-    <div class="user-avatar" id="user-avatar" onclick="abrirMiCuenta()" style="cursor:pointer" title="Mi cuenta">--</div>
-    <div class="user-info" onclick="abrirMiCuenta()" style="cursor:pointer" title="Mi cuenta">
+    <div class="user-avatar" id="user-avatar">--</div>
+    <div class="user-info">
       <div class="user-name" id="user-name">...</div>
       <div class="user-role" id="user-role">...</div>
     </div>
@@ -120,6 +120,21 @@ const MODULOS = [
   document.getElementById('user-avatar').textContent =
     usuarioActual.nombre.split(' ').map(p => p[0]).slice(0,2).join('').toUpperCase();
 
+  // Si es profesional y tiene foto cargada, la mostramos en el avatar (en vez de las iniciales).
+  if (usuarioActual.rol === 'profesional') {
+    const { data: prof } = await sb.from('profesionales')
+      .select('foto_url')
+      .eq('usuario_id', usuarioActual.id)
+      .maybeSingle();
+    if (prof && prof.foto_url) {
+      const av = document.getElementById('user-avatar');
+      av.textContent = '';
+      av.style.padding = '0';
+      av.style.overflow = 'hidden';
+      av.innerHTML = `<img src="${prof.foto_url}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block;">`;
+    }
+  }
+
   renderNav();
 
   // Aterriza en el módulo guardado (si el usuario todavía puede verlo);
@@ -181,66 +196,6 @@ function abrirModal(html) {
 
 function cerrarModal() {
   document.getElementById('modal-container').innerHTML = '';
-}
-
-// Ficha simple "Mi cuenta": el usuario logueado edita su nombre y entra a
-// cambiar su contraseña / email (reutiliza abrirGestionCuenta).
-function abrirMiCuenta() {
-  const u = usuarioActual;
-  if (!u) return;
-  const rolLindo =
-    u.rol === 'super_admin' ? 'Super Admin' :
-    u.rol === 'negocio' ? 'Negocio' :
-    u.rol === 'recepcion' ? 'Recepción' : 'Profesional';
-  const escAttr = s => String(s || '').replace(/"/g, '&quot;');
-  const escJs = s => String(s || '').replace(/'/g, "\\'");
-
-  abrirModal(`
-    <div class="modal-header">
-      <div class="modal-titulo" style="font-size:15px;font-weight:600;">Mi cuenta</div>
-      <button class="modal-cerrar" onclick="cerrarModal()">×</button>
-    </div>
-    <form id="form-micuenta">
-      <div class="modal-body">
-        <div class="input-group">
-          <label>Nombre</label>
-          <input type="text" name="nombre" value="${escAttr(u.nombre)}" required>
-        </div>
-        <div class="input-group">
-          <label>Rol</label>
-          <input type="text" value="${rolLindo}" disabled>
-        </div>
-        <div class="input-group">
-          <label>Email de acceso</label>
-          <input type="text" value="${escAttr(u.email)}" disabled>
-          <small style="color:var(--texto-tenue);display:block;margin-top:4px;">Para cambiar el email o la contraseña usá el botón de abajo.</small>
-        </div>
-      </div>
-      <div class="modal-footer" style="justify-content:space-between;">
-        <button type="button" class="btn" onclick="abrirGestionCuenta('${u.id}','${escJs(u.nombre)}','${escJs(u.email)}')">Contraseña / email</button>
-        <div style="display:flex;gap:8px;">
-          <button type="button" class="btn" onclick="cerrarModal()">Cancelar</button>
-          <button type="submit" class="btn btn-primary-sm" id="btn-micuenta">Guardar</button>
-        </div>
-      </div>
-    </form>
-  `);
-
-  document.getElementById('form-micuenta').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const nombre = (new FormData(e.target).get('nombre') || '').trim();
-    if (!nombre) { mostrarMensaje('Poné un nombre', 'advertencia'); return; }
-    const btn = document.getElementById('btn-micuenta');
-    btn.disabled = true; btn.textContent = 'Guardando...';
-    const { error } = await sb.from('usuarios').update({ nombre }).eq('id', usuarioActual.id);
-    if (error) { mostrarMensaje('Error: ' + error.message, 'error'); btn.disabled = false; btn.textContent = 'Guardar'; return; }
-    usuarioActual.nombre = nombre;
-    document.getElementById('user-name').textContent = nombre;
-    document.getElementById('user-avatar').textContent =
-      nombre.split(' ').map(p => p[0]).slice(0, 2).join('').toUpperCase();
-    mostrarMensaje('Datos actualizados', 'exito');
-    cerrarModal();
-  });
 }
 </script>
 </body>

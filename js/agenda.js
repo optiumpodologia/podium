@@ -43,7 +43,9 @@ async function renderAgenda(container) {
         <div class="card" style="padding: 12px;">
           <div id="mini-calendario"></div>
         </div>
-        ${esProf ? '' : `
+        ${esProf
+          ? '<div class="card prof-saludo-card" id="agenda-prof-saludo"></div>'
+          : `
         <div class="card" style="padding: 14px;">
           <div class="card-title" style="font-size: 14px; margin-bottom: 10px;">Profesionales disponibles</div>
           <div id="agenda-profes-dia"></div>
@@ -51,7 +53,6 @@ async function renderAgenda(container) {
       </div>
 
       <div class="agenda-wrap">
-        ${esProf ? '<div id="agenda-prof-saludo"></div>' : ''}
         <div class="agenda-controles">
           <div class="agenda-nav-fecha">
             <button class="btn-icon" onclick="agendaCambiarFecha(-1)" title="Anterior">&lsaquo;</button>
@@ -271,10 +272,8 @@ function inyectarEstilosAgenda() {
   const st = document.createElement('style');
   st.id = 'estilos-agenda-etapa3';
   st.textContent = `
-    .prof-saludo { display:flex; align-items:center; gap:12px; padding:12px 16px; margin-bottom:14px; background:#fff; border:1px solid var(--borde-tenue); border-radius:var(--radio); box-shadow:var(--sombra); }
-    .prof-saludo-txt { line-height:1.2; }
-    .prof-saludo-hola { font-size:18px; font-weight:700; color:var(--texto); }
-    .prof-saludo-nombre { font-size:12.5px; color:var(--texto-secundario); margin-top:2px; }
+    .prof-saludo-card { padding:16px; }
+    .prof-saludo-hola { font-size:17px; font-weight:700; color:var(--texto); }
     .agenda-franja-band { position:absolute; left:2px; right:2px; background:rgba(109,91,208,0.05); border-radius:4px; z-index:0; pointer-events:none; }
     .agenda-hueco { position:absolute; left:2px; right:2px; z-index:1; cursor:pointer; border-radius:4px; border:1px dashed var(--primario-medio); background:rgba(109,91,208,0.04); box-sizing:border-box; display:flex; align-items:center; justify-content:center; transition:background .12s, border-color .12s; }
     .agenda-hueco:hover { background:rgba(109,91,208,0.16); border-style:solid; }
@@ -469,16 +468,8 @@ async function dibujarAgenda() {
     // Saludo personalizado (se muestra trabaje o no ese día).
     const cont = document.getElementById('agenda-prof-saludo');
     if (cont && _miProfesional) {
-      const color = (_miProfesional.color && /^#[0-9a-f]{6}$/i.test(_miProfesional.color)) ? _miProfesional.color : '#6D5BD0';
       const primerNombre = (_miProfesional.nombre || '').trim().split(/\s+/)[0] || '';
-      cont.innerHTML = `
-        <div class="prof-saludo">
-          ${avatarHTML(_miProfesional.nombre, color, _miProfesional.foto_url, 46)}
-          <div class="prof-saludo-txt">
-            <div class="prof-saludo-hola">¡Hola, ${primerNombre}!</div>
-            <div class="prof-saludo-nombre">${_miProfesional.nombre}</div>
-          </div>
-        </div>`;
+      cont.innerHTML = `<div class="prof-saludo-hola">¡Hola, ${primerNombre}!</div>`;
     }
     // Filtrar a su casillero (si trabaja ese día); si no, queda en una sola columna vacía.
     const miCol = columnas.find(c => c && c.profesional && c.profesional.usuario_id === usuarioActual.id);
@@ -670,17 +661,18 @@ async function dibujarAgenda() {
         });
       });
     } else {
+      const icoAgenda = '<svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M3 9.5h18"/><path d="M8 2.5v4M16 2.5v4"/></svg>';
       html += esProfesional
         ? `
         <div class="agenda-libre-estado">
-          <div class="agenda-libre-icono">&#128197;</div>
+          <div class="agenda-libre-icono">${icoAgenda}</div>
           <div class="agenda-libre-titulo">Sin agenda hoy</div>
           <div class="agenda-libre-texto">No trabajás este día</div>
         </div>
       `
         : `
         <div class="agenda-libre-estado">
-          <div class="agenda-libre-icono">&#128197;</div>
+          <div class="agenda-libre-icono">${icoAgenda}</div>
           <div class="agenda-libre-titulo">Agenda libre</div>
           <div class="agenda-libre-texto">Agregá un profesional para<br>comenzar a asignar turnos</div>
           ${(!esPasado && esGestor) ? `<button class="btn btn-primary-sm" style="margin-top:10px;" onclick="agendaAgregarProfesional(${numero})">+ Agregar profesional</button>` : ''}
