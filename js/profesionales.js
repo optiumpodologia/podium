@@ -288,6 +288,17 @@ const PROF_ICO = {
   llave: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></svg>',
 };
 
+const OJO_VER = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>';
+const OJO_OCULTO = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.88 9.88a3 3 0 0 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg>';
+
+function togglePassVer(id, btn) {
+  const i = document.getElementById(id);
+  if (!i) return;
+  const ocultar = i.type === 'password';
+  i.type = ocultar ? 'text' : 'password';
+  btn.innerHTML = ocultar ? OJO_OCULTO : OJO_VER;
+}
+
 // Modal reutilizable para fijar contraseña nueva y/o cambiar el email de una cuenta.
 // Llama a la Edge Function 'gestionar-cuenta' (que valida permisos del lado del server).
 function abrirGestionCuenta(usuarioId, nombre, emailActual) {
@@ -306,8 +317,12 @@ function abrirGestionCuenta(usuarioId, nombre, emailActual) {
         </div>
         <div class="input-group">
           <label>Nueva contraseña</label>
-          <input type="text" name="password" minlength="6" placeholder="Dejala vacía para no cambiarla">
-          <small style="color:var(--texto-tenue); display:block; margin-top:4px;">Mínimo 6 caracteres. Anotala: se la pasás a la persona.</small>
+          <div style="position:relative;">
+            <input type="password" name="password" id="cuenta-pass" minlength="6" placeholder="Dejala vacía para no cambiarla" style="padding-right:42px;">
+            <button type="button" onclick="togglePassVer('cuenta-pass', this)" title="Ver / ocultar"
+              style="position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--texto-tenue); cursor:pointer; padding:4px; display:flex;">${OJO_VER}</button>
+          </div>
+          <small style="color:var(--texto-tenue); display:block; margin-top:4px;">La contraseña actual no se puede mostrar (queda encriptada). Escribí una nueva para cambiarla; el ojito te deja verla mientras la tipeás.</small>
         </div>
       </div>
       <div class="modal-footer">
@@ -336,7 +351,7 @@ function abrirGestionCuenta(usuarioId, nombre, emailActual) {
     try {
       const { data: { session } } = await sb.auth.getSession();
       if (!session) throw new Error('Sesión expirada');
-      const r = await fetch(`${SUPABASE_URL}/functions/v1/gestionar-cuenta`, {
+      const r = await fetch(`${SUPABASE_URL}/functions/v1/dynamic-service`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
         body: JSON.stringify(payload)
