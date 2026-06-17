@@ -436,12 +436,10 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
     proxHTML = `<div style="font-size: 13px;">${proxInicial || '<span style="color:var(--texto-secundario);">No indicada</span>'}</div>`;
   } else {
     proxHTML = `
-      <div style="display:flex; gap:6px; flex-wrap:wrap;">
+      <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
         ${PROX_FIJAS.map(p => `<button type="button" class="btn ficha-prox-btn" data-prox="${p}" onclick="_ficha.setProx('${p}')">${p}</button>`).join('')}
         <button type="button" class="btn ficha-prox-btn" data-prox="__otra__" onclick="_ficha.setProxOtra()">Otra</button>
-      </div>
-      <div id="ficha-prox-otra-wrap" style="display:none; margin-top:8px;">
-        <input type="text" id="ficha-prox-otra" placeholder="Ej: en 2 meses" oninput="_ficha.prox = this.value">
+        <input type="text" id="ficha-prox-otra" class="ficha-prox-input" placeholder="Ej: en 2 meses" oninput="_ficha.prox = this.value" style="display:none;">
       </div>
     `;
   }
@@ -538,26 +536,21 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
     },
     setProx(label) {
       this.prox = label;
-      const wrap = document.getElementById('ficha-prox-otra-wrap');
-      if (wrap) wrap.style.display = 'none';
       const inp = document.getElementById('ficha-prox-otra');
-      if (inp) inp.value = '';
+      if (inp) { inp.style.display = 'none'; inp.value = ''; }
       this.marcarProx();
     },
     setProxOtra() {
-      const wrap = document.getElementById('ficha-prox-otra-wrap');
-      if (wrap) wrap.style.display = 'block';
       const inp = document.getElementById('ficha-prox-otra');
-      this.prox = inp ? inp.value : '';
-      if (inp) inp.focus();
+      if (inp) { inp.style.display = ''; this.prox = inp.value; inp.focus(); }
       this.marcarProx();
     }
   };
 
   abrirModal(`
-    <style>.modal{max-width:760px;}</style>
+    <style>.modal{max-width:920px;}</style>
     <div class="modal-header">
-      <div class="modal-titulo">${soloLectura ? 'Ficha de atención · solo lectura' : 'Ficha de atención'}</div>
+      <div class="modal-titulo" style="font-size:15px; font-weight:600;">${soloLectura ? 'Ficha de atención · solo lectura' : 'Ficha de atención'}</div>
       <button class="modal-cerrar" onclick="cerrarModal()">×</button>
     </div>
     <form id="form-ficha">
@@ -573,43 +566,49 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
           ${cronoChip}
         </div>
 
-        <div style="font-weight:600; font-size:14px; margin-bottom:8px;">Atenciones</div>
-        ${soloLectura ? '' : `
-          <div style="display:flex; gap:8px; margin-bottom:8px;">
-            <select id="ficha-sel-at" style="flex:1;">
-              <option value="">Seleccionar atención...</option>
-              ${(tipos || []).map(t => `<option value="${t.id}">${t.nombre} · ${formatearPrecio(t.precio || 0)}</option>`).join('')}
-            </select>
-            <button type="button" class="btn btn-primary-sm" onclick="_ficha.agregarAt()">Agregar</button>
+        <div class="atn-cols">
+          <div class="atn-col">
+            <div class="atn-sec-lbl">Atenciones</div>
+            ${soloLectura ? '' : `
+              <div style="display:flex; gap:8px; margin-bottom:8px;">
+                <select id="ficha-sel-at" style="flex:1; min-width:0;">
+                  <option value="">Seleccionar atención...</option>
+                  ${(tipos || []).map(t => `<option value="${t.id}">${t.nombre} · ${formatearPrecio(t.precio || 0)}</option>`).join('')}
+                </select>
+                <button type="button" class="btn btn-primary-sm" onclick="_ficha.agregarAt()">Agregar</button>
+              </div>
+            `}
+            <table class="tabla" style="font-size:13px;">
+              <thead><tr>
+                <th>Atención</th><th style="text-align:center;">Cant.</th>
+                <th style="text-align:right;">Precio</th><th style="text-align:right;">Subtotal</th>
+                ${soloLectura ? '' : '<th></th>'}
+              </tr></thead>
+              <tbody id="ficha-tbody-at"></tbody>
+            </table>
           </div>
-        `}
-        <table class="tabla" style="font-size:13px; margin-bottom:1rem;">
-          <thead><tr>
-            <th>Atención</th><th style="text-align:center;">Cant.</th>
-            <th style="text-align:right;">Precio</th><th style="text-align:right;">Subtotal</th>
-            ${soloLectura ? '' : '<th></th>'}
-          </tr></thead>
-          <tbody id="ficha-tbody-at"></tbody>
-        </table>
 
-        <div style="font-weight:600; font-size:14px; margin-bottom:8px;">Productos</div>
-        ${soloLectura ? '' : `
-          <div style="display:flex; gap:8px; margin-bottom:8px;">
-            <select id="ficha-sel-prod" style="flex:1;">
-              <option value="">Seleccionar producto...</option>
-              ${(productosCat || []).map(p => `<option value="${p.id}">${p.nombre} · ${formatearPrecio(p.precio || 0)} · stock ${p.stock}</option>`).join('')}
-            </select>
-            <button type="button" class="btn btn-primary-sm" onclick="_ficha.agregarProd()">Agregar</button>
+          <div class="atn-col">
+            <div class="atn-sec-lbl">Productos</div>
+            ${soloLectura ? '' : `
+              <div style="display:flex; gap:8px; margin-bottom:8px;">
+                <select id="ficha-sel-prod" style="flex:1; min-width:0;">
+                  <option value="">Seleccionar producto...</option>
+                  ${(productosCat || []).map(p => `<option value="${p.id}">${p.nombre} · ${formatearPrecio(p.precio || 0)} · stock ${p.stock}</option>`).join('')}
+                </select>
+                <button type="button" class="btn btn-primary-sm" onclick="_ficha.agregarProd()">Agregar</button>
+              </div>
+            `}
+            <table class="tabla" style="font-size:13px;">
+              <thead><tr>
+                <th>Producto</th><th style="text-align:center;">Cant.</th>
+                <th style="text-align:right;">Precio</th><th style="text-align:right;">Subtotal</th>
+                ${soloLectura ? '' : '<th></th>'}
+              </tr></thead>
+              <tbody id="ficha-tbody-prod"></tbody>
+            </table>
           </div>
-        `}
-        <table class="tabla" style="font-size:13px; margin-bottom:1rem;">
-          <thead><tr>
-            <th>Producto</th><th style="text-align:center;">Cant.</th>
-            <th style="text-align:right;">Precio</th><th style="text-align:right;">Subtotal</th>
-            ${soloLectura ? '' : '<th></th>'}
-          </tr></thead>
-          <tbody id="ficha-tbody-prod"></tbody>
-        </table>
+        </div>
 
         <div style="text-align:right; font-size:14px; margin-bottom:0.85rem;">
           Total: <strong id="ficha-total" style="font-size:18px;">${formatearPrecio(0)}</strong>
@@ -642,10 +641,8 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
   _ficha.renderProd();
   if (!soloLectura && proxInicial) {
     if (!PROX_FIJAS.includes(proxInicial)) {
-      const wrap = document.getElementById('ficha-prox-otra-wrap');
       const inp = document.getElementById('ficha-prox-otra');
-      if (wrap) wrap.style.display = 'block';
-      if (inp) inp.value = proxInicial;
+      if (inp) { inp.style.display = ''; inp.value = proxInicial; }
     }
     _ficha.marcarProx();
   }
