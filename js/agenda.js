@@ -24,6 +24,7 @@ let agendaFechaActual = new Date();
 let _agendaCols = [];          // estado del día: [{columna, profesional, registroId} | null]
 let _agendaArrastreCol = null; // columna origen durante un drag
 let _ttPacientes = [];         // cache de pacientes para el typeahead del alta de turno
+let _miProfesional = null;     // (rol profesional) su propio registro de profesionales, para saludo y filtro
 
 // --- Chat recepción <-> consultorio (tabla mensajes) ---
 let _msgPollId = null;         // setInterval del poll de no leídos; se limpia al salir de la agenda
@@ -35,19 +36,22 @@ async function renderAgenda(container) {
   if (_msgPollId) { clearInterval(_msgPollId); _msgPollId = null; }  // no acumular polls al re-renderizar
   inyectarEstilosAgenda();
   agendaFechaActual = new Date();
+  const esProf = usuarioActual.rol === 'profesional';
   container.innerHTML = `
     <div class="agenda-layout">
       <div class="agenda-sidebar">
         <div class="card" style="padding: 12px;">
           <div id="mini-calendario"></div>
         </div>
+        ${esProf ? '' : `
         <div class="card" style="padding: 14px;">
           <div class="card-title" style="font-size: 14px; margin-bottom: 10px;">Profesionales disponibles</div>
           <div id="agenda-profes-dia"></div>
-        </div>
+        </div>`}
       </div>
 
       <div class="agenda-wrap">
+        ${esProf ? '<div id="agenda-prof-saludo"></div>' : ''}
         <div class="agenda-controles">
           <div class="agenda-nav-fecha">
             <button class="btn-icon" onclick="agendaCambiarFecha(-1)" title="Anterior">&lsaquo;</button>
@@ -267,6 +271,10 @@ function inyectarEstilosAgenda() {
   const st = document.createElement('style');
   st.id = 'estilos-agenda-etapa3';
   st.textContent = `
+    .prof-saludo { display:flex; align-items:center; gap:12px; padding:12px 16px; margin-bottom:14px; background:#fff; border:1px solid var(--borde-tenue); border-radius:var(--radio); box-shadow:var(--sombra); }
+    .prof-saludo-txt { line-height:1.2; }
+    .prof-saludo-hola { font-size:18px; font-weight:700; color:var(--texto); }
+    .prof-saludo-nombre { font-size:12.5px; color:var(--texto-secundario); margin-top:2px; }
     .agenda-franja-band { position:absolute; left:2px; right:2px; background:rgba(109,91,208,0.05); border-radius:4px; z-index:0; pointer-events:none; }
     .agenda-hueco { position:absolute; left:2px; right:2px; z-index:1; cursor:pointer; border-radius:4px; border:1px dashed var(--primario-medio); background:rgba(109,91,208,0.04); box-sizing:border-box; display:flex; align-items:center; justify-content:center; transition:background .12s, border-color .12s; }
     .agenda-hueco:hover { background:rgba(109,91,208,0.16); border-style:solid; }
@@ -444,9 +452,40 @@ async function dibujarAgenda() {
   const horaInicio = parseInt((config?.hora_apertura || '08:00').split(':')[0]);
   const horaFin = parseInt((config?.hora_cierre || '20:00').split(':')[0]);
 
-  const cantColumnas = await obtenerCantidadConsultorios();
-  const columnas = await obtenerDiaAgenda(agendaFechaActual, cantColumnas, esPasado);
+  let cantColumnas = await obtenerCantidadConsultorios();
+  let columnas = await obtenerDiaAgenda(agendaFechaActual, cantColumnas, esPasado);
   _agendaCols = columnas;
+
+  // --- Rol profesional: ve SOLO su propia columna + saludo arriba del calendario ---
+  const esProfesional = usuarioActual.rol === 'profesional';
+  if (esProfesional) {
+    if (!_miProfesional) {
+      const { data } = await sb.from('profesionales')
+        .select('id, nombre, color, foto_url, usuario_id')
+        .eq('usuario_id', usuarioActual.id)
+        .maybeSingle();
+      _miProfesional = data || null;
+    }
+    // Saludo personalizado (se muestra trabaje o no ese día).
+    const cont = document.getElementById('agenda-prof-saludo');
+    if (cont && _miProfesional) {
+      const color = (_miProfesional.color && /^#[0-9a-f]{6}$/i.test(_miProfesional.color)) ? _miProfesional.color : '#6D5BD0';
+      const primerNombre = (_miProfesional.nombre || '').trim().split(/\s+/)[0] || '';
+      cont.innerHTML = `
+        <div class="prof-saludo">
+          ${avatarHTML(_miProfesional.nombre, color, _miProfesional.foto_url, 46)}
+          <div class="prof-saludo-txt">
+            <div class="prof-saludo-hola">¡Hola, ${primerNombre}!</div>
+            <div class="prof-saludo-nombre">${_miProfesional.nombre}</div>
+          </div>
+        </div>`;
+    }
+    // Filtrar a su casillero (si trabaja ese día); si no, queda en una sola columna vacía.
+    const miCol = columnas.find(c => c && c.profesional && c.profesional.usuario_id === usuarioActual.id);
+    columnas = [miCol || null];
+    cantColumnas = 1;
+    _agendaCols = columnas;
+  }
 
   // Turnos del día
   const fechaInicio = new Date(agendaFechaActual); fechaInicio.setHours(0,0,0,0);
@@ -631,7 +670,15 @@ async function dibujarAgenda() {
         });
       });
     } else {
-      html += `
+      html += esProfesional
+        ? `
+        <div class="agenda-libre-estado">
+          <div class="agenda-libre-icono">&#128197;</div>
+          <div class="agenda-libre-titulo">Sin agenda hoy</div>
+          <div class="agenda-libre-texto">No trabajás este día</div>
+        </div>
+      `
+        : `
         <div class="agenda-libre-estado">
           <div class="agenda-libre-icono">&#128197;</div>
           <div class="agenda-libre-titulo">Agenda libre</div>
