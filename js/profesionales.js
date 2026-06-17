@@ -123,10 +123,10 @@ async function cargarRecepcion() {
               ${r.activo ? 'Activo' : 'Inactivo'}
             </span>
             ${puedeGestionar ? `
-              <button class="btn-icon" title="${r.activo ? 'Desactivar' : 'Activar'}"
+              <button class="lista-acc-btn ${r.activo ? 'peligro' : ''}" title="${r.activo ? 'Desactivar' : 'Activar'}"
                 onclick="toggleRecepcionActiva('${r.id}', ${!r.activo})"
-                style="color: ${r.activo ? 'var(--peligro)' : 'var(--exito)'};">
-                ${r.activo ? '🚫' : '✓'}
+                ${r.activo ? '' : 'style="color: var(--exito);"'}>
+                ${r.activo ? PROF_ICO.ban : PROF_ICO.check}
               </button>
             ` : ''}
           </div>
@@ -271,6 +271,115 @@ async function topeRecepcionNegocio() {
 // ============================================================
 // PROFESIONALES (tabla dinámica)
 // ============================================================
+// ============================================================
+// PROFESIONALES — íconos del listado + ficha completa
+// ============================================================
+const PROF_ICO = {
+  ojo:   '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>',
+  reloj: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+  lapiz: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>',
+  tacho: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>',
+  ban:   '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.9" x2="19.1" y1="4.9" y2="19.1"/></svg>',
+  check: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+};
+
+function profInic(nombre) {
+  return (nombre || '?').split(' ').filter(Boolean).map(x => x[0]).slice(0, 2).join('').toUpperCase() || '?';
+}
+
+// Ficha completa del profesional (formato ficha de paciente: panel lateral + pestañas)
+async function verFichaProfesional(id) {
+  const { data: prof } = await sb.from('profesionales').select('*').eq('id', id).single();
+  if (!prof) { mostrarMensaje('Profesional no encontrado', 'error'); return; }
+
+  let email = '', cuentaActiva = null, tieneLogin = false;
+  if (prof.usuario_id) {
+    const { data: u } = await sb.from('usuarios').select('email, activo').eq('id', prof.usuario_id).maybeSingle();
+    if (u) { email = u.email || ''; cuentaActiva = u.activo; tieneLogin = true; }
+  }
+
+  const puedeEditar = puede(usuarioActual, 'crear_profesional') || usuarioActual.rol === 'recepcion';
+  const inic = profInic(prof.nombre);
+  const estadoBadge = prof.activo
+    ? '<span class="badge badge-llego">Activo</span>'
+    : '<span class="badge badge-cancelado">Inactivo</span>';
+
+  const ic = (p, s = 16) => `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0">${p}</svg>`;
+  const ICO = {
+    mat:  '<rect width="18" height="14" x="3" y="5" rx="2"/><circle cx="8" cy="11" r="2"/><path d="M14 9h4M14 13h2"/>',
+    tel:  '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>',
+    mail: '<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>',
+    color:'<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/>',
+    user: '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+    lock: '<rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  };
+  const card = (k, lbl, val, full) => `
+    <div class="ficha-card${full ? ' full' : ''}">
+      <div class="ficha-card-head"><span class="ficha-card-ico">${ic(ICO[k])}</span><span class="ficha-card-lbl">${lbl}</span></div>
+      <div class="ficha-card-val${val ? '' : ' sin-dato'}">${val || 'Sin cargar'}</div>
+    </div>`;
+  const colorChip = `<span style="display:inline-flex; align-items:center; gap:8px;"><span style="width:16px; height:16px; border-radius:4px; background:${prof.color}; display:inline-block;"></span>${prof.color}</span>`;
+
+  abrirModal(`
+    <style>.modal{max-width:820px;}</style>
+    <div class="modal-header">
+      <div class="modal-titulo" style="font-size:15px; font-weight:600;">Ficha del profesional</div>
+      <button class="modal-cerrar" onclick="cerrarModal()">×</button>
+    </div>
+    <div class="modal-body" style="padding:0;">
+      <div class="ficha-cols">
+        <aside class="ficha-resumen">
+          <div class="ficha-avatar" style="background:${prof.color}; color:#fff;">${inic}</div>
+          <div class="ficha-nombre">${prof.nombre}</div>
+          <div class="ficha-dni">Profesional</div>
+          <div style="margin-top:10px;">${estadoBadge}</div>
+          <div class="ficha-resumen-datos">
+            <div><span>Matrícula</span><strong>${prof.matricula || '—'}</strong></div>
+            <div><span>Teléfono</span><strong>${prof.telefono || '—'}</strong></div>
+            <div><span>Cuenta</span><strong>${tieneLogin ? (cuentaActiva ? 'Activa' : 'Inactiva') : 'Sin login'}</strong></div>
+          </div>
+          ${puedeEditar ? `<button class="btn btn-primary-sm ficha-editar" onclick="cerrarModal(); setTimeout(()=>abrirModalProfesional('${prof.id}'),60);">Editar datos</button>` : ''}
+          <button class="btn ficha-editar" style="margin-top:8px;" onclick="cerrarModal(); setTimeout(()=>abrirModalHorarios('${prof.id}'),60);">Horarios de atención</button>
+        </aside>
+
+        <div class="ficha-main">
+          <div class="ficha-tabs">
+            <button class="ficha-tab active" data-ftab="datos" onclick="fichaTab('datos')">Datos</button>
+            <button class="ficha-tab" data-ftab="cuenta" onclick="fichaTab('cuenta')">Cuenta</button>
+          </div>
+
+          <div class="ficha-panel active" data-fpanel="datos">
+            <div class="ficha-cards">
+              ${card('mat', 'Matrícula', prof.matricula)}
+              ${card('tel', 'Teléfono', prof.telefono)}
+              ${card('mail', 'Email', email, true)}
+              ${card('color', 'Color en agenda', colorChip, true)}
+            </div>
+          </div>
+
+          <div class="ficha-panel" data-fpanel="cuenta">
+            ${tieneLogin ? `
+              <div class="ficha-cards">
+                ${card('mail', 'Email de acceso', email, true)}
+                ${card('user', 'Estado de la cuenta', cuentaActiva ? 'Activa' : 'Inactiva')}
+              </div>
+              <div style="margin-top:14px; padding:12px 14px; background:var(--fondo); border-radius:var(--radio); font-size:13px; color:var(--texto-secundario); display:flex; gap:9px; align-items:flex-start;">
+                ${ic(ICO.lock, 15)}<span>El cambio de contraseña, de email y la foto se habilitan en el próximo paso (requieren configuración del backend).</span>
+              </div>
+            ` : `
+              <div class="vacio" style="padding:1.5rem;">Este profesional no tiene login propio (atiende con la cuenta del dueño).</div>
+            `}
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer" style="justify-content:space-between; align-items:center;">
+      <div style="font-size:12px; color:var(--texto-tenue); display:flex; align-items:center; gap:6px;">${ic(ICO.lock, 14)} Datos del equipo · uso interno.</div>
+      <button class="btn" onclick="cerrarModal()">Cerrar</button>
+    </div>
+  `);
+}
+
 async function cargarProfesionales() {
   const { data, error } = await sb.from('profesionales').select('*').order('nombre');
   if (error) { mostrarMensaje('Error al cargar', 'error'); return; }
@@ -286,7 +395,12 @@ async function cargarProfesionales() {
 
   tbody.innerHTML = data.map(p => `
     <tr>
-      <td><strong>${p.nombre}</strong></td>
+      <td>
+        <div class="lista-nombre">
+          <div class="lista-avatar" style="background:${p.color}; color:#fff;">${profInic(p.nombre)}</div>
+          <span class="lista-nombre-txt">${p.nombre}</span>
+        </div>
+      </td>
       <td>${p.matricula || '—'}</td>
       <td>${p.telefono || '—'}</td>
       <td>
@@ -294,10 +408,11 @@ async function cargarProfesionales() {
       </td>
       <td>${p.activo ? '<span class="badge badge-llego">Activo</span>' : '<span class="badge badge-cancelado">Inactivo</span>'}</td>
       <td>
-        <div class="tabla-acciones">
-          <button class="btn-icon" onclick="abrirModalHorarios('${p.id}')" title="Horarios">🕐</button>
-          <button class="btn-icon" onclick="abrirModalProfesional('${p.id}')" title="Editar">✎</button>
-          <button class="btn-icon" onclick="eliminarProfesional('${p.id}')" title="Eliminar" style="color: var(--peligro);">×</button>
+        <div class="lista-acciones">
+          <button class="lista-acc-btn" onclick="verFichaProfesional('${p.id}')" title="Ver ficha">${PROF_ICO.ojo}</button>
+          <button class="lista-acc-btn" onclick="abrirModalHorarios('${p.id}')" title="Horarios">${PROF_ICO.reloj}</button>
+          <button class="lista-acc-btn" onclick="abrirModalProfesional('${p.id}')" title="Editar">${PROF_ICO.lapiz}</button>
+          <button class="lista-acc-btn peligro" onclick="eliminarProfesional('${p.id}')" title="Eliminar">${PROF_ICO.tacho}</button>
         </div>
       </td>
     </tr>
