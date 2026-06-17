@@ -388,22 +388,19 @@ const CAMARA_SVG = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" 
 async function subirFotoProfesional(profId, file) {
   if (!file) return;
   if (!file.type.startsWith('image/')) { mostrarMensaje('Elegí un archivo de imagen', 'advertencia'); return; }
-  if (file.size > 3 * 1024 * 1024) { mostrarMensaje('La imagen no puede superar 3 MB', 'advertencia'); return; }
-
-  const negId = usuarioActual.negocio_id;
-  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
-  const path = `${negId}/${profId}-${Date.now()}.${ext}`;
-
-  const { error: upErr } = await sb.storage.from(FOTOS_BUCKET).upload(path, file, { upsert: true, contentType: file.type });
-  if (upErr) { mostrarMensaje('No se pudo subir la foto: ' + upErr.message, 'error'); return; }
-
-  const { data: pub } = sb.storage.from(FOTOS_BUCKET).getPublicUrl(path);
-  const { error: dbErr } = await sb.from('profesionales').update({ foto_url: pub.publicUrl }).eq('id', profId);
-  if (dbErr) { mostrarMensaje('Foto subida, pero no se guardó: ' + dbErr.message, 'error'); return; }
-
-  mostrarMensaje('Foto actualizada', 'exito');
-  verFichaProfesional(profId);
-  if (document.getElementById('tabla-profesionales')) cargarProfesionales();
+  mostrarMensaje('Procesando foto…', 'advertencia');
+  try {
+    const negId = usuarioActual.negocio_id;
+    const path = `${negId}/prof-${profId}.jpg`;       // ruta fija: cada subida pisa la anterior
+    const url = await fotoSubir(file, path);           // procesa (cara + recorte + compresión) y sube
+    const { error } = await sb.from('profesionales').update({ foto_url: url }).eq('id', profId);
+    if (error) throw error;
+    mostrarMensaje('Foto actualizada', 'exito');
+    verFichaProfesional(profId);
+    if (document.getElementById('tabla-profesionales')) cargarProfesionales();
+  } catch (e) {
+    mostrarMensaje('No se pudo subir la foto: ' + (e.message || e), 'error');
+  }
 }
 
 async function quitarFotoProfesional(profId) {
