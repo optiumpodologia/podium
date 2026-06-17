@@ -351,7 +351,7 @@ function abrirGestionCuenta(usuarioId, nombre, emailActual) {
     try {
       const { data: { session } } = await sb.auth.getSession();
       if (!session) throw new Error('Sesión expirada');
-      const r = await fetch(`${SUPABASE_URL}/functions/v1/dynamic-service`, {
+      const r = await fetch(`${SUPABASE_URL}/functions/v1/rapid-function`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
         body: JSON.stringify(payload)
