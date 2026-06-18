@@ -75,8 +75,8 @@ async function renderAgenda(container) {
 
   // Profesional: saludo → calendario → notas a la izquierda; Resumen + Mensajes a la derecha.
   // Gestor: calendario → profesionales a la izquierda; Resumen + Notas + Mensajes a la derecha.
-  const sidebarHtml = esProf ? (cardSaludo + cardMiniCal + cardNotas) : (cardMiniCal + cardProfesDia);
-  const panelDerechoHtml = esProf ? (cardResumen + cardMensajes) : (cardResumen + cardNotas + cardMensajes);
+  const sidebarHtml = esProf ? (cardSaludo + cardMiniCal + cardNotas) : (cardSaludo + cardMiniCal + cardProfesDia + cardNotas);
+  const panelDerechoHtml = cardResumen + cardMensajes;
 
   container.innerHTML = `
     <div class="agenda-layout">
@@ -531,33 +531,34 @@ async function dibujarAgenda() {
   let columnas = await obtenerDiaAgenda(agendaFechaActual, cantColumnas, esPasado);
   _agendaCols = columnas;
 
-  // --- Rol profesional: ve SOLO su propia columna + saludo arriba del calendario ---
+  // --- Saludo arriba del calendario (todos los roles) ---
   const esProfesional = usuarioActual.rol === 'profesional';
+  if (esProfesional && !_miProfesional) {
+    const { data } = await sb.from('profesionales')
+      .select('id, nombre, color, foto_url, usuario_id')
+      .eq('usuario_id', usuarioActual.id)
+      .maybeSingle();
+    _miProfesional = data || null;
+  }
+  const contSaludo = document.getElementById('agenda-prof-saludo');
+  if (contSaludo) {
+    const primerNombre = (usuarioActual.nombre || '').trim().split(/\s+/)[0] || '';
+    const fotoSaludo = (esProfesional && _miProfesional && _miProfesional.foto_url) ? _miProfesional.foto_url : null;
+    const avatarSaludo = fotoSaludo
+      ? `<img src="${fotoSaludo}" alt="" class="prof-saludo-foto">`
+      : `<div class="prof-saludo-foto prof-saludo-foto-ico"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>`;
+    contSaludo.innerHTML = `
+      <div class="prof-saludo-row">
+        ${avatarSaludo}
+        <div>
+          <div class="prof-saludo-hola">¡Hola, ${primerNombre}!</div>
+          <div class="prof-saludo-sub">Que tengas un buen día &#128156;</div>
+        </div>
+      </div>`;
+  }
+
+  // --- Rol profesional: ve SOLO su propia columna ---
   if (esProfesional) {
-    if (!_miProfesional) {
-      const { data } = await sb.from('profesionales')
-        .select('id, nombre, color, foto_url, usuario_id')
-        .eq('usuario_id', usuarioActual.id)
-        .maybeSingle();
-      _miProfesional = data || null;
-    }
-    // Saludo personalizado (se muestra trabaje o no ese día).
-    const cont = document.getElementById('agenda-prof-saludo');
-    if (cont && _miProfesional) {
-      const primerNombre = (_miProfesional.nombre || '').trim().split(/\s+/)[0] || '';
-      const avatarSaludo = _miProfesional.foto_url
-        ? `<img src="${_miProfesional.foto_url}" alt="" class="prof-saludo-foto">`
-        : `<div class="prof-saludo-foto prof-saludo-foto-ico"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>`;
-      cont.innerHTML = `
-        <div class="prof-saludo-row">
-          ${avatarSaludo}
-          <div>
-            <div class="prof-saludo-hola">¡Hola, ${primerNombre}!</div>
-            <div class="prof-saludo-sub">Que tengas un buen día &#128156;</div>
-          </div>
-        </div>`;
-    }
-    // Filtrar a su casillero (si trabaja ese día); si no, queda en una sola columna vacía.
     const miCol = columnas.find(c => c && c.profesional && c.profesional.usuario_id === usuarioActual.id);
     columnas = [miCol || null];
     cantColumnas = 1;
