@@ -1221,6 +1221,9 @@ input, select, textarea {
 /* ---- Encabezados de columna ---- */
 .agenda-col-esquina {
   border-bottom: 1px solid var(--borde-tenue);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .agenda-col-head {

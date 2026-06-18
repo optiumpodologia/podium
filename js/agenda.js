@@ -93,14 +93,6 @@ async function renderAgenda(container) {
         </div>
 
         <div id="agenda-grid-container"></div>
-
-        <div class="leyenda">
-          <span class="leyenda-chip lc-agendado">Agendado</span>
-          <span class="leyenda-chip lc-llego">Llegó</span>
-          <span class="leyenda-chip lc-en_atencion">En atención</span>
-          <span class="leyenda-chip lc-finalizado">Finalizado</span>
-          <span class="leyenda-chip lc-cobrado">Cobrado</span>
-        </div>
       </div>
 
       <div class="agenda-panel-derecho">${panelDerechoHtml}</div>
@@ -626,17 +618,20 @@ async function dibujarAgenda() {
   let html = `<div class="agenda-grid-col ${esPasado ? 'es-pasado' : ''}"
     style="grid-template-columns: 56px repeat(${cantColumnas}, minmax(0, 1fr)); width:100%; max-width:${56 + cantColumnas * 220}px;">`;
 
-  // Encabezados
-  html += `<div class="agenda-col-esquina"></div>`;
+  // Encabezados. Con un solo consultorio, el número va en el cuadrado de la
+  // esquina (arriba de los horarios). Con varios, va en cada columna.
+  const unaColumna = cantColumnas === 1;
+  html += `<div class="agenda-col-esquina">${unaColumna ? '<span class="agenda-col-num">1</span>' : ''}</div>`;
   columnas.forEach((col, idx) => {
     const numero = idx + 1;
+    const numBadge = unaColumna ? '' : `<span class="agenda-col-num">${numero}</span>`;
     if (col && col.profesional) {
       const p = col.profesional;
       const dragAttrs = esPasado ? '' :
         `draggable="true" ondragstart="agendaDragStart(${numero})" ondragover="event.preventDefault()" ondrop="agendaDrop(${numero})"`;
       html += `
         <div class="agenda-col-head" ${dragAttrs} title="${esPasado ? '' : 'Arrastrá para reordenar'}">
-          <span class="agenda-col-num">${numero}</span>
+          ${numBadge}
           <span class="agenda-col-prof">
             <span class="agenda-col-dot" style="background:${p.color || 'var(--primario)'};"></span>${p.nombre}
           </span>
@@ -646,7 +641,7 @@ async function dibujarAgenda() {
       const dropAttrs = esPasado ? '' : `ondragover="event.preventDefault()" ondrop="agendaDrop(${numero})"`;
       html += `
         <div class="agenda-col-head" ${dropAttrs}>
-          <span class="agenda-col-num">${numero}</span>
+          ${numBadge}
           <span class="agenda-col-prof libre">&mdash; libre &mdash;</span>
         </div>
       `;
@@ -701,8 +696,8 @@ async function dibujarAgenda() {
           if (!dentro) return;
           if (bloqueadosMin.has(t)) return;
           if (haySolapamiento(t, t + negocioSlot, normales)) return;  // los sobreturnos NO bloquean el slot
-          const topH = t - inicioMin;
-          html += `<div class="agenda-hueco" style="top:${topH}px; height:${negocioSlot}px;"
+          const topH = t - inicioMin + 2;
+          html += `<div class="agenda-hueco" style="top:${topH}px; height:${negocioSlot - 4}px;"
             title="Dar turno ${minToHora(t)}"
             onclick="abrirModalNuevoTurnoCasillero('${col.profesional.id}', ${numero}, '${fechaStrSel}', ${t})">
             <span class="agenda-hueco-mas">+</span>
@@ -747,7 +742,7 @@ async function dibujarAgenda() {
       });
     } else {
       // Sol cálido para el profesional que no trabaja ese día.
-      const ilustDiaLibre = '<svg width="90" height="84" viewBox="0 0 90 84" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M40 34 C37 30 43 27 40 22" stroke="var(--primario)" stroke-width="2" stroke-linecap="round" opacity="0.35"/><path d="M46 35 C44 32 48 30 46 26" stroke="var(--primario)" stroke-width="2" stroke-linecap="round" opacity="0.25"/><path d="M22 30 l1 2.8 l2.8 1 l-2.8 1 l-1 2.8 l-1 -2.8 l-2.8 -1 l2.8 -1 z" fill="var(--advertencia)" opacity="0.7"/><path d="M43 38 L66 19" stroke="var(--primario)" stroke-width="3" stroke-linecap="round"/><path d="M30 40 C28 57 35 73 46 73 C57 73 64 57 62 40 Z" fill="#fff" stroke="var(--primario)" stroke-width="2.8" stroke-linejoin="round"/><ellipse cx="46" cy="40" rx="16" ry="4.6" fill="#fff" stroke="var(--primario)" stroke-width="2.8"/><path d="M34 40 C36 32 45 32 47 40 Z" fill="var(--exito-claro)" stroke="var(--exito)" stroke-width="2" stroke-linejoin="round"/><circle cx="40" cy="37.5" r="1.2" fill="var(--exito)"/><circle cx="44" cy="38.5" r="1.1" fill="var(--exito)"/></svg>';
+      const ilustDiaLibre = '<svg width="112" height="104" viewBox="0 0 118 110" fill="none" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="mateGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D9D2F6"/><stop offset="1" stop-color="#9385DB"/></linearGradient></defs><circle cx="68" cy="56" r="38" fill="var(--primario-claro)" opacity="0.45"/><path d="M50 66 C40 63 31 65 25 71" stroke="var(--exito)" stroke-width="2" stroke-linecap="round"/><path d="M37 64 C33 57 35 50 41 48 C44 54 43 61 37 64 Z" fill="var(--exito-claro)" stroke="var(--exito)" stroke-width="1.7" stroke-linejoin="round"/><path d="M26 72 C21 72 17 68 16 63 C22 62 26 66 26 72 Z" fill="var(--exito-claro)" stroke="var(--exito)" stroke-width="1.7" stroke-linejoin="round"/><path d="M62 41 L82 12" stroke="var(--primario)" stroke-width="3.4" stroke-linecap="round"/><path d="M55 40 C47 46 45 56 45 65 C45 79 56 90 68 90 C80 90 91 79 91 65 C91 56 89 46 81 40 Z" fill="url(#mateGrad)" stroke="var(--primario)" stroke-width="2.4" stroke-linejoin="round"/><ellipse cx="68" cy="40" rx="13" ry="3.6" fill="#8979CE"/></svg>';
       // Calendario con + invitando a sumar profesional (gestor).
       const ilustArmarDia = '<svg width="92" height="86" viewBox="0 0 92 86" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="62" cy="20" r="3.5" fill="var(--advertencia)" opacity="0.75"/><circle cx="14" cy="56" r="3" fill="var(--exito)" opacity="0.7"/><rect x="22" y="20" width="48" height="50" rx="12" fill="#fff" stroke="var(--primario)" stroke-width="3"/><path d="M22 34 H70" stroke="var(--primario)" stroke-width="3"/><rect x="34" y="13" width="4.5" height="13" rx="2.25" fill="var(--primario)"/><rect x="53.5" y="13" width="4.5" height="13" rx="2.25" fill="var(--primario)"/><circle cx="46" cy="52" r="13" fill="var(--primario-claro)"/><path d="M46 45 V59 M39 52 H53" stroke="var(--primario)" stroke-width="3" stroke-linecap="round"/></svg>';
       html += esProfesional
