@@ -500,6 +500,33 @@ async function dibujarAgenda() {
     return;
   }
 
+  // --- Día no laboral del negocio: si el día de la semana no está activo en la
+  // configuración de "Días laborales", el negocio está CERRADO ese día. Solo
+  // aplica si el negocio configuró al menos un día activo. ---
+  const { data: diasLab } = await sb.from('dias_laborales')
+    .select('dia_semana, activo')
+    .eq('negocio_id', usuarioActual.negocio_id);
+  const hayConfigDias = diasLab && diasLab.some(d => d.activo);
+  const diaSemanaSel = agendaFechaActual.getDay();
+  const diaActivo = diasLab && diasLab.some(d => d.dia_semana === diaSemanaSel && d.activo);
+  if (hayConfigDias && !diaActivo) {
+    grilla.innerHTML = `
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:3.5rem 2rem;text-align:center;">
+        <svg width="170" height="150" viewBox="0 0 170 150" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-bottom:1.25rem;">
+          <path d="M44 34 l1.7 4.4 l4.4 1.7 l-4.4 1.7 l-1.7 4.4 l-1.7 -4.4 l-4.4 -1.7 l4.4 -1.7 z" fill="var(--primario)" opacity="0.5"/>
+          <path d="M130 52 l1.3 3.4 l3.4 1.3 l-3.4 1.3 l-1.3 3.4 l-1.3 -3.4 l-3.4 -1.3 l3.4 -1.3 z" fill="var(--advertencia)" opacity="0.6"/>
+          <circle cx="124" cy="34" r="3" fill="var(--primario-medio)"/>
+          <circle cx="36" cy="104" r="3.5" fill="var(--exito)" opacity="0.6"/>
+          <path d="M88 45 A33 33 0 1 0 88 111 A26 26 0 1 1 88 45 Z" fill="var(--primario-claro)" stroke="var(--primario)" stroke-width="3" stroke-linejoin="round"/>
+        </svg>
+        <div style="font-size:22px;font-weight:700;color:var(--primario);letter-spacing:-0.01em;margin-bottom:6px;">Cerrado</div>
+        <div style="font-size:15px;font-weight:600;color:var(--texto);margin-bottom:4px;">Hoy el negocio descansa</div>
+        <div style="font-size:13px;color:var(--texto-secundario);">No se atiende este día.</div>
+      </div>`;
+    renderPanelDia([], []);
+    return;
+  }
+
   let cantColumnas = await obtenerCantidadConsultorios();
   let columnas = await obtenerDiaAgenda(agendaFechaActual, cantColumnas, esPasado);
   _agendaCols = columnas;
@@ -721,7 +748,7 @@ async function dibujarAgenda() {
       });
     } else {
       // Sol cálido para el profesional que no trabaja ese día.
-      const ilustDiaLibre = '<svg width="100" height="96" viewBox="0 0 100 96" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="48" r="33" fill="var(--primario-claro)" opacity="0.45"/><path d="M31 74 C24 73 20 68 20 62 C27 63 31 68 31 74 Z" fill="var(--exito-claro)" stroke="var(--exito)" stroke-width="1.8" stroke-linejoin="round"/><path d="M31 78 C26 79 21 76 19 71 C25 69 30 72 31 78 Z" fill="var(--exito-claro)" stroke="var(--exito)" stroke-width="1.8" stroke-linejoin="round"/><path d="M44 35 C41 30 47 27 44 22" stroke="var(--primario)" stroke-width="2" stroke-linecap="round" opacity="0.35"/><path d="M50 35 C48 31 52 29 50 24" stroke="var(--primario)" stroke-width="2" stroke-linecap="round" opacity="0.25"/><path d="M47 38 L72 17" stroke="var(--primario)" stroke-width="3.4" stroke-linecap="round"/><ellipse cx="73" cy="16" rx="3.4" ry="2.4" fill="#fff" stroke="var(--primario)" stroke-width="2.4" transform="rotate(-40 73 16)"/><path d="M37 39 C31 45 28 53 29 60 C30 70 39 77 50 77 C61 77 70 70 71 60 C72 53 69 45 63 39 Z" fill="#fff" stroke="var(--primario)" stroke-width="3" stroke-linejoin="round"/><ellipse cx="50" cy="39" rx="14" ry="4.2" fill="#fff" stroke="var(--primario)" stroke-width="3"/><ellipse cx="50" cy="38.6" rx="10" ry="2.6" fill="var(--exito-claro)"/><path d="M40 39 C42 31 50 31 52 39 Z" fill="var(--exito-claro)" stroke="var(--exito)" stroke-width="1.8" stroke-linejoin="round"/><circle cx="46" cy="37" r="1.1" fill="var(--exito)"/><circle cx="51" cy="37.6" r="1" fill="var(--exito)"/></svg>';
+      const ilustDiaLibre = '<svg width="90" height="84" viewBox="0 0 90 84" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M40 34 C37 30 43 27 40 22" stroke="var(--primario)" stroke-width="2" stroke-linecap="round" opacity="0.35"/><path d="M46 35 C44 32 48 30 46 26" stroke="var(--primario)" stroke-width="2" stroke-linecap="round" opacity="0.25"/><path d="M22 30 l1 2.8 l2.8 1 l-2.8 1 l-1 2.8 l-1 -2.8 l-2.8 -1 l2.8 -1 z" fill="var(--advertencia)" opacity="0.7"/><path d="M43 38 L66 19" stroke="var(--primario)" stroke-width="3" stroke-linecap="round"/><path d="M30 40 C28 57 35 73 46 73 C57 73 64 57 62 40 Z" fill="#fff" stroke="var(--primario)" stroke-width="2.8" stroke-linejoin="round"/><ellipse cx="46" cy="40" rx="16" ry="4.6" fill="#fff" stroke="var(--primario)" stroke-width="2.8"/><path d="M34 40 C36 32 45 32 47 40 Z" fill="var(--exito-claro)" stroke="var(--exito)" stroke-width="2" stroke-linejoin="round"/><circle cx="40" cy="37.5" r="1.2" fill="var(--exito)"/><circle cx="44" cy="38.5" r="1.1" fill="var(--exito)"/></svg>';
       // Calendario con + invitando a sumar profesional (gestor).
       const ilustArmarDia = '<svg width="92" height="86" viewBox="0 0 92 86" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="62" cy="20" r="3.5" fill="var(--advertencia)" opacity="0.75"/><circle cx="14" cy="56" r="3" fill="var(--exito)" opacity="0.7"/><rect x="22" y="20" width="48" height="50" rx="12" fill="#fff" stroke="var(--primario)" stroke-width="3"/><path d="M22 34 H70" stroke="var(--primario)" stroke-width="3"/><rect x="34" y="13" width="4.5" height="13" rx="2.25" fill="var(--primario)"/><rect x="53.5" y="13" width="4.5" height="13" rx="2.25" fill="var(--primario)"/><circle cx="46" cy="52" r="13" fill="var(--primario-claro)"/><path d="M46 45 V59 M39 52 H53" stroke="var(--primario)" stroke-width="3" stroke-linecap="round"/></svg>';
       html += esProfesional
