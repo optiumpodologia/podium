@@ -183,6 +183,7 @@ async function toggleDiaLaboral(diaSemana, activo) {
     await sb.from('dias_laborales').update({ activo }).eq('id', existente.id);
   } else {
     await sb.from('dias_laborales').insert({
+      negocio_id: usuarioActual.negocio_id,
       dia_semana: diaSemana,
       hora_inicio: '09:00',
       hora_fin: '18:00',
