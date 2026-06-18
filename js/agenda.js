@@ -37,20 +37,50 @@ async function renderAgenda(container) {
   inyectarEstilosAgenda();
   agendaFechaActual = new Date();
   const esProf = usuarioActual.rol === 'profesional';
-  container.innerHTML = `
-    <div class="agenda-layout">
-      <div class="agenda-sidebar">
+
+  const cardMiniCal = `
         <div class="card" style="padding: 12px;">
           <div id="mini-calendario"></div>
-        </div>
-        ${esProf
-          ? '<div class="card prof-saludo-card" id="agenda-prof-saludo"></div>'
-          : `
+        </div>`;
+  const cardSaludo = `<div class="card prof-saludo-card" id="agenda-prof-saludo"></div>`;
+  const cardProfesDia = `
         <div class="card" style="padding: 14px;">
           <div class="card-title" style="font-size: 14px; margin-bottom: 10px;">Profesionales disponibles</div>
           <div id="agenda-profes-dia"></div>
-        </div>`}
-      </div>
+        </div>`;
+  const cardResumen = `
+        <div class="card" style="padding: 16px;">
+          <div class="card-title" style="font-size: 14px; margin-bottom: 14px;">Resumen del día</div>
+          <div id="agenda-resumen-dia"></div>
+        </div>`;
+  const cardNotas = `
+        <div class="card" style="padding: 16px;">
+          <div class="card-title" style="font-size: 14px; margin-bottom: 10px;">Notas</div>
+          <div class="notas-add">
+            <input id="nota-nueva" class="notas-input" maxlength="280" placeholder="Agregar nota..."
+                   onkeydown="if(event.key==='Enter'){event.preventDefault();agregarNotaAgenda();}">
+            <button class="notas-add-btn" onclick="agregarNotaAgenda()" title="Agregar nota">+</button>
+          </div>
+          <div id="agenda-notas" class="notas-lista"></div>
+        </div>`;
+  const cardMensajes = `
+        <div class="card" style="padding: 16px;">
+          <div class="msg-card-head" onclick="toggleMensajes()">
+            <span class="card-title" style="font-size: 14px;">Mensajes</span>
+            <span id="msg-badge" class="msg-badge" style="display:none;"></span>
+            <span id="msg-chevron" class="msg-chevron">&rsaquo;</span>
+          </div>
+          <div id="msg-cuerpo" class="msg-cuerpo" style="display:none;"></div>
+        </div>`;
+
+  // Profesional: saludo → calendario → notas a la izquierda; Resumen + Mensajes a la derecha.
+  // Gestor: calendario → profesionales a la izquierda; Resumen + Notas + Mensajes a la derecha.
+  const sidebarHtml = esProf ? (cardSaludo + cardMiniCal + cardNotas) : (cardMiniCal + cardProfesDia);
+  const panelDerechoHtml = esProf ? (cardResumen + cardMensajes) : (cardResumen + cardNotas + cardMensajes);
+
+  container.innerHTML = `
+    <div class="agenda-layout">
+      <div class="agenda-sidebar">${sidebarHtml}</div>
 
       <div class="agenda-wrap">
         <div class="agenda-controles">
@@ -73,29 +103,7 @@ async function renderAgenda(container) {
         </div>
       </div>
 
-      <div class="agenda-panel-derecho">
-        <div class="card" style="padding: 16px;">
-          <div class="card-title" style="font-size: 14px; margin-bottom: 14px;">Resumen del día</div>
-          <div id="agenda-resumen-dia"></div>
-        </div>
-        <div class="card" style="padding: 16px;">
-          <div class="card-title" style="font-size: 14px; margin-bottom: 10px;">Notas</div>
-          <div class="notas-add">
-            <input id="nota-nueva" class="notas-input" maxlength="280" placeholder="Agregar nota..."
-                   onkeydown="if(event.key==='Enter'){event.preventDefault();agregarNotaAgenda();}">
-            <button class="notas-add-btn" onclick="agregarNotaAgenda()" title="Agregar nota">+</button>
-          </div>
-          <div id="agenda-notas" class="notas-lista"></div>
-        </div>
-        <div class="card" style="padding: 16px;">
-          <div class="msg-card-head" onclick="toggleMensajes()">
-            <span class="card-title" style="font-size: 14px;">Mensajes</span>
-            <span id="msg-badge" class="msg-badge" style="display:none;"></span>
-            <span id="msg-chevron" class="msg-chevron">&rsaquo;</span>
-          </div>
-          <div id="msg-cuerpo" class="msg-cuerpo" style="display:none;"></div>
-        </div>
-      </div>
+      <div class="agenda-panel-derecho">${panelDerechoHtml}</div>
     </div>
   `;
 
@@ -272,8 +280,12 @@ function inyectarEstilosAgenda() {
   const st = document.createElement('style');
   st.id = 'estilos-agenda-etapa3';
   st.textContent = `
-    .prof-saludo-card { padding:16px; }
-    .prof-saludo-hola { font-size:17px; font-weight:700; color:var(--texto); }
+    .prof-saludo-card { padding:14px; background:linear-gradient(135deg, var(--primario-claro) 0%, #fff 85%); }
+    .prof-saludo-row { display:flex; align-items:center; gap:11px; }
+    .prof-saludo-foto { width:44px; height:44px; border-radius:13px; object-fit:cover; flex-shrink:0; box-shadow:0 5px 12px -5px rgba(109,91,208,0.55); }
+    .prof-saludo-foto-ico { background:linear-gradient(135deg, var(--primario) 0%, #8676E0 100%); color:#fff; display:flex; align-items:center; justify-content:center; }
+    .prof-saludo-hola { font-size:16px; font-weight:700; color:var(--texto); letter-spacing:-0.01em; }
+    .prof-saludo-sub { font-size:12px; color:var(--texto-secundario); margin-top:1px; }
     .agenda-franja-band { position:absolute; left:2px; right:2px; background:rgba(109,91,208,0.05); border-radius:4px; z-index:0; pointer-events:none; }
     .agenda-hueco { position:absolute; left:2px; right:2px; z-index:1; cursor:pointer; border-radius:4px; border:1px dashed var(--primario-medio); background:rgba(109,91,208,0.04); box-sizing:border-box; display:flex; align-items:center; justify-content:center; transition:background .12s, border-color .12s; }
     .agenda-hueco:hover { background:rgba(109,91,208,0.16); border-style:solid; }
@@ -506,7 +518,17 @@ async function dibujarAgenda() {
     const cont = document.getElementById('agenda-prof-saludo');
     if (cont && _miProfesional) {
       const primerNombre = (_miProfesional.nombre || '').trim().split(/\s+/)[0] || '';
-      cont.innerHTML = `<div class="prof-saludo-hola">¡Hola, ${primerNombre}!</div>`;
+      const avatarSaludo = _miProfesional.foto_url
+        ? `<img src="${_miProfesional.foto_url}" alt="" class="prof-saludo-foto">`
+        : `<div class="prof-saludo-foto prof-saludo-foto-ico"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>`;
+      cont.innerHTML = `
+        <div class="prof-saludo-row">
+          ${avatarSaludo}
+          <div>
+            <div class="prof-saludo-hola">¡Hola, ${primerNombre}!</div>
+            <div class="prof-saludo-sub">Que tengas un buen día &#128156;</div>
+          </div>
+        </div>`;
     }
     // Filtrar a su casillero (si trabaja ese día); si no, queda en una sola columna vacía.
     const miCol = columnas.find(c => c && c.profesional && c.profesional.usuario_id === usuarioActual.id);
@@ -699,7 +721,7 @@ async function dibujarAgenda() {
       });
     } else {
       // Sol cálido para el profesional que no trabaja ese día.
-      const ilustDiaLibre = '<svg width="92" height="86" viewBox="0 0 92 86" fill="none" xmlns="http://www.w3.org/2000/svg"><g stroke="var(--advertencia)" stroke-width="2.6" stroke-linecap="round"><path d="M46 8 V15"/><path d="M18 36 H25"/><path d="M67 36 H74"/><path d="M25.9 15.9 L30.8 20.8"/><path d="M66.1 15.9 L61.2 20.8"/><path d="M30.8 51.2 L25.9 56.1"/><path d="M61.2 51.2 L66.1 56.1"/></g><circle cx="46" cy="36" r="15" fill="var(--advertencia-claro)" stroke="var(--advertencia)" stroke-width="2.8"/><path d="M74 64 l1.3 3.4 l3.4 1.3 l-3.4 1.3 l-1.3 3.4 l-1.3 -3.4 l-3.4 -1.3 l3.4 -1.3 z" fill="var(--primario)" opacity="0.55"/><path d="M16 62 l1 2.6 l2.6 1 l-2.6 1 l-1 2.6 l-1 -2.6 l-2.6 -1 l2.6 -1 z" fill="var(--exito)" opacity="0.6"/></svg>';
+      const ilustDiaLibre = '<svg width="90" height="84" viewBox="0 0 90 84" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M40 34 C37 30 43 27 40 22" stroke="var(--primario)" stroke-width="2" stroke-linecap="round" opacity="0.35"/><path d="M46 35 C44 32 48 30 46 26" stroke="var(--primario)" stroke-width="2" stroke-linecap="round" opacity="0.25"/><path d="M22 30 l1 2.8 l2.8 1 l-2.8 1 l-1 2.8 l-1 -2.8 l-2.8 -1 l2.8 -1 z" fill="var(--advertencia)" opacity="0.7"/><path d="M43 38 L66 19" stroke="var(--primario)" stroke-width="3" stroke-linecap="round"/><circle cx="67.5" cy="17.5" r="3.4" fill="#fff" stroke="var(--primario)" stroke-width="2.6"/><path d="M30 40 C28 57 35 73 46 73 C57 73 64 57 62 40 Z" fill="#fff" stroke="var(--primario)" stroke-width="2.8" stroke-linejoin="round"/><ellipse cx="46" cy="40" rx="16" ry="4.6" fill="#fff" stroke="var(--primario)" stroke-width="2.8"/><path d="M34 40 C36 32 45 32 47 40 Z" fill="var(--exito-claro)" stroke="var(--exito)" stroke-width="2" stroke-linejoin="round"/><circle cx="40" cy="37.5" r="1.2" fill="var(--exito)"/><circle cx="44" cy="38.5" r="1.1" fill="var(--exito)"/></svg>';
       // Calendario con + invitando a sumar profesional (gestor).
       const ilustArmarDia = '<svg width="92" height="86" viewBox="0 0 92 86" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="62" cy="20" r="3.5" fill="var(--advertencia)" opacity="0.75"/><circle cx="14" cy="56" r="3" fill="var(--exito)" opacity="0.7"/><rect x="22" y="20" width="48" height="50" rx="12" fill="#fff" stroke="var(--primario)" stroke-width="3"/><path d="M22 34 H70" stroke="var(--primario)" stroke-width="3"/><rect x="34" y="13" width="4.5" height="13" rx="2.25" fill="var(--primario)"/><rect x="53.5" y="13" width="4.5" height="13" rx="2.25" fill="var(--primario)"/><circle cx="46" cy="52" r="13" fill="var(--primario-claro)"/><path d="M46 45 V59 M39 52 H53" stroke="var(--primario)" stroke-width="3" stroke-linecap="round"/></svg>';
       html += esProfesional
