@@ -1251,10 +1251,61 @@ function toggleNoViene(checked) {
 
 async function eliminarDiaEspecial(id) {
   if (!confirm('¿Eliminar este día especial?')) return;
+
+  // Datos del día especial ANTES de borrarlo (para limpiar el tablero después).
+  const esp = (_horariosEspeciales || []).find(e => String(e.id) === String(id)) || null;
+  const profId = esp?.profesional_id || _horariosProf.id;
+
   const { error } = await sb.from('dias_especiales_profesional').delete().eq('id', id);
   if (error) { mostrarMensaje('Error: ' + error.message, 'error'); return; }
+
+  // Si era un día "viene" (lo hicieron atender ese día) y es hoy/futuro, pudo
+  // quedar sentado y congelado en agenda_dia. Lo liberamos, salvo que ese día
+  // sea su horario fijo, tenga turnos cargados, u otro día especial "viene".
+  if (esp && !esp.no_viene && esp.fecha >= hoyLocalStr()) {
+    await liberarSeatEspecial(profId, esp.fecha);
+  }
+
   mostrarMensaje('Día especial eliminado', 'exito');
   await cargarHorarios();
+}
+
+// Saca al profesional del tablero (agenda_dia) de una fecha puntual, si ya no
+// hay nada que justifique que esté sentado ese día.
+async function liberarSeatEspecial(profId, fecha) {
+  const diaSemana = new Date(fecha + 'T00:00').getDay();
+
+  // ¿Tiene horario fijo ese día de la semana? → se queda.
+  const { data: fijo } = await sb.from('dias_laborales_profesional')
+    .select('id')
+    .eq('profesional_id', profId)
+    .eq('dia_semana', diaSemana)
+    .limit(1);
+  if (fijo && fijo.length) return;
+
+  // ¿Tiene turnos ese día? → se queda.
+  const { data: turnos } = await sb.from('turnos')
+    .select('id')
+    .eq('profesional_id', profId)
+    .gte('fecha_hora', fecha + 'T00:00:00')
+    .lte('fecha_hora', fecha + 'T23:59:59')
+    .limit(1);
+  if (turnos && turnos.length) return;
+
+  // ¿Le quedó otro día especial "viene" esa misma fecha? → se queda.
+  const { data: otros } = await sb.from('dias_especiales_profesional')
+    .select('id')
+    .eq('profesional_id', profId)
+    .eq('fecha', fecha)
+    .eq('no_viene', false)
+    .limit(1);
+  if (otros && otros.length) return;
+
+  // Nada lo retiene: lo sacamos del tablero de ese día.
+  await sb.from('agenda_dia')
+    .delete()
+    .eq('profesional_id', profId)
+    .eq('fecha', fecha);
 }
 
 // Calcula el tope de profesionales del plan del negocio actual.
