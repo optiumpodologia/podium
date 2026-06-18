@@ -131,3 +131,36 @@ async function fotoSubir(file, path) {
   const { data } = sb.storage.from(FOTO_BUCKET).getPublicUrl(path);
   return data.publicUrl + '?v=' + Date.now();
 }
+
+/* ============================================================
+ * LOGO del negocio — sin detección de cara.
+ * Un logo no es un rostro: solo lo encuadramos entero ("contain")
+ * en un cuadrado, centrado, y lo achicamos/comprimimos.
+ * Uso:  const url = await logoSubir(file, `${negId}/logo.jpg`);
+ * ============================================================ */
+
+async function logoProcesar(file) {
+  const { img } = await fotoLoadImg(file);
+  const natW = img.naturalWidth, natH = img.naturalHeight;
+  const cv = document.createElement('canvas');
+  cv.width = FOTO_OUT; cv.height = FOTO_OUT;
+  const x = cv.getContext('2d');
+  // Fondo: muestreamos una esquina (suele ser el fondo del logo).
+  x.fillStyle = fotoSampleBg(img);
+  x.fillRect(0, 0, FOTO_OUT, FOTO_OUT);
+  x.imageSmoothingEnabled = true;
+  x.imageSmoothingQuality = 'high';
+  // "contain": el logo entra entero, centrado, sin deformarse.
+  const escala = Math.min(FOTO_OUT / natW, FOTO_OUT / natH);
+  const w = natW * escala, h = natH * escala;
+  x.drawImage(img, (FOTO_OUT - w) / 2, (FOTO_OUT - h) / 2, w, h);
+  return new Promise(resolve => cv.toBlob(b => resolve(b), 'image/jpeg', 0.85));
+}
+
+async function logoSubir(file, path) {
+  const blob = await logoProcesar(file);
+  const { error } = await sb.storage.from(FOTO_BUCKET).upload(path, blob, { contentType: 'image/jpeg', upsert: true });
+  if (error) throw error;
+  const { data } = sb.storage.from(FOTO_BUCKET).getPublicUrl(path);
+  return data.publicUrl + '?v=' + Date.now();
+}

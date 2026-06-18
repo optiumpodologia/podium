@@ -1625,3 +1625,168 @@ input, select, textarea {
   margin-top: 8px; background: none; border: none; cursor: pointer;
   font-size: 12px; color: var(--peligro); text-decoration: underline; padding: 0;
 }
+
+/* ===================================================================
+ * CONFIGURACIÓN — rediseño en dos columnas + identidad del negocio
+ * =================================================================== */
+.cfg-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  align-items: start;
+}
+.cfg-grid .card { margin-bottom: 0; }
+
+.cfg-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin-bottom: 1.2rem;
+}
+.cfg-head-ico {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--primario-claro);
+  color: var(--primario);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.cfg-sep {
+  height: 1px;
+  background: var(--borde-tenue);
+  margin: 1.1rem 0;
+}
+
+.cfg-ayuda {
+  display: block;
+  font-size: 12px;
+  color: var(--texto-tenue);
+  margin-top: 6px;
+}
+
+.cfg-guardar { width: 100%; justify-content: center; padding: 12px; }
+
+/* --- Identidad: logo + nombre + botón --- */
+.cfg-identidad {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.cfg-identidad input { flex: 1; min-width: 0; }
+.cfg-logo-preview {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  flex-shrink: 0;
+  background: var(--primario-claro);
+  color: var(--primario);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid var(--borde);
+}
+.cfg-logo-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* --- Bloques (Días / Feriados) --- */
+.cfg-bloque-titulo {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--texto);
+}
+.cfg-bloque-flex {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.cfg-mini { font-size: 12px; padding: 5px 10px; }
+
+/* --- Días laborales (chips) --- */
+.cfg-dias {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.cfg-dia {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  cursor: pointer;
+  background: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--texto-secundario);
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.cfg-dia input { width: 16px; height: 16px; accent-color: var(--primario); cursor: pointer; }
+.cfg-dia.on {
+  background: var(--primario-claro);
+  border-color: var(--primario-medio);
+  color: var(--texto);
+  font-weight: 600;
+}
+
+/* --- Feriados (tarjetas) --- */
+.cfg-feriado {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 12px;
+  border: 1px solid var(--borde-tenue);
+  border-radius: var(--radio);
+  margin-bottom: 8px;
+  background: var(--fondo-sutil);
+}
+.cfg-feriado:last-child { margin-bottom: 0; }
+.cfg-feriado-ico {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: var(--primario-claro);
+  color: var(--primario);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.cfg-feriado-info { flex: 1; min-width: 0; }
+.cfg-feriado-nombre {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+.cfg-feriado-sub {
+  font-size: 12px;
+  color: var(--texto-tenue);
+  text-transform: capitalize;
+}
+.cfg-feriado-del {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  color: var(--peligro);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.cfg-feriado-del:hover { background: var(--peligro-claro); }
+
+@media (max-width: 900px) {
+  .cfg-grid { grid-template-columns: 1fr; }
+}
