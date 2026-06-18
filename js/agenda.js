@@ -698,18 +698,21 @@ async function dibujarAgenda() {
         });
       });
     } else {
-      const icoAgenda = '<svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="2.5"/><path d="M3 9.5h18"/><path d="M8 2.5v4M16 2.5v4"/></svg>';
+      // Sol cálido para el profesional que no trabaja ese día.
+      const ilustDiaLibre = '<svg width="92" height="86" viewBox="0 0 92 86" fill="none" xmlns="http://www.w3.org/2000/svg"><g stroke="var(--advertencia)" stroke-width="2.6" stroke-linecap="round"><path d="M46 8 V15"/><path d="M18 36 H25"/><path d="M67 36 H74"/><path d="M25.9 15.9 L30.8 20.8"/><path d="M66.1 15.9 L61.2 20.8"/><path d="M30.8 51.2 L25.9 56.1"/><path d="M61.2 51.2 L66.1 56.1"/></g><circle cx="46" cy="36" r="15" fill="var(--advertencia-claro)" stroke="var(--advertencia)" stroke-width="2.8"/><path d="M74 64 l1.3 3.4 l3.4 1.3 l-3.4 1.3 l-1.3 3.4 l-1.3 -3.4 l-3.4 -1.3 l3.4 -1.3 z" fill="var(--primario)" opacity="0.55"/><path d="M16 62 l1 2.6 l2.6 1 l-2.6 1 l-1 2.6 l-1 -2.6 l-2.6 -1 l2.6 -1 z" fill="var(--exito)" opacity="0.6"/></svg>';
+      // Calendario con + invitando a sumar profesional (gestor).
+      const ilustArmarDia = '<svg width="92" height="86" viewBox="0 0 92 86" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="62" cy="20" r="3.5" fill="var(--advertencia)" opacity="0.75"/><circle cx="14" cy="56" r="3" fill="var(--exito)" opacity="0.7"/><rect x="22" y="20" width="48" height="50" rx="12" fill="#fff" stroke="var(--primario)" stroke-width="3"/><path d="M22 34 H70" stroke="var(--primario)" stroke-width="3"/><rect x="34" y="13" width="4.5" height="13" rx="2.25" fill="var(--primario)"/><rect x="53.5" y="13" width="4.5" height="13" rx="2.25" fill="var(--primario)"/><circle cx="46" cy="52" r="13" fill="var(--primario-claro)"/><path d="M46 45 V59 M39 52 H53" stroke="var(--primario)" stroke-width="3" stroke-linecap="round"/></svg>';
       html += esProfesional
         ? `
         <div class="agenda-libre-estado">
-          <div class="agenda-libre-icono">${icoAgenda}</div>
+          <div class="agenda-libre-icono" style="opacity:1;margin-bottom:10px;">${ilustDiaLibre}</div>
           <div class="agenda-libre-titulo">Sin agenda hoy</div>
-          <div class="agenda-libre-texto">No trabajás este día</div>
+          <div class="agenda-libre-texto">No trabajás este día. ¡Que tengas un buen descanso!</div>
         </div>
       `
         : `
         <div class="agenda-libre-estado">
-          <div class="agenda-libre-icono">${icoAgenda}</div>
+          <div class="agenda-libre-icono" style="opacity:1;margin-bottom:10px;">${ilustArmarDia}</div>
           <div class="agenda-libre-titulo">Agenda libre</div>
           <div class="agenda-libre-texto">Agregá un profesional para<br>comenzar a asignar turnos</div>
           ${(!esPasado && esGestor) ? `<button class="btn btn-primary-sm" style="margin-top:10px;" onclick="agendaAgregarProfesional(${numero})">+ Agregar profesional</button>` : ''}
