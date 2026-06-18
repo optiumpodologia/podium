@@ -252,7 +252,10 @@ function abrirModalFeriado() {
     const d = Object.fromEntries(fd.entries());
     if (!d.descripcion) d.descripcion = null;
 
-    const { error } = await sb.from('feriados').insert(d);
+    const { error } = await sb.from('feriados').insert({
+      ...d,
+      negocio_id: usuarioActual.negocio_id
+    });
     if (error) { mostrarMensaje('Error: ' + error.message, 'error'); return; }
     mostrarMensaje('Feriado agregado', 'exito');
     cerrarModal();
