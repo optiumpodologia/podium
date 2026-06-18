@@ -122,19 +122,14 @@ const MODULOS = [
   // Por defecto, ícono genérico de usuario. Solo el profesional con foto
   // cargada muestra su foto. Recepción/negocio/super_admin → ícono.
   const av = document.getElementById('user-avatar');
-  av.textContent = '';
-  av.style.padding = '0';
-  av.style.overflow = 'hidden';
-  av.innerHTML = svgIcon('<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>');
-
   if (usuarioActual.rol === 'profesional') {
-    const { data: prof } = await sb.from('profesionales')
-      .select('foto_url')
-      .eq('usuario_id', usuarioActual.id)
-      .maybeSingle();
-    if (prof && prof.foto_url) {
-      av.innerHTML = `<img src="${prof.foto_url}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block;">`;
-    }
+    // El profesional ya ve su foto en el saludo de la agenda; abajo dejamos solo nombre + rol.
+    av.style.display = 'none';
+  } else {
+    av.textContent = '';
+    av.style.padding = '0';
+    av.style.overflow = 'hidden';
+    av.innerHTML = svgIcon('<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>');
   }
 
   // Logo + nombre del negocio arriba a la izquierda (mismos para todos los
