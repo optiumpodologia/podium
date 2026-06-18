@@ -462,12 +462,27 @@ async function dibujarAgenda() {
   const feriado = (feriadosHoy && feriadosHoy.length) ? feriadosHoy[0] : null;
   if (feriado) {
     grilla.innerHTML = `
-      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:4rem 2rem;text-align:center;">
-        <div style="width:56px;height:56px;border-radius:16px;background:var(--primario-claro);color:var(--primario);display:flex;align-items:center;justify-content:center;margin-bottom:1rem;">
-          <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><path d="M21 14V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h7"/><path d="M3 10h18"/><path d="m17 17 4 4"/><path d="m21 17-4 4"/></svg>
-        </div>
-        <div style="font-size:18px;font-weight:600;color:var(--texto);margin-bottom:4px;">Feriado</div>
-        <div style="font-size:14px;color:var(--texto-secundario);">${feriado.descripcion ? feriado.descripcion + ' · ' : ''}La agenda está cerrada este día.</div>
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:3.5rem 2rem;text-align:center;">
+        <svg width="170" height="150" viewBox="0 0 170 150" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-bottom:1.25rem;">
+          <circle cx="30" cy="36" r="4" fill="var(--advertencia)" opacity="0.85"/>
+          <circle cx="142" cy="46" r="5" fill="var(--exito)" opacity="0.8"/>
+          <circle cx="150" cy="108" r="3.5" fill="var(--advertencia)" opacity="0.7"/>
+          <circle cx="22" cy="112" r="3" fill="var(--primario)" opacity="0.6"/>
+          <rect x="24" y="88" width="9" height="9" rx="2.5" fill="var(--info)" opacity="0.8" transform="rotate(22 28 92)"/>
+          <rect x="136" y="86" width="9" height="9" rx="2.5" fill="var(--primario-medio)" transform="rotate(-16 140 90)"/>
+          <path d="M44 16 l3 6 l-3 6 l-3 -6 z" fill="var(--primario-medio)"/>
+          <path d="M126 20 l2.5 5 l-2.5 5 l-2.5 -5 z" fill="var(--advertencia)" opacity="0.7"/>
+          <path d="M152 68 l1.6 4.2 l4.2 1.6 l-4.2 1.6 l-1.6 4.2 l-1.6 -4.2 l-4.2 -1.6 l4.2 -1.6 z" fill="var(--primario)" opacity="0.55"/>
+          <path d="M18 64 l1.3 3.4 l3.4 1.3 l-3.4 1.3 l-1.3 3.4 l-1.3 -3.4 l-3.4 -1.3 l3.4 -1.3 z" fill="var(--exito)" opacity="0.55"/>
+          <rect x="55" y="48" width="60" height="62" rx="13" fill="#fff" stroke="var(--primario)" stroke-width="3"/>
+          <path d="M55 65 H115" stroke="var(--primario)" stroke-width="3"/>
+          <rect x="70" y="40" width="4.5" height="15" rx="2.25" fill="var(--primario)"/>
+          <rect x="95.5" y="40" width="4.5" height="15" rx="2.25" fill="var(--primario)"/>
+          <path d="M85 72 L88.5 81.1 L98.3 81.7 L90.7 87.9 L93.2 97.3 L85 92 L76.8 97.3 L79.3 87.9 L71.7 81.7 L81.5 81.1 Z" fill="var(--primario-claro)" stroke="var(--primario)" stroke-width="2.4" stroke-linejoin="round"/>
+        </svg>
+        <div style="font-size:22px;font-weight:700;color:var(--primario);letter-spacing:-0.01em;margin-bottom:6px;">${feriado.descripcion || 'Feriado'}</div>
+        <div style="font-size:15px;font-weight:600;color:var(--texto);margin-bottom:4px;">Consultorio cerrado</div>
+        <div style="font-size:13px;color:var(--texto-secundario);">No se asignan turnos en esta fecha.</div>
       </div>`;
     renderPanelDia([], []);
     return;
