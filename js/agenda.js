@@ -451,6 +451,28 @@ async function dibujarAgenda() {
   const horaInicio = parseInt((config?.hora_apertura || '08:00').split(':')[0]);
   const horaFin = parseInt((config?.hora_cierre || '20:00').split(':')[0]);
 
+  // --- Feriado: si la fecha está cargada como feriado del negocio, el día
+  // queda CERRADO. No se dibujan horarios ni el botón de agregar profesional,
+  // así no se pueden sumar profesionales ni cargar turnos ese día. ---
+  const fechaSelStr = agendaFechaStr(agendaFechaActual);
+  const { data: feriadosHoy } = await sb.from('feriados')
+    .select('descripcion')
+    .eq('negocio_id', usuarioActual.negocio_id)
+    .eq('fecha', fechaSelStr);
+  const feriado = (feriadosHoy && feriadosHoy.length) ? feriadosHoy[0] : null;
+  if (feriado) {
+    grilla.innerHTML = `
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:4rem 2rem;text-align:center;">
+        <div style="width:56px;height:56px;border-radius:16px;background:var(--primario-claro);color:var(--primario);display:flex;align-items:center;justify-content:center;margin-bottom:1rem;">
+          <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><path d="M21 14V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h7"/><path d="M3 10h18"/><path d="m17 17 4 4"/><path d="m21 17-4 4"/></svg>
+        </div>
+        <div style="font-size:18px;font-weight:600;color:var(--texto);margin-bottom:4px;">Feriado</div>
+        <div style="font-size:14px;color:var(--texto-secundario);">${feriado.descripcion ? feriado.descripcion + ' · ' : ''}La agenda está cerrada este día.</div>
+      </div>`;
+    renderPanelDia([], []);
+    return;
+  }
+
   let cantColumnas = await obtenerCantidadConsultorios();
   let columnas = await obtenerDiaAgenda(agendaFechaActual, cantColumnas, esPasado);
   _agendaCols = columnas;
