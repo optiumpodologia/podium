@@ -317,7 +317,6 @@ function inyectarEstilosAgenda() {
     .turno-sobre-chip:hover { filter:brightness(1.15); }
     .turno-sobre-suelto { bottom:auto; z-index:4; }
     .turno-card.es-sobreturno { border-left:3px solid #7c3aed; }
-    .turno-card.estado-cobrado { background:#ECECEC; border-left:3px solid #777; color:#555; }
     /* Celda bloqueada (no disponible) */
     .agenda-bloqueo { position:absolute; left:2px; right:2px; background:#3a3a3a; color:#fff; border-radius:4px; z-index:2; display:flex; align-items:center; justify-content:center; gap:8px; font-size:11px; font-weight:600; }
     .agenda-hueco-bloq { position:absolute; top:3px; right:3px; width:21px; height:21px; border:1px solid rgba(0,0,0,0.12); border-radius:5px; background:rgba(255,255,255,0.9); cursor:pointer; font-size:12px; line-height:1; display:flex; align-items:center; justify-content:center; padding:0; color:#666; z-index:2; transition:background .08s, color .08s; }
@@ -637,19 +636,18 @@ async function dibujarAgenda() {
         `draggable="true" ondragstart="agendaDragStart(${numero})" ondragover="event.preventDefault()" ondrop="agendaDrop(${numero})"`;
       html += `
         <div class="agenda-col-head" ${dragAttrs} title="${esPasado ? '' : 'Arrastrá para reordenar'}">
-          <div class="agenda-col-titulo">Consultorio ${numero}</div>
-          <div class="agenda-col-prof">
-            <span class="agenda-col-dot" style="background:${p.color || 'var(--primario)'};"></span>
-            ${p.nombre}
-          </div>
+          <span class="agenda-col-num">${numero}</span>
+          <span class="agenda-col-prof">
+            <span class="agenda-col-dot" style="background:${p.color || 'var(--primario)'};"></span>${p.nombre}
+          </span>
         </div>
       `;
     } else {
       const dropAttrs = esPasado ? '' : `ondragover="event.preventDefault()" ondrop="agendaDrop(${numero})"`;
       html += `
         <div class="agenda-col-head" ${dropAttrs}>
-          <div class="agenda-col-titulo">Consultorio ${numero}</div>
-          <div class="agenda-col-prof libre">&mdash; libre &mdash;</div>
+          <span class="agenda-col-num">${numero}</span>
+          <span class="agenda-col-prof libre">&mdash; libre &mdash;</span>
         </div>
       `;
     }
@@ -1548,8 +1546,8 @@ function ttNuevoPacienteDesdeTurno(profId, columna, fechaStr, startMin, esSobret
 // El click en el cuerpo abre el modal de turno completo; los íconos
 // hacen las acciones rápidas (con stopPropagation para no abrir el modal).
 function tarjetaTurnoHTML(t, numero, fechaStr, sobres, esPasado, inicioMin, esHuerfano) {
-  const top = turnoMinInicio(t) - inicioMin;
-  const altura = Math.max(28, (t.duracion_minutos / 60) * 60);
+  const top = turnoMinInicio(t) - inicioMin + 2;
+  const altura = Math.max(26, t.duracion_minutos - 4);
   const nombre = t.pacientes ? `${t.pacientes.apellido}, ${t.pacientes.nombre.split(' ')[0]}` : '-';
   const subtitulo = t.tipos_atencion?.nombre || (t.estado === 'agendado' ? 'Pendiente' : '');
   const tieneSobre = !!(sobres && sobres.length);

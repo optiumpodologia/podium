@@ -858,10 +858,11 @@ input, select, textarea {
   cursor: pointer;
   overflow: hidden;
   z-index: 2;
-  /* default = AGENDADO (violeta suave, en línea con la referencia) */
-  background: #EFEDFB;
-  border-left-color: var(--primario);
-  color: #3D348B;
+  /* default = AGENDADO (blanco, borde sutil) */
+  background: #fff;
+  border: 1px solid var(--borde-tenue);
+  border-left: 3px solid var(--primario-medio);
+  color: var(--texto);
   transition: box-shadow 0.18s, transform 0.18s;
 }
 
@@ -885,24 +886,25 @@ input, select, textarea {
   text-overflow: ellipsis;
 }
 
-/* Estados (pasteles limpios, acento a la izquierda) */
+/* Estados: llegó naranja · atención naranja titilando · finalizado verde titilando · cobrado verde */
 .turno-card.estado-llego {
-  background: var(--exito-claro);
-  border-left-color: var(--exito);
-  color: #0B5E3E;
-  animation: pulso-llego 1.6s ease-in-out infinite;
+  background: #FCEAD6;
+  border-left-color: var(--advertencia);
+  color: #6B4A12;
 }
 
 .turno-card.estado-en_atencion {
   background: #FCEAD6;
   border-left-color: var(--advertencia);
   color: #6B4A12;
+  animation: pulso-naranja 1.5s ease-in-out infinite;
 }
 
 .turno-card.estado-finalizado {
-  background: var(--info-claro);
-  border-left-color: var(--info);
-  color: #14457A;
+  background: var(--exito-claro);
+  border-left-color: var(--exito);
+  color: #0B5E3E;
+  animation: pulso-verde 1.5s ease-in-out infinite;
 }
 
 .turno-card.estado-cancelado,
@@ -915,19 +917,25 @@ input, select, textarea {
 }
 
 .turno-card.estado-cobrado {
-  background: #EFEFF2;
-  border-left-color: #9A9AA8;
-  color: #5A5A6B;
-  opacity: 0.92;
+  background: var(--exito-claro);
+  border-left-color: var(--exito);
+  color: #0B5E3E;
 }
 
-@keyframes pulso-llego {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(31,157,107,0.35); }
+@keyframes pulso-naranja {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(217,119,30,0.40); }
+  50%      { box-shadow: 0 0 0 5px rgba(217,119,30,0); }
+}
+@keyframes pulso-verde {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(31,157,107,0.38); }
   50%      { box-shadow: 0 0 0 5px rgba(31,157,107,0); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .turno-card.estado-llego { animation: none; }
+  .turno-card.estado-en_atencion,
+  .turno-card.estado-finalizado,
+  .lc-en_atencion,
+  .lc-finalizado { animation: none; }
 }
 
 .leyenda {
@@ -946,11 +954,11 @@ input, select, textarea {
   line-height: 1.4;
   border: 1px solid transparent;
 }
-.lc-agendado    { background: #EFEDFB; color: #5A4BB8; border-color: #DAD3F4; }
-.lc-llego       { background: #E3F6EC; color: #157A52; border-color: #C5EAD5; }
-.lc-en_atencion { background: #FCEAD6; color: #B85C18; border-color: #F6D9B8; }
-.lc-finalizado  { background: #E6F0FB; color: #1F5894; border-color: #CADEF3; }
-.lc-cobrado     { background: #EFEFF2; color: #5A5A6B; border-color: #E0E0E6; }
+.lc-agendado    { background: #fff; color: var(--texto-secundario); border-color: var(--borde); }
+.lc-llego       { background: #FCEAD6; color: #B85C18; border-color: #F6D9B8; }
+.lc-en_atencion { background: #FCEAD6; color: #B85C18; border-color: #F6D9B8; animation: pulso-naranja 1.5s ease-in-out infinite; }
+.lc-finalizado  { background: #E3F6EC; color: #157A52; border-color: #C5EAD5; animation: pulso-verde 1.5s ease-in-out infinite; }
+.lc-cobrado     { background: #E3F6EC; color: #157A52; border-color: #C5EAD5; }
 
 /* ===== TABLAS ===== */
 .tabla {
@@ -1216,10 +1224,28 @@ input, select, textarea {
 }
 
 .agenda-col-head {
-  padding: 13px 10px;
-  text-align: center;
+  padding: 6px 9px;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   border-left: 1px solid var(--borde-tenue);
   border-bottom: 1px solid var(--borde-tenue);
+}
+
+.agenda-col-num {
+  flex-shrink: 0;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 6px;
+  background: var(--primario-claro);
+  color: var(--primario);
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .agenda-col-titulo {
@@ -1231,12 +1257,17 @@ input, select, textarea {
 
 .agenda-col-prof {
   font-size: 12px;
+  font-weight: 600;
   color: var(--texto-secundario);
-  margin-top: 4px;
+  margin-top: 0;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .agenda-col-prof.libre {
