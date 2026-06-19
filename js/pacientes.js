@@ -263,7 +263,7 @@ async function abrirModalPaciente(id) {
 
   abrirModal(`
     <style>
-      .modal { max-width: 680px; }
+      .modal { max-width: 860px; }
       .pac-body { background:#fff; }
       .pac-hero { position:relative; display:flex; align-items:center; gap:16px; background:linear-gradient(120deg,#F6F4FE,#FBFAFF); border:1px solid var(--borde-tenue); border-radius:16px; padding:16px 18px; margin-bottom:22px; }
       .pac-avatar { width:60px; height:60px; flex:none; border-radius:50%; background:linear-gradient(135deg,#C9BEF6,#9E8DE8); color:#fff; display:flex; align-items:center; justify-content:center; font-size:20px; font-weight:700; box-shadow:0 2px 8px rgba(83,74,183,.25); }
@@ -271,6 +271,7 @@ async function abrirModalPaciente(id) {
       .pac-hero-sub { display:flex; align-items:center; gap:6px; font-size:13px; color:var(--texto-secundario); margin-top:3px; }
       .pac-verif { color:var(--primario); display:inline-flex; }
       .pac-grid { display:grid; grid-template-columns:1fr 1fr; gap:24px 28px; }
+      .pac-sec-card { background:rgba(83,74,183,.05); border:1px solid var(--borde-tenue); border-radius:14px; padding:16px 18px; }
       .pac-sec-lbl { display:flex; align-items:center; gap:10px; font-size:14px; font-weight:600; color:var(--texto); margin-bottom:14px; }
       .pac-sec-ico { width:30px; height:30px; flex:none; border-radius:9px; display:flex; align-items:center; justify-content:center; }
       .pac-ico-violeta { background:var(--primario-claro); color:var(--primario); }
@@ -333,7 +334,7 @@ async function abrirModalPaciente(id) {
             </div>
           </div>
 
-          <div>
+          <div class="pac-sec-card">
             <div class="pac-sec-lbl"><span class="pac-sec-ico pac-ico-verde">${I.shield}</span> Cobertura</div>
             <div class="pac-row">
               <div class="pac-field"><label>Obra social</label><div class="pac-iw ico"><span class="pac-fico">${I.obra}</span><input type="text" name="obra_social" list="pac-os" value="${(paciente.obra_social || '').replace(/"/g, '&quot;')}" placeholder="Seleccionar obra social"></div></div>
@@ -344,7 +345,7 @@ async function abrirModalPaciente(id) {
             <datalist id="pac-os">${OBRAS.map(o => `<option value="${o}">`).join('')}</datalist>
           </div>
 
-          <div>
+          <div class="pac-sec-card">
             <div class="pac-sec-lbl"><span class="pac-sec-ico pac-ico-violeta">${I.note}</span> Observaciones</div>
             <label style="display:block; font-size:12px; color:var(--texto-secundario); margin-bottom:5px;">Notas</label>
             <textarea name="notas" class="pac-textarea" maxlength="500" placeholder="Escribí aquí cualquier observación relevante sobre el paciente…" oninput="document.getElementById('pac-notas-count').textContent=this.value.length">${notas}</textarea>
