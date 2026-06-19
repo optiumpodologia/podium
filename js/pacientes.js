@@ -326,7 +326,10 @@ async function abrirModalPaciente(id) {
           <div>
             <div class="pac-sec-lbl"><span class="pac-sec-ico pac-ico-violeta">${I.tel}</span> Contacto</div>
             <div class="pac-row">
-              <div class="pac-field"><label>Teléfono</label><div class="pac-iw ico"><span class="pac-fico">${I.tel}</span><input type="text" name="telefono" value="${paciente.telefono || ''}"></div></div>
+              <div class="pac-field"><label>Teléfono</label><div class="pac-iw ico"><span class="pac-fico">${I.tel}</span><input type="text" name="telefono" value="${paciente.telefono || ''}" placeholder="Fijo / línea"></div></div>
+              <div class="pac-field"><label>Celular</label><div class="pac-iw ico"><span class="pac-fico"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="20" x="5" y="2" rx="2"/><path d="M12 18h.01"/></svg></span><input type="text" name="celular" value="${paciente.celular || ''}" placeholder="11 2345 6789"></div></div>
+            </div>
+            <div class="pac-row">
               <div class="pac-field"><label>Email</label><div class="pac-iw ico"><span class="pac-fico">${I.mail}</span><input type="email" name="email" value="${paciente.email || ''}" placeholder="correo@ejemplo.com"></div></div>
             </div>
             <div class="pac-row">

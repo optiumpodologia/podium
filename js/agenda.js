@@ -1629,38 +1629,70 @@ function ttElegirPaciente(id) {
 // --- Alta rápida de paciente (vuelve al turno con el paciente elegido) ---
 function ttNuevoPacienteDesdeTurno(profId, columna, fechaStr, startMin, esSobreturno) {
   esSobreturno = !!esSobreturno;
+  const npi = (p, w = 16) => `<svg viewBox="0 0 24 24" width="${w}" height="${w}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+  const NPICO = {
+    userplus: '<circle cx="9" cy="8" r="4"/><path d="M3 21c0-3.8 3-5.8 6-5.8"/><path d="M16 11h6M19 8v6"/>',
+    user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.2 3.6-6.5 8-6.5s8 2.3 8 6.5"/>',
+    dni:  '<rect width="20" height="14" x="2" y="5" rx="2"/><circle cx="8" cy="12" r="2"/><path d="M14 10h4M14 14h4"/>',
+    tel:  '<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2 4.2 2 2 0 0 1 4 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.9.7 2.8a2 2 0 0 1-.4 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.9.6 2.8.7A2 2 0 0 1 22 16.9z"/>',
+    shield: '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/>',
+    check: '<polyline points="20 6 9 17 4 12"/>'
+  };
   abrirModal(`
+    <style>
+      .modal { max-width: 720px; }
+      .np-header { display:flex; align-items:center; gap:15px; }
+      .np-header-ico { width:52px; height:52px; flex:none; border-radius:14px; background:var(--primario-claro); color:var(--primario); display:flex; align-items:center; justify-content:center; }
+      .np-titulo { font-size:21px; font-weight:700; color:var(--texto); line-height:1.15; }
+      .np-sub { font-size:13px; color:var(--texto-secundario); margin-top:2px; }
+      .np-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px 22px; }
+      .np-field label { display:block; font-size:12.5px; color:var(--texto-secundario); margin-bottom:6px; }
+      .np-field label b { color:var(--peligro); font-weight:600; }
+      .np-iw { position:relative; }
+      .np-iw .np-fico { position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--texto-tenue); display:flex; }
+      .np-iw input { width:100%; padding:12px 13px 12px 38px; border:1px solid var(--borde-tenue); border-radius:11px; font:inherit; font-size:14px; background:#fff; transition:border-color .12s; }
+      .np-iw input:focus { border-color:var(--primario-medio); outline:none; }
+      .np-banner { display:flex; align-items:center; gap:13px; background:rgba(83,74,183,.05); border:1px solid var(--borde-tenue); border-radius:13px; padding:14px 16px; margin-top:20px; }
+      .np-banner-ico { width:38px; height:38px; flex:none; border-radius:10px; background:#fff; border:1px solid var(--borde-tenue); color:var(--primario); display:flex; align-items:center; justify-content:center; }
+      .np-banner-tit { font-size:13px; font-weight:600; color:var(--texto); }
+      .np-banner-sub { font-size:12px; color:var(--texto-secundario); }
+      .np-foot-right { margin-left:auto; display:flex; gap:10px; }
+      .np-crear { display:inline-flex; align-items:center; gap:8px; }
+    </style>
+
     <div class="modal-header">
-      <div class="modal-titulo">Nuevo paciente</div>
+      <div class="np-header">
+        <div class="np-header-ico">${npi(NPICO.userplus, 24)}</div>
+        <div>
+          <div class="np-titulo">Nuevo paciente</div>
+          <div class="np-sub">Completá los datos para registrar al paciente</div>
+        </div>
+      </div>
       <button class="modal-cerrar" onclick="cerrarModal()">&times;</button>
     </div>
     <form id="form-nuevo-pac-turno">
       <div class="modal-body">
-        <div class="form-row">
-          <div class="input-group">
-            <label>Apellido *</label>
-            <input type="text" name="apellido" required>
-          </div>
-          <div class="input-group">
-            <label>Nombre *</label>
-            <input type="text" name="nombre" required>
-          </div>
+        <div class="np-grid">
+          <div class="np-field"><label>Apellido <b>*</b></label><div class="np-iw"><span class="np-fico">${npi(NPICO.user)}</span><input type="text" name="apellido" required placeholder="Ej: Mangueras"></div></div>
+          <div class="np-field"><label>Nombre <b>*</b></label><div class="np-iw"><span class="np-fico">${npi(NPICO.user)}</span><input type="text" name="nombre" required placeholder="Ej: Nelida"></div></div>
+          <div class="np-field"><label>DNI</label><div class="np-iw"><span class="np-fico">${npi(NPICO.dni)}</span><input type="text" name="dni" placeholder="Ej: 33.123.456"></div></div>
+          <div class="np-field"><label>Teléfono</label><div class="np-iw"><span class="np-fico">${npi(NPICO.tel)}</span><input type="text" name="telefono" placeholder="Ej: 11 2345 6789"></div></div>
         </div>
-        <div class="form-row">
-          <div class="input-group">
-            <label>DNI</label>
-            <input type="text" name="dni">
-          </div>
-          <div class="input-group">
-            <label>Teléfono</label>
-            <input type="text" name="telefono">
+
+        <div class="np-banner">
+          <div class="np-banner-ico">${npi(NPICO.shield, 18)}</div>
+          <div>
+            <div class="np-banner-tit">Estos datos serán guardados en la ficha del paciente</div>
+            <div class="np-banner-sub">Podrás modificarlos más adelante.</div>
           </div>
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn"
-          onclick="abrirModalNuevoTurnoCasillero('${profId}', ${columna}, '${fechaStr}', ${startMin}, null, ${esSobreturno})">Volver</button>
-        <button type="submit" class="btn btn-primary-sm">Crear y usar</button>
+        <div class="np-foot-right">
+          <button type="button" class="btn"
+            onclick="abrirModalNuevoTurnoCasillero('${profId}', ${columna}, '${fechaStr}', ${startMin}, null, ${esSobreturno})">Volver</button>
+          <button type="submit" class="btn btn-primary-sm np-crear">${npi(NPICO.check, 16)} Crear y usar</button>
+        </div>
       </div>
     </form>
   `);
