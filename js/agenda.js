@@ -309,7 +309,7 @@ function inyectarEstilosAgenda() {
     .turno-card { transition:filter .1s, box-shadow .1s; }
     .turno-card:hover { filter:brightness(0.97); box-shadow:inset 0 0 0 2px rgba(0,0,0,0.10); }
     /* Chip de sobreturno (opción B: no parte la columna) */
-    .turno-sobre-chip { position:absolute; right:3px; bottom:3px; max-width:calc(100% - 12px); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; background:#7c3aed; color:#fff; font-size:10px; font-weight:600; padding:2px 7px; border-radius:9px; cursor:pointer; z-index:3; transition:filter .08s; }
+    .turno-sobre-chip { position:absolute; right:3px; bottom:3px; max-width:calc(100% - 12px); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; background:#fff; color:var(--primario); border:1px solid var(--primario-medio); font-size:10px; font-weight:600; padding:2px 7px; border-radius:9px; cursor:pointer; z-index:3; transition:filter .08s; }
     .turno-sobre-chip:hover { filter:brightness(1.15); }
     .turno-sobre-suelto { bottom:auto; z-index:4; }
     .turno-card.es-sobreturno { border-left:3px solid #7c3aed; }
@@ -619,7 +619,7 @@ async function dibujarAgenda() {
   for (let s = inicioMin; s <= finMin; s += negocioSlot) slotsRegla.push(s);
   const altoTotal = slotsRegla.length * negocioSlot * ESCALA_AGENDA;
 
-  let html = `<div class="agenda-grid-col ${esPasado ? 'es-pasado' : ''}"
+  let html = `<div class="agenda-grid-col ${esPasado ? 'es-pasado' : ''} ${esProfesional ? 'vista-consultorio' : 'vista-recepcion'}"
     style="grid-template-columns: 56px repeat(${cantColumnas}, minmax(0, 1fr)); width:100%; max-width:${56 + cantColumnas * 220}px;">`;
 
   // Encabezados. Con un solo consultorio, el número va en el cuadrado de la
@@ -736,7 +736,7 @@ async function dibujarAgenda() {
         const topS = (m - inicioMin) * ESCALA_AGENDA;
         sobrePorMin[m].forEach(t => {
           const nom = t.pacientes ? `${t.pacientes.apellido}, ${t.pacientes.nombre.split(' ')[0]}` : 'Sobreturno';
-          html += `<div class="turno-sobre-chip turno-sobre-suelto" style="top:${topS}px;"
+          html += `<div class="turno-sobre-chip turno-sobre-suelto estado-${t.estado}" style="top:${topS}px;"
             title="Sobreturno (sin turno base)"
             onclick="event.stopPropagation(); verSobreturnos('${t.profesional_id}','${t.fecha_hora}')">${nom}</div>`;
         });
@@ -1552,7 +1552,7 @@ function tarjetaTurnoHTML(t, numero, fechaStr, sobres, esPasado, inicioMin, esHu
   if (tieneSobre) {
     const s = sobres[0];
     const nombreSobre = s.pacientes ? `${s.pacientes.apellido}, ${s.pacientes.nombre.split(' ')[0]}` : 'Sobreturno';
-    chip = `<div class="turno-sobre-chip" title="Ver sobreturno"
+    chip = `<div class="turno-sobre-chip estado-${s.estado}" title="Ver sobreturno"
          onclick="event.stopPropagation(); verSobreturnos('${t.profesional_id}','${t.fecha_hora}')">${nombreSobre}</div>`;
   }
   const claseSobre = (esHuerfano || t.es_sobreturno) ? ' es-sobreturno' : '';
