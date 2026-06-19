@@ -441,8 +441,6 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
     guardar: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>',
     check: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
   };
-  const FOOT = '<svg class="fa-hero-foot" viewBox="0 0 100 100"><g fill="currentColor"><ellipse cx="52" cy="64" rx="22" ry="29"/><circle cx="34" cy="28" r="7"/><circle cx="49" cy="21" r="8"/><circle cx="64" cy="25" r="7"/><circle cx="75" cy="37" r="6"/><circle cx="27" cy="43" r="5"/></g></svg>';
-
   const PROX = [7, 21, 30];
   const fmtFechaLarga = (d) => d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).replace(',', '');
 
@@ -494,34 +492,63 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
       if (el) el.textContent = formatearPrecio(totalLineas(this.lineasAt) + totalLineas(this.lineasProd));
     },
 
-    pick(tipo) {
-      const wrap = document.getElementById(tipo === 'prod' ? 'fa-pick-prod' : 'fa-pick-at');
-      if (!wrap) return;
-      const abierto = wrap.style.display !== 'none';
-      wrap.style.display = abierto ? 'none' : 'block';
-      if (!abierto) { const s = wrap.querySelector('select'); if (s) s.focus(); }
+    abrirPicker(tipo) {
+      this._pickerTipo = tipo;
+      const titulo = tipo === 'prod' ? 'Agregar producto' : 'Agregar atención';
+      const ov = document.createElement('div');
+      ov.id = 'fa-picker';
+      ov.className = 'fa-picker-ov';
+      ov.onclick = (e) => { if (e.target === ov) _ficha.cerrarPicker(); };
+      ov.innerHTML = `
+        <div class="fa-picker-modal">
+          <div class="fa-picker-head">
+            <span>${titulo}</span>
+            <button type="button" class="fa-picker-x" onclick="_ficha.cerrarPicker()">×</button>
+          </div>
+          <input type="text" class="fa-picker-search" placeholder="Buscar…" oninput="_ficha.filtrarPicker(this.value)">
+          <div class="fa-picker-list" id="fa-picker-list"></div>
+        </div>`;
+      document.body.appendChild(ov);
+      this.renderPicker('');
+      setTimeout(() => ov.querySelector('.fa-picker-search')?.focus(), 30);
     },
-    agregarAt() {
-      const sel = document.getElementById('ficha-sel-at');
-      const id = sel.value; if (!id) return;
-      const c = (tipos || []).find(t => t.id === id); if (!c) return;
-      const ya = this.lineasAt.find(l => l.tipo_atencion_id === id);
-      if (ya) ya.cantidad += 1;
-      else this.lineasAt.push({ tipo_atencion_id: id, nombre: c.nombre, cantidad: 1, precio: c.precio || 0, color: c.color || null });
-      sel.value = '';
-      const w = document.getElementById('fa-pick-at'); if (w) w.style.display = 'none';
-      this.renderAt();
+    renderPicker(filtro) {
+      const tipo = this._pickerTipo;
+      const cat = (tipo === 'prod' ? productosCat : tipos) || [];
+      const f = (filtro || '').trim().toLowerCase();
+      const items = cat.filter(c => !f || (c.nombre || '').toLowerCase().includes(f));
+      const cont = document.getElementById('fa-picker-list');
+      if (!cont) return;
+      cont.innerHTML = items.length ? items.map(c => {
+        const sub = tipo === 'prod' ? (c.descripcion || '') : '';
+        const stock = tipo === 'prod' ? ` &middot; stock ${c.stock}` : '';
+        return `<button type="button" class="fa-picker-item" onclick="_ficha.elegirPicker('${c.id}')">
+          <div class="fa-picker-item-body">
+            <div class="fa-picker-item-nom">${c.nombre}</div>
+            ${sub ? `<div class="fa-picker-item-sub">${sub}</div>` : ''}
+          </div>
+          <div class="fa-picker-item-precio">${formatearPrecio(c.precio || 0)}${stock}</div>
+        </button>`;
+      }).join('') : '<div class="fa-picker-vacio">Sin resultados</div>';
     },
-    agregarProd() {
-      const sel = document.getElementById('ficha-sel-prod');
-      const id = sel.value; if (!id) return;
-      const c = (productosCat || []).find(x => x.id === id); if (!c) return;
-      const ya = this.lineasProd.find(l => l.producto_id === id);
-      if (ya) ya.cantidad += 1;
-      else this.lineasProd.push({ producto_id: id, nombre: c.nombre, descripcion: c.descripcion || '', cantidad: 1, precio: c.precio || 0 });
-      sel.value = '';
-      const w = document.getElementById('fa-pick-prod'); if (w) w.style.display = 'none';
-      this.renderProd();
+    filtrarPicker(v) { this.renderPicker(v); },
+    cerrarPicker() { const ov = document.getElementById('fa-picker'); if (ov) ov.remove(); },
+    elegirPicker(id) {
+      const tipo = this._pickerTipo;
+      if (tipo === 'prod') {
+        const c = (productosCat || []).find(x => x.id === id); if (!c) return;
+        const ya = this.lineasProd.find(l => l.producto_id === id);
+        if (ya) ya.cantidad += 1;
+        else this.lineasProd.push({ producto_id: id, nombre: c.nombre, descripcion: c.descripcion || '', cantidad: 1, precio: c.precio || 0 });
+        this.renderProd();
+      } else {
+        const c = (tipos || []).find(t => t.id === id); if (!c) return;
+        const ya = this.lineasAt.find(l => l.tipo_atencion_id === id);
+        if (ya) ya.cantidad += 1;
+        else this.lineasAt.push({ tipo_atencion_id: id, nombre: c.nombre, cantidad: 1, precio: c.precio || 0, color: c.color || null });
+        this.renderAt();
+      }
+      this.cerrarPicker();
     },
     quitar(tipo, i) {
       if (tipo === 'prod') { this.lineasProd.splice(i, 1); this.renderProd(); }
@@ -626,23 +653,11 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
   };
 
   // --- Bloques condicionados a edición ---------------------------------
-  const pickAtHTML = soloLectura ? '' : `
-    <div id="fa-pick-at" class="fa-pick" style="display:none;">
-      <select id="ficha-sel-at" onchange="_ficha.agregarAt()">
-        <option value="">Seleccionar atención…</option>
-        ${(tipos || []).map(t => `<option value="${t.id}">${t.nombre} · ${formatearPrecio(t.precio || 0)}</option>`).join('')}
-      </select>
-    </div>
-    <button type="button" class="fa-add" onclick="_ficha.pick('at')">${ICO.mas} Agregar atención</button>`;
+  const pickAtHTML = soloLectura ? '' :
+    `<button type="button" class="fa-add" onclick="_ficha.abrirPicker('at')">${ICO.mas} Agregar atención</button>`;
 
-  const pickProdHTML = soloLectura ? '' : `
-    <div id="fa-pick-prod" class="fa-pick" style="display:none;">
-      <select id="ficha-sel-prod" onchange="_ficha.agregarProd()">
-        <option value="">Seleccionar producto…</option>
-        ${(productosCat || []).map(p => `<option value="${p.id}">${p.nombre} · ${formatearPrecio(p.precio || 0)} · stock ${p.stock}</option>`).join('')}
-      </select>
-    </div>
-    <button type="button" class="fa-add fa-add-verde" onclick="_ficha.pick('prod')">${ICO.mas} Agregar producto</button>`;
+  const pickProdHTML = soloLectura ? '' :
+    `<button type="button" class="fa-add fa-add-verde" onclick="_ficha.abrirPicker('prod')">${ICO.mas} Agregar producto</button>`;
 
   const proxHTML = soloLectura
     ? `<div class="fa-prox-ro">${proxInicial || 'No indicada'}</div>`
@@ -659,20 +674,20 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
       .modal { max-width: 720px; }
       .fa-body { background:#fff; }
       .fa-hero { position:relative; overflow:hidden; display:flex; align-items:center; gap:16px; background:linear-gradient(120deg,#F3F0FE,#ECE8FB); border:1px solid var(--borde-tenue); border-radius:16px; padding:16px 18px; margin-bottom:18px; }
-      .fa-hero-foot { position:absolute; right:130px; top:50%; transform:translateY(-50%); width:120px; height:120px; color:var(--primario); opacity:0.10; pointer-events:none; }
       .fa-avatar { width:56px; height:56px; flex:none; border-radius:50%; background:linear-gradient(135deg,#C9BEF6,#9E8DE8); color:#fff; display:flex; align-items:center; justify-content:center; font-size:19px; font-weight:700; box-shadow:0 2px 8px rgba(83,74,183,.25); }
       .fa-hero-info { min-width:0; }
       .fa-hero-nombre { font-size:19px; font-weight:700; color:var(--texto); }
       .fa-hero-meta { font-size:12.5px; color:var(--texto-secundario); margin-top:2px; }
       .fa-hero-fecha { display:inline-flex; align-items:center; gap:5px; font-size:12.5px; color:var(--texto-secundario); margin-top:5px; }
       .fa-hero-fecha svg { width:14px; height:14px; }
-      .fa-crono { margin-left:auto; display:flex; align-items:center; gap:9px; background:var(--exito-claro); border:1px solid var(--exito); color:#0B5E3E; border-radius:12px; padding:8px 14px; }
+      .fa-crono { margin-left:auto; display:flex; align-items:center; gap:9px; background:rgba(31,157,107,.07); border:1px solid rgba(31,157,107,.22); color:#3FA77F; border-radius:12px; padding:8px 14px; }
       .fa-crono-ico { display:flex; }
       .fa-crono-lbl { font-size:9.5px; font-weight:700; letter-spacing:.06em; opacity:.8; }
-      .fa-crono-val { font-size:20px; font-weight:700; line-height:1; font-variant-numeric:tabular-nums; }
+      .fa-crono-val { font-size:20px; font-weight:600; line-height:1; font-variant-numeric:tabular-nums; }
       .fa-crono-fin { background:var(--fondo); border-color:var(--borde-tenue); color:var(--texto-secundario); }
 
       .fa-grid2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:18px; }
+      .fa-grid2 > div { min-width:0; }
       .fa-grid-evo { display:grid; grid-template-columns:1.55fr 1fr; gap:16px; margin-bottom:18px; }
       .fa-sec-lbl { display:flex; align-items:center; gap:7px; font-size:13px; font-weight:600; color:var(--texto); margin-bottom:9px; }
       .fa-sec-lbl svg { color:var(--primario); }
@@ -691,8 +706,19 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
       .fa-item-del:hover { color:var(--peligro); border-color:var(--peligro); background:var(--peligro-claro); }
       .fa-vacio { font-size:12.5px; color:var(--texto-secundario); padding:14px 4px; text-align:center; }
 
-      .fa-pick { margin:8px 0; }
-      .fa-pick select { width:100%; }
+      .fa-picker-ov { position:fixed; inset:0; background:rgba(20,16,40,.38); display:flex; align-items:center; justify-content:center; z-index:9999; padding:20px; }
+      .fa-picker-modal { background:#fff; width:100%; max-width:420px; max-height:70vh; display:flex; flex-direction:column; border-radius:14px; box-shadow:0 18px 50px rgba(0,0,0,.28); overflow:hidden; }
+      .fa-picker-head { display:flex; align-items:center; justify-content:space-between; padding:14px 16px; border-bottom:1px solid var(--borde-tenue); font-size:14px; font-weight:600; }
+      .fa-picker-x { border:none; background:transparent; font-size:22px; line-height:1; color:var(--texto-secundario); cursor:pointer; }
+      .fa-picker-search { margin:12px 16px 6px; padding:9px 12px; border:1px solid var(--borde-tenue); border-radius:9px; font:inherit; font-size:13px; }
+      .fa-picker-list { overflow-y:auto; padding:6px 10px 12px; }
+      .fa-picker-item { width:100%; display:flex; align-items:center; gap:10px; justify-content:space-between; text-align:left; background:#fff; border:1px solid transparent; border-radius:9px; padding:10px 11px; cursor:pointer; transition:.1s; }
+      .fa-picker-item:hover { background:var(--primario-claro); }
+      .fa-picker-item-body { min-width:0; }
+      .fa-picker-item-nom { font-size:13px; font-weight:600; color:var(--texto); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+      .fa-picker-item-sub { font-size:11.5px; color:var(--texto-secundario); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+      .fa-picker-item-precio { font-size:12.5px; font-weight:600; color:var(--texto-secundario); white-space:nowrap; flex:none; }
+      .fa-picker-vacio { font-size:13px; color:var(--texto-secundario); text-align:center; padding:20px; }
       .fa-add { width:100%; margin-top:8px; display:flex; align-items:center; justify-content:center; gap:7px; background:var(--primario-claro); color:var(--primario); border:1px dashed var(--primario-medio); border-radius:10px; padding:10px; font-size:13px; font-weight:600; cursor:pointer; transition:.12s; }
       .fa-add:hover { filter:brightness(.97); }
       .fa-add-verde { background:var(--exito-claro); color:var(--exito); border-color:var(--exito); }
@@ -704,7 +730,7 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
       .fa-total { background:linear-gradient(135deg,#F3F0FE,#E9E4FB); border:1px solid var(--primario-medio); border-radius:13px; padding:15px 16px; display:flex; flex-direction:column; justify-content:center; }
       .fa-total-lbl { display:flex; align-items:center; justify-content:space-between; font-size:12.5px; font-weight:600; color:var(--texto-secundario); }
       .fa-total-lbl svg { color:var(--primario); }
-      .fa-total-val { font-size:32px; font-weight:800; color:var(--primario); line-height:1.1; margin:8px 0 4px; }
+      .fa-total-val { font-size:31px; font-weight:600; color:var(--primario); line-height:1.1; margin:8px 0 4px; letter-spacing:-.01em; }
       .fa-total-sub { font-size:11px; color:var(--texto-secundario); }
 
       .fa-prox { margin-bottom:4px; }
@@ -735,7 +761,6 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
       <div class="modal-body fa-body">
 
         <div class="fa-hero">
-          ${FOOT}
           <div class="fa-avatar">${inic}</div>
           <div class="fa-hero-info">
             <div class="fa-hero-nombre">${pac.apellido || ''}, ${pac.nombre || ''}</div>
@@ -747,14 +772,14 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
 
         <div class="fa-grid2">
           <div>
-            <div class="fa-sec-lbl">${ICO.at} Atenciones realizadas</div>
+            <div class="fa-sec-lbl">${ICO.at} Atenciones</div>
             <div class="fa-card">
               <div id="fa-list-at"></div>
               ${pickAtHTML}
             </div>
           </div>
           <div>
-            <div class="fa-sec-lbl">${ICO.prod} Productos utilizados / vendidos</div>
+            <div class="fa-sec-lbl">${ICO.prod} Productos</div>
             <div class="fa-card">
               <div id="fa-list-prod"></div>
               ${pickProdHTML}
