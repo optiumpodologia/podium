@@ -217,6 +217,15 @@ function pacImprimir() {
   w.document.close(); w.focus(); w.print();
 }
 
+function _pacSyncHero() {
+  const a = (document.querySelector('#form-paciente [name=apellido]')?.value || '').trim();
+  const n = (document.querySelector('#form-paciente [name=nombre]')?.value || '').trim();
+  const nom = document.getElementById('pac-hero-nombre');
+  const ini = document.getElementById('pac-hero-ini');
+  if (nom) nom.textContent = (a || n) ? `${a}${a && n ? ', ' : ''}${n}` : 'Nuevo paciente';
+  if (ini) ini.textContent = ((a[0] || '') + (n[0] || '')).toUpperCase() || '?';
+}
+
 async function abrirModalPaciente(id) {
   let paciente = {
     nombre: '', apellido: '', dni: '', fecha_nacimiento: '',
@@ -229,70 +238,127 @@ async function abrirModalPaciente(id) {
     if (data) paciente = data;
   }
 
+  const inic = ((paciente.apellido?.[0] || '') + (paciente.nombre?.[0] || '')).toUpperCase() || '?';
+  const nombreHero = (paciente.apellido || paciente.nombre) ? `${paciente.apellido || ''}${paciente.apellido && paciente.nombre ? ', ' : ''}${paciente.nombre || ''}` : 'Nuevo paciente';
+  const sub = paciente.creado_en ? `Paciente desde ${new Date(paciente.creado_en).getFullYear()}` : (id ? 'Paciente' : 'Datos del nuevo paciente');
+
+  const sv = (p) => `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+  const I = {
+    user:  sv('<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.2 3.6-6.5 8-6.5s8 2.3 8 6.5"/>'),
+    tel:   sv('<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2 4.2 2 2 0 0 1 4 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.9.7 2.8a2 2 0 0 1-.4 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.9.6 2.8.7A2 2 0 0 1 22 16.9z"/>'),
+    mail:  sv('<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>'),
+    cal:   sv('<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>'),
+    dni:   sv('<rect width="20" height="14" x="2" y="5" rx="2"/><circle cx="8" cy="12" r="2"/><path d="M14 10h4M14 14h4"/>'),
+    pin:   sv('<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>'),
+    obra:  sv('<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>'),
+    afil:  sv('<rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/>'),
+    shield:sv('<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>'),
+    note:  sv('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6"/><path d="M9 17h4"/>'),
+    tacho: sv('<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>'),
+    check: sv('<polyline points="20 6 9 17 4 12"/>'),
+    verif: '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+  };
+  const OBRAS = ['OSDE', 'Swiss Medical', 'Galeno', 'Medifé', 'OMINT', 'IOMA', 'PAMI', 'OSECAC', 'Sancor Salud', 'Particular'];
+  const notas = paciente.notas || '';
+
   abrirModal(`
+    <style>
+      .modal { max-width: 680px; }
+      .pac-body { background:#fff; }
+      .pac-hero { position:relative; display:flex; align-items:center; gap:16px; background:linear-gradient(120deg,#F6F4FE,#FBFAFF); border:1px solid var(--borde-tenue); border-radius:16px; padding:16px 18px; margin-bottom:22px; }
+      .pac-avatar { width:60px; height:60px; flex:none; border-radius:50%; background:linear-gradient(135deg,#C9BEF6,#9E8DE8); color:#fff; display:flex; align-items:center; justify-content:center; font-size:20px; font-weight:700; box-shadow:0 2px 8px rgba(83,74,183,.25); }
+      .pac-hero-nombre { font-size:20px; font-weight:700; color:var(--texto); }
+      .pac-hero-sub { display:flex; align-items:center; gap:6px; font-size:13px; color:var(--texto-secundario); margin-top:3px; }
+      .pac-verif { color:var(--primario); display:inline-flex; }
+      .pac-grid { display:grid; grid-template-columns:1fr 1fr; gap:24px 28px; }
+      .pac-sec-lbl { display:flex; align-items:center; gap:10px; font-size:14px; font-weight:600; color:var(--texto); margin-bottom:14px; }
+      .pac-sec-ico { width:30px; height:30px; flex:none; border-radius:9px; display:flex; align-items:center; justify-content:center; }
+      .pac-ico-violeta { background:var(--primario-claro); color:var(--primario); }
+      .pac-ico-verde { background:var(--exito-claro); color:var(--exito); }
+      .pac-row { display:flex; gap:12px; margin-bottom:12px; }
+      .pac-row:last-child { margin-bottom:0; }
+      .pac-field { flex:1; min-width:0; }
+      .pac-field label { display:block; font-size:12px; color:var(--texto-secundario); margin-bottom:5px; }
+      .pac-iw { position:relative; }
+      .pac-iw .pac-fico { position:absolute; left:11px; top:50%; transform:translateY(-50%); color:var(--texto-tenue); pointer-events:none; display:flex; }
+      .pac-iw input { width:100%; padding:10px 12px; border:1px solid var(--borde-tenue); border-radius:10px; font:inherit; font-size:13.5px; background:#fff; transition:border-color .12s; }
+      .pac-iw.ico input { padding-left:36px; }
+      .pac-iw input:focus { border-color:var(--primario-medio); outline:none; }
+      .pac-textarea { width:100%; min-height:104px; resize:vertical; padding:10px 12px; border:1px solid var(--borde-tenue); border-radius:10px; font:inherit; font-size:13.5px; transition:border-color .12s; }
+      .pac-textarea:focus { border-color:var(--primario-medio); outline:none; }
+      .pac-count { text-align:right; font-size:11px; color:var(--texto-secundario); margin-top:4px; }
+      .pac-footer { display:flex; align-items:center; }
+      .pac-footer-right { margin-left:auto; display:flex; gap:10px; }
+      .pac-del { display:inline-flex; align-items:center; gap:7px; color:var(--peligro); border:1px solid var(--borde-tenue); }
+      .pac-del:hover { border-color:var(--peligro); background:var(--peligro-claro); }
+      .pac-guardar { display:inline-flex; align-items:center; gap:7px; }
+    </style>
+
     <div class="modal-header">
       <div class="modal-titulo">${id ? 'Editar paciente' : 'Nuevo paciente'}</div>
       <button class="modal-cerrar" onclick="cerrarModal()">×</button>
     </div>
     <form id="form-paciente">
-      <div class="modal-body">
-        <div class="form-row">
-          <div class="input-group">
-            <label>Apellido *</label>
-            <input type="text" name="apellido" value="${paciente.apellido}" required>
-          </div>
-          <div class="input-group">
-            <label>Nombre *</label>
-            <input type="text" name="nombre" value="${paciente.nombre}" required>
+      <div class="modal-body pac-body">
+
+        <div class="pac-hero">
+          <div class="pac-avatar" id="pac-hero-ini">${inic}</div>
+          <div>
+            <div class="pac-hero-nombre" id="pac-hero-nombre">${nombreHero}</div>
+            <div class="pac-hero-sub">${sub} ${id ? `<span class="pac-verif">${I.verif}</span>` : ''}</div>
           </div>
         </div>
 
-        <div class="form-row">
-          <div class="input-group">
-            <label>DNI</label>
-            <input type="text" name="dni" value="${paciente.dni || ''}">
+        <div class="pac-grid">
+          <div>
+            <div class="pac-sec-lbl"><span class="pac-sec-ico pac-ico-violeta">${I.user}</span> Datos personales</div>
+            <div class="pac-row">
+              <div class="pac-field"><label>Apellido *</label><div class="pac-iw"><input type="text" name="apellido" value="${(paciente.apellido || '').replace(/"/g, '&quot;')}" required oninput="_pacSyncHero()"></div></div>
+              <div class="pac-field"><label>Nombre *</label><div class="pac-iw"><input type="text" name="nombre" value="${(paciente.nombre || '').replace(/"/g, '&quot;')}" required oninput="_pacSyncHero()"></div></div>
+            </div>
+            <div class="pac-row">
+              <div class="pac-field"><label>DNI</label><div class="pac-iw ico"><span class="pac-fico">${I.dni}</span><input type="text" name="dni" value="${paciente.dni || ''}"></div></div>
+              <div class="pac-field"><label>Fecha de nacimiento</label><div class="pac-iw ico"><span class="pac-fico">${I.cal}</span><input type="date" name="fecha_nacimiento" value="${paciente.fecha_nacimiento || ''}"></div></div>
+            </div>
           </div>
-          <div class="input-group">
-            <label>Fecha de nacimiento</label>
-            <input type="date" name="fecha_nacimiento" value="${paciente.fecha_nacimiento || ''}">
+
+          <div>
+            <div class="pac-sec-lbl"><span class="pac-sec-ico pac-ico-violeta">${I.tel}</span> Contacto</div>
+            <div class="pac-row">
+              <div class="pac-field"><label>Teléfono</label><div class="pac-iw ico"><span class="pac-fico">${I.tel}</span><input type="text" name="telefono" value="${paciente.telefono || ''}"></div></div>
+              <div class="pac-field"><label>Email</label><div class="pac-iw ico"><span class="pac-fico">${I.mail}</span><input type="email" name="email" value="${paciente.email || ''}" placeholder="correo@ejemplo.com"></div></div>
+            </div>
+            <div class="pac-row">
+              <div class="pac-field"><label>Dirección</label><div class="pac-iw ico"><span class="pac-fico">${I.pin}</span><input type="text" name="direccion" value="${(paciente.direccion || '').replace(/"/g, '&quot;')}" placeholder="Ej: Av. Rivadavia 1234, CABA"></div></div>
+            </div>
+          </div>
+
+          <div>
+            <div class="pac-sec-lbl"><span class="pac-sec-ico pac-ico-verde">${I.shield}</span> Cobertura</div>
+            <div class="pac-row">
+              <div class="pac-field"><label>Obra social</label><div class="pac-iw ico"><span class="pac-fico">${I.obra}</span><input type="text" name="obra_social" list="pac-os" value="${(paciente.obra_social || '').replace(/"/g, '&quot;')}" placeholder="Seleccionar obra social"></div></div>
+            </div>
+            <div class="pac-row">
+              <div class="pac-field"><label>N° de afiliado</label><div class="pac-iw ico"><span class="pac-fico">${I.afil}</span><input type="text" name="numero_afiliado" value="${paciente.numero_afiliado || ''}" placeholder="Número de afiliado"></div></div>
+            </div>
+            <datalist id="pac-os">${OBRAS.map(o => `<option value="${o}">`).join('')}</datalist>
+          </div>
+
+          <div>
+            <div class="pac-sec-lbl"><span class="pac-sec-ico pac-ico-violeta">${I.note}</span> Observaciones</div>
+            <label style="display:block; font-size:12px; color:var(--texto-secundario); margin-bottom:5px;">Notas</label>
+            <textarea name="notas" class="pac-textarea" maxlength="500" placeholder="Escribí aquí cualquier observación relevante sobre el paciente…" oninput="document.getElementById('pac-notas-count').textContent=this.value.length">${notas}</textarea>
+            <div class="pac-count"><span id="pac-notas-count">${notas.length}</span>/500</div>
           </div>
         </div>
 
-        <div class="form-row">
-          <div class="input-group">
-            <label>Teléfono</label>
-            <input type="text" name="telefono" value="${paciente.telefono || ''}">
-          </div>
-          <div class="input-group">
-            <label>Email</label>
-            <input type="email" name="email" value="${paciente.email || ''}">
-          </div>
-        </div>
-
-        <div class="input-group">
-          <label>Dirección</label>
-          <input type="text" name="direccion" value="${paciente.direccion || ''}">
-        </div>
-
-        <div class="form-row">
-          <div class="input-group">
-            <label>Obra social</label>
-            <input type="text" name="obra_social" value="${paciente.obra_social || ''}">
-          </div>
-          <div class="input-group">
-            <label>N° de afiliado</label>
-            <input type="text" name="numero_afiliado" value="${paciente.numero_afiliado || ''}">
-          </div>
-        </div>
-
-        <div class="input-group">
-          <label>Notas</label>
-          <textarea name="notas" rows="2">${paciente.notas || ''}</textarea>
-        </div>
       </div>
-      <div class="modal-footer">
-        <button type="button" class="btn" onclick="cerrarModal()">Cancelar</button>
-        <button type="submit" class="btn btn-primary-sm">${id ? 'Guardar' : 'Crear paciente'}</button>
+      <div class="modal-footer pac-footer">
+        ${id ? `<button type="button" class="btn pac-del" onclick="eliminarPaciente('${id}')">${I.tacho} Eliminar paciente</button>` : ''}
+        <div class="pac-footer-right">
+          <button type="button" class="btn" onclick="cerrarModal()">Cancelar</button>
+          <button type="submit" class="btn btn-primary-sm pac-guardar">${I.check} ${id ? 'Guardar cambios' : 'Crear paciente'}</button>
+        </div>
       </div>
     </form>
   `);
@@ -329,5 +395,6 @@ async function eliminarPaciente(id) {
     return;
   }
   mostrarMensaje('Paciente eliminado', 'exito');
+  if (typeof cerrarModal === 'function') cerrarModal();
   await cargarPacientes();
 }
