@@ -755,7 +755,7 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
 
       .modal-header.fa-modal-header { display:flex; align-items:flex-end; gap:8px; padding:0 14px; }
       .modal-header.fa-modal-header .modal-cerrar { align-self:center; margin-bottom:2px; }
-      .fa-tabs { display:flex; gap:2px; flex:1; min-width:0; overflow-x:auto; }
+      .fa-tabs { display:flex; gap:2px; flex:1; }
       .fa-tab { display:inline-flex; align-items:center; gap:7px; white-space:nowrap; background:none; border:none; border-bottom:2px solid transparent; margin-bottom:-1px; padding:13px 13px; font-size:13.5px; font-weight:600; color:var(--texto-secundario); cursor:pointer; transition:.12s; }
       .fa-tab svg { color:currentColor; }
       .fa-tab:hover { color:var(--texto); }
@@ -808,7 +808,7 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
       .fa-evo textarea { width:100%; resize:vertical; min-height:96px; border:1px solid var(--borde-tenue); border-radius:10px; padding:10px; font:inherit; font-size:13px; }
       .fa-evo-count { text-align:right; font-size:11px; color:var(--texto-secundario); margin-top:4px; }
 
-      .fa-total { background:linear-gradient(135deg,#F3F0FE,#E9E4FB); border:1px solid var(--primario-medio); border-radius:13px; padding:15px 16px; display:flex; flex-direction:column; justify-content:center; }
+      .fa-total { background:rgba(83,74,183,.05); border:1px solid var(--borde-tenue); border-radius:13px; padding:15px 16px; display:flex; flex-direction:column; justify-content:center; }
       .fa-total-lbl { display:flex; align-items:center; justify-content:space-between; font-size:12.5px; font-weight:600; color:var(--texto-secundario); }
       .fa-total-lbl svg { color:var(--primario); }
       .fa-total-val { font-size:30px; font-weight:700; color:var(--primario); line-height:1.1; margin:8px 0 4px; letter-spacing:-.01em; }
@@ -837,7 +837,6 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
     <div class="modal-header fa-modal-header">
       <div class="fa-tabs">
         <button type="button" class="fa-tab active" data-fatab="atencion" onclick="_ficha.verTab('atencion')">Ficha de atención</button>
-        <button type="button" class="fa-tab" data-fatab="personales" onclick="_ficha.verTab('personales')">Datos personales</button>
         <button type="button" class="fa-tab" data-fatab="clinica" onclick="_ficha.verTab('clinica')">Datos clínicos</button>
         <button type="button" class="fa-tab" data-fatab="consultas" onclick="_ficha.verTab('consultas')">Últimas consultas</button>
       </div>
