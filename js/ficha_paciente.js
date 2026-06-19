@@ -65,7 +65,7 @@ function anamOpsMultiHTML(campo, ops, seleccion) {
     `<label class="anam-op"><input type="checkbox" class="anam-chk" data-campo="${campo}" value="${op}" ${set.includes(op.toLowerCase()) ? 'checked' : ''}> ${op}</label>`).join('');
 }
 
-function panelAnamnesisHTML(anam, editable, pacienteId) {
+function panelAnamnesisHTML(anam, editable, pacienteId, ocultarBoton) {
   const v = (k) => (anam && anam[k]) ? anam[k] : '';
   const esc = (s) => String(s).replace(/"/g, '&quot;');
 
@@ -134,9 +134,9 @@ function panelAnamnesisHTML(anam, editable, pacienteId) {
       <label class="ficha-campo-lbl" style="display:block; margin-bottom:5px;">Observaciones</label>
       <textarea class="anam-input" id="anam_observaciones" rows="3" style="resize:vertical;">${v('observaciones')}</textarea>
     </div>
-    <div style="display:flex; justify-content:flex-end; margin-top:14px;">
-      <button class="btn btn-primary-sm" onclick="guardarAnamnesis('${pacienteId}')">Guardar anamnesis</button>
-    </div>`;
+    ${ocultarBoton ? '' : `<div style="display:flex; justify-content:flex-end; margin-top:14px;">
+      <button type="button" class="btn btn-primary-sm" onclick="guardarAnamnesis('${pacienteId}')">Guardar anamnesis</button>
+    </div>`}`;
 }
 
 // Devuelve el contenido (.ficha-cols) de la ficha de paciente, reutilizable
@@ -214,7 +214,7 @@ async function fichaPacienteHTML(pacienteId, opts = {}) {
 
   const panelClinica = `
         <div class="ficha-panel" data-fpanel="clinica">
-          ${panelAnamnesisHTML(anam, puedeEditarClinica, paciente.id)}
+          ${panelAnamnesisHTML(anam, puedeEditarClinica, paciente.id, opts.soloPaneles)}
         </div>`;
 
   const panelConsultas = `
@@ -319,7 +319,9 @@ function fichaTab(id) {
 }
 
 // Guarda la anamnesis del paciente (una por paciente). La completa el profesional/negocio.
-async function guardarAnamnesis(pacienteId) {
+async function guardarAnamnesis(pacienteId, silencioso) {
+  // Seguro: si el panel editable no está en pantalla, no guardamos (evita pisar con vacíos).
+  if (!document.getElementById('anam_observaciones')) return;
   const txt = (k) => { const el = document.getElementById('anam_' + k); return el ? (el.value.trim() || null) : null; };
   const radio = (name) => { const el = document.querySelector(`input[name="${name}"]:checked`); return el ? el.value : null; };
   const multi = (campo) => {
@@ -360,10 +362,12 @@ async function guardarAnamnesis(pacienteId) {
   datos.pie = (pieTemp || piePiel.length) ? JSON.stringify({ temp: pieTemp || '', piel: piePiel }) : null;
 
   const { error } = await sb.from('anamnesis').upsert(datos, { onConflict: 'paciente_id' });
-  if (error) { mostrarMensaje('No se pudo guardar la anamnesis: ' + error.message, 'error'); return; }
+  if (error) { if (!silencioso) mostrarMensaje('No se pudo guardar la anamnesis: ' + error.message, 'error'); return; }
 
-  mostrarMensaje('Anamnesis guardada', 'exito');
-  cerrarModal();
+  if (!silencioso) {
+    mostrarMensaje('Anamnesis guardada', 'exito');
+    cerrarModal();
+  }
 }
 
 // Muestra/oculta el campo de detalle (ej. alergias) según el check.
@@ -590,6 +594,8 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
     },
 
     verTab(tab) {
+      // Al salir de Datos clínicos, guardamos la anamnesis sola.
+      if (tab !== 'clinica') this.guardarAnamSilencioso();
       const esPaciente = tab !== 'atencion';
       document.querySelectorAll('.fa-tab').forEach(b => b.classList.toggle('active', b.dataset.fatab === tab));
       const va = document.getElementById('fa-view-atencion');
@@ -607,6 +613,12 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
         });
       } else {
         fichaTab(tab);
+      }
+    },
+
+    async guardarAnamSilencioso() {
+      if (this._pacienteCargado && document.getElementById('anam_observaciones')) {
+        await guardarAnamnesis(turno.paciente_id, true);
       }
     },
 
@@ -683,6 +695,7 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
       }
 
       if (finalizar) {
+        await this.guardarAnamSilencioso();
         clearInterval(window._fichaCronoInt);
         await sb.from('turnos').update({
           estado: 'finalizado', tipo_atencion_id: this.lineasAt[0].tipo_atencion_id,
@@ -702,7 +715,7 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
     async cerrarGuardando() {
       clearTimeout(window._fichaCancelTO);
       this.cerrarPicker();
-      if (!soloLectura) await this.persistir(false, true);
+      if (!soloLectura) { await this.guardarAnamSilencioso(); await this.persistir(false, true); }
       cerrarModal();
     },
 
