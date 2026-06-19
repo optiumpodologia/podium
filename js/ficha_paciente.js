@@ -418,6 +418,11 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
 
   const inicioAtencion = turno.hora_inicio_atencion ? new Date(turno.hora_inicio_atencion) : null;
   const mostrarCrono = turno.estado === 'en_atencion' && inicioAtencion && !soloLectura;
+
+  // Ventana de cortesía: "Cancelar (salir sin guardar)" solo los primeros 10s desde que se inició la atención.
+  const msDesdeInicio = inicioAtencion ? (Date.now() - inicioAtencion.getTime()) : Infinity;
+  const mostrarCancelar = !soloLectura && turno.estado === 'en_atencion' && msDesdeInicio < 10000;
+  const msRestanteCancelar = Math.max(0, 10000 - msDesdeInicio);
   const RELOJ_SVG = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="10" x2="14" y1="2" y2="2"/><line x1="12" x2="15" y1="14" y2="11"/><circle cx="12" cy="14" r="8"/></svg>';
 
   let cronoChip = '';
@@ -653,9 +658,22 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
 
     // Al cerrar la ficha (× o Cerrar) se guarda solo, sin finalizar el turno.
     async cerrarGuardando() {
+      clearTimeout(window._fichaCancelTO);
       this.cerrarPicker();
       if (!soloLectura) await this.persistir(false, true);
       cerrarModal();
+    },
+
+    // Cancelar (primeros 10s): salir SIN guardar y deshacer la atención (vuelve a "llegó").
+    async cancelarSinGuardar() {
+      clearTimeout(window._fichaCancelTO);
+      clearInterval(window._fichaCronoInt);
+      this.cerrarPicker();
+      await sb.from('turnos').update({ estado: 'llego', hora_inicio_atencion: null }).eq('id', turnoId);
+      mostrarMensaje('Atención cancelada', 'info');
+      cerrarModal();
+      if (typeof moduloActivo !== 'undefined' && moduloActivo === 'agenda' && typeof dibujarAgenda === 'function') dibujarAgenda();
+      else if (typeof moduloActivo !== 'undefined' && moduloActivo === 'dashboard' && typeof renderDashboard === 'function') renderDashboard(document.getElementById('main'));
     }
   };
 
@@ -756,7 +774,10 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
       .fa-prox-ro { font-size:13px; }
 
       .fa-footer { display:flex; align-items:center; }
-      .fa-footer-right { margin-left:auto; display:flex; gap:10px; }
+      .fa-footer-right { margin-left:auto; display:flex; gap:10px; align-items:center; }
+      .fa-cancelar { color:var(--peligro); border-color:var(--borde-tenue); transition:opacity .26s ease, transform .26s ease; }
+      .fa-cancelar:hover { border-color:var(--peligro); background:var(--peligro-claro); }
+      .fa-cancelar-out { opacity:0; transform:translateX(8px); pointer-events:none; }
       .fa-finalizar { display:inline-flex; align-items:center; gap:7px; }
     </style>
 
@@ -820,6 +841,7 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
           <button type="button" class="btn" onclick="cerrarModal()" style="margin-left:auto;">Cerrar</button>
         ` : `
           <div class="fa-footer-right">
+            ${mostrarCancelar ? `<button type="button" id="fa-cancelar" class="btn fa-cancelar" title="Salir sin guardar y deshacer la atención" onclick="_ficha.cancelarSinGuardar()">Cancelar</button>` : ''}
             <button type="button" class="btn" onclick="_ficha.cerrarGuardando()">Cerrar</button>
             <button type="submit" class="btn btn-primary-sm fa-finalizar">${ICO.check} Finalizar atención</button>
           </div>
@@ -860,10 +882,22 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
     window._fichaCronoInt = setInterval(tick, 1000);
   }
 
+  // Ocultar el botón Cancelar cuando se agota la ventana de cortesía.
+  clearTimeout(window._fichaCancelTO);
+  if (mostrarCancelar) {
+    window._fichaCancelTO = setTimeout(() => {
+      const b = document.getElementById('fa-cancelar');
+      if (!b) return;
+      b.classList.add('fa-cancelar-out');
+      setTimeout(() => { const x = document.getElementById('fa-cancelar'); if (x) x.style.display = 'none'; }, 280);
+    }, msRestanteCancelar);
+  }
+
   if (soloLectura) return;
 
   document.getElementById('form-ficha').addEventListener('submit', (e) => {
     e.preventDefault();
+    clearTimeout(window._fichaCancelTO);
     _ficha.persistir(true);
   });
 }
