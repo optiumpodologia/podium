@@ -26,6 +26,9 @@ let _agendaArrastreCol = null; // columna origen durante un drag
 let _ttPacientes = [];         // cache de pacientes para el typeahead del alta de turno
 let _miProfesional = null;     // (rol profesional) su propio registro de profesionales, para saludo y filtro
 
+// Escala vertical de la grilla: píxeles por minuto. >1 = celdas más altas.
+const ESCALA_AGENDA = 1.5;
+
 // --- Chat recepción <-> consultorio (tabla mensajes) ---
 let _msgPollId = null;         // setInterval del poll de no leídos; se limpia al salir de la agenda
 let _msgProfIdActual = null;   // profesional_id del usuario profesional (cache, para ENVIAR)
@@ -306,7 +309,7 @@ function inyectarEstilosAgenda() {
     .turno-card { transition:filter .1s, box-shadow .1s; }
     .turno-card:hover { filter:brightness(0.97); box-shadow:inset 0 0 0 2px rgba(0,0,0,0.10); }
     /* Chip de sobreturno (opción B: no parte la columna) */
-    .turno-sobre-chip { position:absolute; left:3px; bottom:3px; background:#7c3aed; color:#fff; font-size:10px; font-weight:600; padding:2px 7px; border-radius:9px; cursor:pointer; z-index:3; transition:filter .08s; }
+    .turno-sobre-chip { position:absolute; right:3px; bottom:3px; max-width:calc(100% - 12px); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; background:#7c3aed; color:#fff; font-size:10px; font-weight:600; padding:2px 7px; border-radius:9px; cursor:pointer; z-index:3; transition:filter .08s; }
     .turno-sobre-chip:hover { filter:brightness(1.15); }
     .turno-sobre-suelto { bottom:auto; z-index:4; }
     .turno-card.es-sobreturno { border-left:3px solid #7c3aed; }
@@ -614,7 +617,7 @@ async function dibujarAgenda() {
   // Slots de la regla (09:00, 09:40... según la duración del negocio).
   const slotsRegla = [];
   for (let s = inicioMin; s <= finMin; s += negocioSlot) slotsRegla.push(s);
-  const altoTotal = slotsRegla.length * negocioSlot;
+  const altoTotal = slotsRegla.length * negocioSlot * ESCALA_AGENDA;
 
   let html = `<div class="agenda-grid-col ${esPasado ? 'es-pasado' : ''}"
     style="grid-template-columns: 56px repeat(${cantColumnas}, minmax(0, 1fr)); width:100%; max-width:${56 + cantColumnas * 220}px;">`;
@@ -652,7 +655,7 @@ async function dibujarAgenda() {
   // Columna de horas (un renglón por slot de la duración del negocio)
   html += `<div class="agenda-horas-col" style="height:${altoTotal}px;">`;
   slotsRegla.forEach(s => {
-    html += `<div class="agenda-hora-label" style="height:${negocioSlot}px;">${minToHora(s)}</div>`;
+    html += `<div class="agenda-hora-label" style="height:${negocioSlot * ESCALA_AGENDA}px;">${minToHora(s)}</div>`;
   });
   html += `</div>`;
 
@@ -661,7 +664,7 @@ async function dibujarAgenda() {
     const numero = idx + 1;
     html += `<div class="agenda-consultorio-col" style="height:${altoTotal}px;">`;
     slotsRegla.forEach(s => {
-      html += `<div class="agenda-linea-hora" style="top:${s - inicioMin}px; height:${negocioSlot}px;"></div>`;
+      html += `<div class="agenda-linea-hora" style="top:${(s - inicioMin) * ESCALA_AGENDA}px; height:${negocioSlot * ESCALA_AGENDA}px;"></div>`;
     });
 
     if (col && col.profesional) {
@@ -689,8 +692,8 @@ async function dibujarAgenda() {
           if (!dentro) return;
           if (bloqueadosMin.has(t)) return;
           if (haySolapamiento(t, t + negocioSlot, normales)) return;  // los sobreturnos NO bloquean el slot
-          const topH = t - inicioMin + 2;
-          const altoH = negocioSlot - 4;
+          const topH = (t - inicioMin) * ESCALA_AGENDA + 2;
+          const altoH = negocioSlot * ESCALA_AGENDA - 4;
           if (puedeCrearTurno) {
             html += `<div class="agenda-hueco" style="top:${topH}px; height:${altoH}px;"
               title="Dar turno ${minToHora(t)}"
@@ -710,8 +713,8 @@ async function dibujarAgenda() {
 
       // Celdas bloqueadas ("No disponible")
       susBloqueos.forEach(b => {
-        const topB = b.hora_min - inicioMin;
-        html += `<div class="agenda-bloqueo" style="top:${topB}px; height:${negocioSlot}px;">
+        const topB = (b.hora_min - inicioMin) * ESCALA_AGENDA;
+        html += `<div class="agenda-bloqueo" style="top:${topB}px; height:${negocioSlot * ESCALA_AGENDA}px;">
           <span>No disponible</span>
           ${(!esPasado && esGestor) ? `<button class="turno-accion-btn peligro" onclick="event.stopPropagation(); quitarBloqueo('${b.id}')" title="Quitar bloqueo">&#128465;</button>` : ''}
         </div>`;
@@ -730,7 +733,7 @@ async function dibujarAgenda() {
       Object.keys(sobrePorMin).forEach(mStr => {
         const m = parseInt(mStr);
         if (minConCard.has(m)) return;  // si hay base, ya va como chip en la tarjeta
-        const topS = m - inicioMin;
+        const topS = (m - inicioMin) * ESCALA_AGENDA;
         sobrePorMin[m].forEach(t => {
           const nom = t.pacientes ? `${t.pacientes.apellido}, ${t.pacientes.nombre.split(' ')[0]}` : 'Sobreturno';
           html += `<div class="turno-sobre-chip turno-sobre-suelto" style="top:${topS}px;"
@@ -1539,8 +1542,8 @@ function ttNuevoPacienteDesdeTurno(profId, columna, fechaStr, startMin, esSobret
 // El click en el cuerpo abre el modal de turno completo; los íconos
 // hacen las acciones rápidas (con stopPropagation para no abrir el modal).
 function tarjetaTurnoHTML(t, numero, fechaStr, sobres, esPasado, inicioMin, esHuerfano) {
-  const top = turnoMinInicio(t) - inicioMin;
-  const altura = Math.max(28, t.duracion_minutos);
+  const top = (turnoMinInicio(t) - inicioMin) * ESCALA_AGENDA;
+  const altura = Math.max(44, t.duracion_minutos * ESCALA_AGENDA);
   const nombre = t.pacientes ? `${t.pacientes.apellido}, ${t.pacientes.nombre.split(' ')[0]}` : '-';
   const subtitulo = t.tipos_atencion?.nombre || (t.estado === 'agendado' ? 'Pendiente' : '');
   const tieneSobre = !!(sobres && sobres.length);
