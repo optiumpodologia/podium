@@ -623,7 +623,7 @@ async function dibujarAgenda() {
   const altoTotal = slotsRegla.length * negocioSlot * ESCALA_AGENDA;
 
   let html = `<div class="agenda-grid-col ${esPasado ? 'es-pasado' : ''} ${esProfesional ? 'vista-consultorio' : 'vista-recepcion'}"
-    style="grid-template-columns: 56px repeat(${cantColumnas}, minmax(0, 1fr)); width:100%; max-width:${56 + cantColumnas * 220}px;">`;
+    style="grid-template-columns: 56px repeat(${cantColumnas}, minmax(0, 1fr)); width:${56 + cantColumnas * 220}px;">`;
 
   // Encabezados. Con un solo consultorio, el número va en el cuadrado de la
   // esquina (arriba de los horarios). Con varios, va en cada columna.

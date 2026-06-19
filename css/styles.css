@@ -923,15 +923,21 @@ input, select, textarea {
 .vista-consultorio .turno-sobre-chip.estado-en_atencion  { background:var(--exito-claro); border-color:var(--exito); color:#0B5E3E; animation:pulso-verde 1.2s ease-in-out infinite; }
 .vista-consultorio .turno-sobre-chip.estado-finalizado   { background:var(--exito-claro); border-color:var(--exito); color:#0B5E3E; }
 
-/* Titilido marcado: parpadea (opacidad) + aro de color. */
+/* Titilido marcado: el fondo late entre claro y un tono más oscuro + aro. */
 @keyframes pulso-naranja {
-  0%, 100% { opacity:1;    box-shadow:0 0 0 0 rgba(217,119,30,0.55); }
-  50%      { opacity:0.5;  box-shadow:0 0 0 6px rgba(217,119,30,0); }
+  0%, 100% { background:#FCEAD6; box-shadow:0 0 0 0 rgba(217,119,30,0.6); }
+  50%      { background:#F4C176; box-shadow:0 0 0 7px rgba(217,119,30,0); }
 }
 @keyframes pulso-verde {
-  0%, 100% { opacity:1;    box-shadow:0 0 0 0 rgba(31,157,107,0.55); }
-  50%      { opacity:0.5;  box-shadow:0 0 0 6px rgba(31,157,107,0); }
+  0%, 100% { background:var(--exito-claro); box-shadow:0 0 0 0 rgba(31,157,107,0.6); }
+  50%      { background:#A6E0C1; box-shadow:0 0 0 7px rgba(31,157,107,0); }
 }
+
+/* La celda que titila se dibuja por encima de las vecinas (el aro no queda tapado). */
+.vista-recepcion .turno-card.estado-en_atencion,
+.vista-recepcion .turno-card.estado-finalizado,
+.vista-consultorio .turno-card.estado-llego,
+.vista-consultorio .turno-card.estado-en_atencion { z-index: 6; }
 
 /* El titilido es un aviso funcional (a quién le toca actuar), por eso se
    mantiene siempre. */
@@ -939,7 +945,7 @@ input, select, textarea {
 /* Panel lateral de sobreturnos (vista profesional) */
 .agenda-centro { display: flex; gap: 16px; align-items: flex-start; }
 .agenda-centro > #agenda-grid-container { flex: 0 0 auto; }
-.sobre-panel { flex: 1 1 0; min-width: 200px; max-width: 340px; background: #fff; border: 1px solid var(--borde-tenue); border-radius: var(--radio-lg); padding: 14px; box-shadow: var(--sombra-card); }
+.sobre-panel { flex: 0 0 220px; width: 220px; background: #fff; border: 1px solid var(--borde-tenue); border-radius: var(--radio-lg); padding: 14px; box-shadow: var(--sombra-card); }
 .sobre-panel-titulo { font-size: 14px; font-weight: 600; margin-bottom: 10px; }
 .sobre-panel-vacio { font-size: 13px; color: var(--texto-tenue); }
 .sobre-item { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--radio); border: 1px solid var(--borde-tenue); border-left: 3px solid var(--primario-medio); background: #fff; margin-bottom: 6px; cursor: pointer; transition: box-shadow .12s; }
