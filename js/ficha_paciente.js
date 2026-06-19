@@ -139,12 +139,14 @@ function panelAnamnesisHTML(anam, editable, pacienteId) {
     </div>`;
 }
 
-async function verFichaPaciente(pacienteId) {
+// Devuelve el contenido (.ficha-cols) de la ficha de paciente, reutilizable
+// tanto en el modal propio (verFichaPaciente) como embebido en la atención.
+// opts.embedded => modo consulta de solo lectura (sin editar nota/clínica, consultas no clickeables).
+async function fichaPacienteHTML(pacienteId, opts = {}) {
+  const emb = !!opts.embedded;
+
   const { data: paciente } = await sb.from('pacientes').select('*').eq('id', pacienteId).single();
-  if (!paciente) {
-    mostrarMensaje('Paciente no encontrado', 'error');
-    return;
-  }
+  if (!paciente) return null;
 
   const { data: turnos } = await sb.from('turnos')
     .select('*, tipos_atencion(nombre), profesionales(nombre)')
@@ -171,10 +173,9 @@ async function verFichaPaciente(pacienteId) {
 
   const { data: anam } = await sb.from('anamnesis').select('*').eq('paciente_id', pacienteId).maybeSingle();
   const anamPendiente = !anam;
-  const puedeEditarClinica = puede(usuarioActual, 'atender');   // profesional/negocio/full editan; recepción solo ve
-
-  const puedeEditar = ['recepcion', 'negocio'].includes(usuarioActual.rol);
-  _notaOriginal = paciente.notas || '';
+  const puedeEditarClinica = !emb && puede(usuarioActual, 'atender');
+  const puedeEditar = !emb && ['recepcion', 'negocio'].includes(usuarioActual.rol);
+  if (!emb) _notaOriginal = paciente.notas || '';
 
   const ic = (p, s = 18) => `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0">${p}</svg>`;
 
@@ -185,7 +186,6 @@ async function verFichaPaciente(pacienteId) {
     afil:   '<rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/>',
     dir:    '<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>',
     obra:   '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>',
-    header: '<rect width="8" height="4" x="8" y="2" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M9 12h6"/><path d="M9 16h6"/>',
     lock:   '<rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
     nota:   '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6"/><path d="M9 17h6"/>'
   };
@@ -200,79 +200,89 @@ async function verFichaPaciente(pacienteId) {
     ? new Date(paciente.fecha_nacimiento + 'T00:00').toLocaleDateString('es-AR')
     : '';
 
+  return `
+    <div class="ficha-cols">
+      <aside class="ficha-resumen">
+        <div class="ficha-avatar">${inic}</div>
+        <div class="ficha-nombre">${paciente.apellido}, ${paciente.nombre}</div>
+        <div class="ficha-dni">${paciente.dni ? 'DNI ' + paciente.dni : 'Sin DNI'}</div>
+        <div class="ficha-resumen-datos">
+          <div><span>Edad</span><strong>${edad !== null ? edad : '—'}</strong></div>
+          <div><span>Obra social</span><strong>${paciente.obra_social || '—'}</strong></div>
+          <div><span>Primera visita</span><strong>${primeraVisita}</strong></div>
+          <div><span>Última visita</span><strong>${ultimaVisita}</strong></div>
+        </div>
+        ${puedeEditar ? `<button type="button" class="btn btn-primary-sm ficha-editar" onclick="abrirModalPaciente('${paciente.id}')">Editar datos</button>` : ''}
+
+        <div class="ficha-nota">
+          <div class="ficha-nota-head"><span class="ficha-nota-ico">${ic(ICO.nota, 15)}</span> Nota rápida</div>
+          ${puedeEditar
+            ? `<textarea id="nota-input" class="ficha-nota-area" rows="3" placeholder="+ Agregar nota..." onblur="guardarNota('${paciente.id}')">${paciente.notas || ''}</textarea>`
+            : `<div class="ficha-nota-texto${paciente.notas ? '' : ' sin-dato'}">${paciente.notas || 'Sin notas'}</div>`}
+        </div>
+      </aside>
+
+      <div class="ficha-main">
+        <div class="ficha-tabs">
+          <button type="button" class="ficha-tab active" data-ftab="personales" onclick="fichaTab('personales')">Datos personales</button>
+          <button type="button" class="ficha-tab" data-ftab="clinica" onclick="fichaTab('clinica')">Datos clínicos${anamPendiente ? ` <span class="ficha-tab-alerta" title="Pendiente de carga"></span>` : ''}</button>
+          <button type="button" class="ficha-tab" data-ftab="consultas" onclick="fichaTab('consultas')">Últimas consultas</button>
+        </div>
+
+        <div class="ficha-panel active" data-fpanel="personales">
+          <div class="ficha-cards">
+            ${cardDato('tel', 'Teléfono', paciente.telefono)}
+            ${cardDato('mail', 'Email', paciente.email)}
+            ${cardDato('cal', 'Fecha de nacimiento', fechaNacLinda)}
+            ${cardDato('afil', 'N° de afiliado', paciente.numero_afiliado)}
+            ${cardDato('dir', 'Dirección', paciente.direccion, true)}
+            ${cardDato('obra', 'Obra social', paciente.obra_social, true)}
+          </div>
+        </div>
+
+        <div class="ficha-panel" data-fpanel="clinica">
+          ${panelAnamnesisHTML(anam, puedeEditarClinica, paciente.id)}
+        </div>
+
+        <div class="ficha-panel" data-fpanel="consultas">
+          ${turnos && turnos.length > 0 ? `
+            <div class="turnos-dia-lista">
+              ${turnos.map(t => `
+                <div class="turno-row"${emb ? ' style="cursor:default;"' : ` onclick="cerrarModal(); setTimeout(() => abrirModalTurno('${t.id}'), 100);"`}>
+                  <div class="turno-row-hora">${new Date(t.fecha_hora).toLocaleDateString('es-AR')}</div>
+                  <div class="turno-row-info">
+                    <div class="turno-row-nombre">${t.tipos_atencion?.nombre || 'Pendiente'}</div>
+                    <div class="turno-row-tipo">${t.profesionales?.nombre || ''} · ${formatearHora(t.fecha_hora)}</div>
+                  </div>
+                  <span class="badge badge-${t.estado}">${etiquetaEstado(t.estado)}</span>
+                </div>
+              `).join('')}
+            </div>
+          ` : '<div class="vacio" style="padding:1.5rem;">Sin turnos registrados</div>'}
+        </div>
+      </div>
+    </div>`;
+}
+
+async function verFichaPaciente(pacienteId) {
+  const cont = await fichaPacienteHTML(pacienteId);
+  if (cont === null) { mostrarMensaje('Paciente no encontrado', 'error'); return; }
+
+  const ic = (p, s = 18) => `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0">${p}</svg>`;
+  const headerIco = '<rect width="8" height="4" x="8" y="2" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M9 12h6"/><path d="M9 16h6"/>';
+  const lockIco = '<rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>';
+
   abrirModal(`
     <style>.modal{max-width:860px;}</style>
     <div class="modal-header">
       <div class="modal-titulo" style="display:flex; align-items:center; gap:10px;">
-        <span class="ficha-header-ico">${ic(ICO.header, 18)}</span>Ficha clínica
+        <span class="ficha-header-ico">${ic(headerIco, 18)}</span>Ficha clínica
       </div>
       <button class="modal-cerrar" onclick="cerrarModal()">×</button>
     </div>
-    <div class="modal-body" style="padding:0;">
-      <div class="ficha-cols">
-        <aside class="ficha-resumen">
-          <div class="ficha-avatar">${inic}</div>
-          <div class="ficha-nombre">${paciente.apellido}, ${paciente.nombre}</div>
-          <div class="ficha-dni">${paciente.dni ? 'DNI ' + paciente.dni : 'Sin DNI'}</div>
-          <div class="ficha-resumen-datos">
-            <div><span>Edad</span><strong>${edad !== null ? edad : '—'}</strong></div>
-            <div><span>Obra social</span><strong>${paciente.obra_social || '—'}</strong></div>
-            <div><span>Primera visita</span><strong>${primeraVisita}</strong></div>
-            <div><span>Última visita</span><strong>${ultimaVisita}</strong></div>
-          </div>
-          ${puedeEditar ? `<button class="btn btn-primary-sm ficha-editar" onclick="abrirModalPaciente('${paciente.id}')">Editar datos</button>` : ''}
-
-          <div class="ficha-nota">
-            <div class="ficha-nota-head"><span class="ficha-nota-ico">${ic(ICO.nota, 15)}</span> Nota rápida</div>
-            ${puedeEditar
-              ? `<textarea id="nota-input" class="ficha-nota-area" rows="3" placeholder="+ Agregar nota..." onblur="guardarNota('${paciente.id}')">${paciente.notas || ''}</textarea>`
-              : `<div class="ficha-nota-texto${paciente.notas ? '' : ' sin-dato'}">${paciente.notas || 'Sin notas'}</div>`}
-          </div>
-        </aside>
-
-        <div class="ficha-main">
-          <div class="ficha-tabs">
-            <button class="ficha-tab active" data-ftab="personales" onclick="fichaTab('personales')">Datos personales</button>
-            <button class="ficha-tab" data-ftab="clinica" onclick="fichaTab('clinica')">Datos clínicos${anamPendiente ? ` <span class="ficha-tab-alerta" title="Pendiente de carga"></span>` : ''}</button>
-            <button class="ficha-tab" data-ftab="consultas" onclick="fichaTab('consultas')">Últimas consultas</button>
-          </div>
-
-          <div class="ficha-panel active" data-fpanel="personales">
-            <div class="ficha-cards">
-              ${cardDato('tel', 'Teléfono', paciente.telefono)}
-              ${cardDato('mail', 'Email', paciente.email)}
-              ${cardDato('cal', 'Fecha de nacimiento', fechaNacLinda)}
-              ${cardDato('afil', 'N° de afiliado', paciente.numero_afiliado)}
-              ${cardDato('dir', 'Dirección', paciente.direccion, true)}
-              ${cardDato('obra', 'Obra social', paciente.obra_social, true)}
-            </div>
-          </div>
-
-          <div class="ficha-panel" data-fpanel="clinica">
-            ${panelAnamnesisHTML(anam, puedeEditarClinica, paciente.id)}
-          </div>
-
-          <div class="ficha-panel" data-fpanel="consultas">
-            ${turnos && turnos.length > 0 ? `
-              <div class="turnos-dia-lista">
-                ${turnos.map(t => `
-                  <div class="turno-row" onclick="cerrarModal(); setTimeout(() => abrirModalTurno('${t.id}'), 100);">
-                    <div class="turno-row-hora">${new Date(t.fecha_hora).toLocaleDateString('es-AR')}</div>
-                    <div class="turno-row-info">
-                      <div class="turno-row-nombre">${t.tipos_atencion?.nombre || 'Pendiente'}</div>
-                      <div class="turno-row-tipo">${t.profesionales?.nombre || ''} · ${formatearHora(t.fecha_hora)}</div>
-                    </div>
-                    <span class="badge badge-${t.estado}">${etiquetaEstado(t.estado)}</span>
-                  </div>
-                `).join('')}
-              </div>
-            ` : '<div class="vacio" style="padding:1.5rem;">Sin turnos registrados</div>'}
-          </div>
-        </div>
-      </div>
-    </div>
+    <div class="modal-body" style="padding:0;">${cont}</div>
     <div class="modal-footer" style="justify-content:space-between; align-items:center;">
-      <div class="ficha-footer-conf">${ic(ICO.lock, 15)} Información confidencial. Uso exclusivo profesional.</div>
+      <div class="ficha-footer-conf">${ic(lockIco, 15)} Información confidencial. Uso exclusivo profesional.</div>
       <button class="btn" onclick="cerrarModal()">Cerrar</button>
     </div>
   `);
@@ -568,6 +578,23 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
       if (t && c) c.textContent = t.value.length;
     },
 
+    verTab(tab) {
+      document.querySelectorAll('.fa-tab').forEach(b => b.classList.toggle('active', b.dataset.fatab === tab));
+      const va = document.getElementById('fa-view-atencion');
+      const vp = document.getElementById('fa-view-paciente');
+      if (va) va.classList.toggle('active', tab === 'atencion');
+      if (vp) vp.classList.toggle('active', tab === 'paciente');
+      if (tab === 'paciente' && !this._pacienteCargado) {
+        this._pacienteCargado = true;
+        fichaPacienteHTML(turno.paciente_id, { embedded: true }).then(html => {
+          const cont = document.getElementById('fa-view-paciente');
+          if (!cont) return;
+          cont.innerHTML = html || '<div class="fa-vacio">No se pudo cargar la ficha.</div>';
+          fichaTab('personales');
+        });
+      }
+    },
+
     setProx(dias) {
       this.prox = `En ${dias} días`;
       const d = new Date(); d.setDate(d.getDate() + dias);
@@ -711,6 +738,14 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
       .fa-crono-val { font-size:20px; font-weight:600; line-height:1; font-variant-numeric:tabular-nums; }
       .fa-crono-fin { background:var(--fondo); border-color:var(--borde-tenue); color:var(--texto-secundario); }
 
+      .fa-tabs { display:flex; gap:4px; border-bottom:1px solid var(--borde-tenue); margin-bottom:16px; }
+      .fa-tab { display:inline-flex; align-items:center; gap:7px; background:none; border:none; border-bottom:2px solid transparent; margin-bottom:-1px; padding:9px 14px; font-size:13.5px; font-weight:600; color:var(--texto-secundario); cursor:pointer; transition:.12s; }
+      .fa-tab svg { color:currentColor; }
+      .fa-tab:hover { color:var(--texto); }
+      .fa-tab.active { color:var(--primario); border-bottom-color:var(--primario); }
+      .fa-view { display:none; }
+      .fa-view.active { display:block; }
+      .fa-pac-cargando { padding:26px; text-align:center; font-size:13px; color:var(--texto-secundario); }
       .fa-grid2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:18px; }
       .fa-grid2 > div { min-width:0; }
       .fa-grid-evo { display:grid; grid-template-columns:3fr 1fr; gap:16px; margin-bottom:18px; }
@@ -799,6 +834,12 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
           ${cronoChip}
         </div>
 
+        <div class="fa-tabs">
+          <button type="button" class="fa-tab active" data-fatab="atencion" onclick="_ficha.verTab('atencion')">${ICO.at} Atención</button>
+          <button type="button" class="fa-tab" data-fatab="paciente" onclick="_ficha.verTab('paciente')"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.2 3.6-6.5 8-6.5s8 2.3 8 6.5"/></svg> Ficha del paciente</button>
+        </div>
+
+        <div id="fa-view-atencion" class="fa-view active">
         <div class="fa-grid2">
           <div>
             <div class="fa-sec-lbl">${ICO.at} Atenciones</div>
@@ -832,6 +873,11 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
         <div class="fa-card fa-prox">
           <div class="fa-sec-lbl">${ICO.cal} Próxima visita sugerida</div>
           ${proxHTML}
+        </div>
+        </div>
+
+        <div id="fa-view-paciente" class="fa-view">
+          <div class="fa-pac-cargando">Cargando ficha…</div>
         </div>
 
       </div>
