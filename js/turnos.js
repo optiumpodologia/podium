@@ -237,19 +237,27 @@ async function abrirModalTurno(turnoId) {
 }
 
 async function iniciarAtencion(turnoId) {
-  const ahora = new Date().toISOString();
-  const { error } = await sb.from('turnos').update({
-    estado: 'en_atencion',
-    hora_inicio_atencion: ahora
-  }).eq('id', turnoId);
+  // Idempotente: si ya está en atención, NO reiniciamos el contador.
+  const { data: actual } = await sb.from('turnos')
+    .select('estado, hora_inicio_atencion').eq('id', turnoId).maybeSingle();
 
-  if (error) {
-    mostrarMensaje('Error: ' + error.message, 'error');
-    return;
+  if (!(actual && actual.estado === 'en_atencion' && actual.hora_inicio_atencion)) {
+    const ahora = new Date().toISOString();
+    const { error } = await sb.from('turnos').update({
+      estado: 'en_atencion',
+      hora_inicio_atencion: ahora
+    }).eq('id', turnoId);
+
+    if (error) {
+      mostrarMensaje('Error: ' + error.message, 'error');
+      return;
+    }
   }
 
   mostrarMensaje('Atención iniciada', 'exito');
   cerrarModal();
+  // La celda pasa a verde titilando al instante (persiste aunque se cierre la ficha).
+  if (typeof moduloActivo !== 'undefined' && moduloActivo === 'agenda' && typeof dibujarAgenda === 'function') dibujarAgenda();
   setTimeout(() => abrirFichaAtencion(turnoId), 200);
 }
 

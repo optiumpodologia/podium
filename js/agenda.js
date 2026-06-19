@@ -679,7 +679,7 @@ async function dibujarAgenda() {
       // Separar turnos normales de sobreturnos (estos van como chip, no como tarjeta)
       const normales = susTurnos.filter(t => !t.es_sobreturno);
       const sobres = susTurnos.filter(t => t.es_sobreturno);
-      sobres.forEach(s => sobresPanel.push(s));
+      sobres.forEach(s => sobresPanel.push({ turno: s, numero }));
       const sobrePorMin = {};
       sobres.forEach(s => { const m = turnoMinInicio(s); (sobrePorMin[m] = sobrePorMin[m] || []).push(s); });
 
@@ -741,9 +741,14 @@ async function dibujarAgenda() {
         const topS = (m - inicioMin) * ESCALA_AGENDA;
         sobrePorMin[m].forEach(t => {
           const nom = t.pacientes ? `${t.pacientes.apellido}, ${t.pacientes.nombre.split(' ')[0]}` : 'Sobreturno';
-          html += `<div class="turno-sobre-chip turno-sobre-suelto estado-${t.estado}" style="top:${topS}px;"
-            title="Sobreturno (sin turno base)"
-            onclick="event.stopPropagation(); verSobreturnos('${t.profesional_id}','${t.fecha_hora}')">${nom}</div>`;
+          if (esProf) {
+            html += `<div class="turno-sobre-chip turno-sobre-suelto chip-info estado-${t.estado}" style="top:${topS}px;"
+              title="Sobreturno (sin turno base)">${nom}</div>`;
+          } else {
+            html += `<div class="turno-sobre-chip turno-sobre-suelto estado-${t.estado}" style="top:${topS}px;"
+              title="Sobreturno (sin turno base)"
+              onclick="event.stopPropagation(); verSobreturnos('${t.profesional_id}','${t.fecha_hora}')">${nom}</div>`;
+          }
         });
       });
     } else {
@@ -788,12 +793,16 @@ async function dibujarAgenda() {
     } else {
       const items = sobresPanel
         .slice()
-        .sort((a, b) => turnoMinInicio(a) - turnoMinInicio(b))
-        .map(s => {
+        .sort((a, b) => turnoMinInicio(a.turno) - turnoMinInicio(b.turno))
+        .map(it => {
+          const s = it.turno;
           const nom = s.pacientes ? `${s.pacientes.apellido}, ${s.pacientes.nombre.split(' ')[0]}` : 'Sobreturno';
+          const sub = s.tipos_atencion?.nombre || (s.estado === 'agendado' ? 'Pendiente' : '');
+          const acc = esPasado ? '' : accionesTurnoHTML(s, it.numero, fechaStrSel, false);
           return `<div class="sobre-item estado-${s.estado}" onclick="abrirModalTurno('${s.id}')" title="${nom}">
             <div class="sobre-item-nombre">${nom}</div>
-            <div class="sobre-item-hora">${formatearHora(s.fecha_hora)}</div>
+            <div class="sobre-item-hora">${formatearHora(s.fecha_hora)}${sub ? ' &middot; ' + sub : ''}</div>
+            ${acc}
           </div>`;
         }).join('');
       panelSobre.innerHTML = `<div class="sobre-panel-titulo">Sobreturnos</div>${items}`;
@@ -1578,8 +1587,13 @@ function tarjetaTurnoHTML(t, numero, fechaStr, sobres, esPasado, inicioMin, esHu
   if (tieneSobre) {
     const s = sobres[0];
     const nombreSobre = s.pacientes ? `${s.pacientes.apellido}, ${s.pacientes.nombre.split(' ')[0]}` : 'Sobreturno';
-    chip = `<div class="turno-sobre-chip estado-${s.estado}" title="Ver sobreturno"
-         onclick="event.stopPropagation(); verSobreturnos('${t.profesional_id}','${t.fecha_hora}')">${nombreSobre}</div>`;
+    if (usuarioActual.rol === 'profesional') {
+      // Profesional: el chip es informativo. Las acciones van por el panel de sobreturnos.
+      chip = `<div class="turno-sobre-chip chip-info estado-${s.estado}" title="${nombreSobre}">${nombreSobre}</div>`;
+    } else {
+      chip = `<div class="turno-sobre-chip estado-${s.estado}" title="Ver sobreturno"
+           onclick="event.stopPropagation(); verSobreturnos('${t.profesional_id}','${t.fecha_hora}')">${nombreSobre}</div>`;
+    }
   }
   const claseSobre = (esHuerfano || t.es_sobreturno) ? ' es-sobreturno' : '';
   return `
