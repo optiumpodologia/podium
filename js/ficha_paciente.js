@@ -173,7 +173,7 @@ async function fichaPacienteHTML(pacienteId, opts = {}) {
 
   const { data: anam } = await sb.from('anamnesis').select('*').eq('paciente_id', pacienteId).maybeSingle();
   const anamPendiente = !anam;
-  const puedeEditarClinica = !emb && puede(usuarioActual, 'atender');
+  const puedeEditarClinica = puede(usuarioActual, 'atender');
   const puedeEditar = !emb && ['recepcion', 'negocio'].includes(usuarioActual.rol);
   if (!emb) _notaOriginal = paciente.notas || '';
 
@@ -199,6 +199,46 @@ async function fichaPacienteHTML(pacienteId, opts = {}) {
   const fechaNacLinda = paciente.fecha_nacimiento
     ? new Date(paciente.fecha_nacimiento + 'T00:00').toLocaleDateString('es-AR')
     : '';
+
+  const panelPersonales = `
+        <div class="ficha-panel active" data-fpanel="personales">
+          <div class="ficha-cards">
+            ${cardDato('tel', 'Teléfono', paciente.telefono)}
+            ${cardDato('mail', 'Email', paciente.email)}
+            ${cardDato('cal', 'Fecha de nacimiento', fechaNacLinda)}
+            ${cardDato('afil', 'N° de afiliado', paciente.numero_afiliado)}
+            ${cardDato('dir', 'Dirección', paciente.direccion, true)}
+            ${cardDato('obra', 'Obra social', paciente.obra_social, true)}
+          </div>
+        </div>`;
+
+  const panelClinica = `
+        <div class="ficha-panel" data-fpanel="clinica">
+          ${panelAnamnesisHTML(anam, puedeEditarClinica, paciente.id)}
+        </div>`;
+
+  const panelConsultas = `
+        <div class="ficha-panel" data-fpanel="consultas">
+          ${turnos && turnos.length > 0 ? `
+            <div class="turnos-dia-lista">
+              ${turnos.map(t => `
+                <div class="turno-row"${emb ? ' style="cursor:default;"' : ` onclick="cerrarModal(); setTimeout(() => abrirModalTurno('${t.id}'), 100);"`}>
+                  <div class="turno-row-hora">${new Date(t.fecha_hora).toLocaleDateString('es-AR')}</div>
+                  <div class="turno-row-info">
+                    <div class="turno-row-nombre">${t.tipos_atencion?.nombre || 'Pendiente'}</div>
+                    <div class="turno-row-tipo">${t.profesionales?.nombre || ''} · ${formatearHora(t.fecha_hora)}</div>
+                  </div>
+                  <span class="badge badge-${t.estado}">${etiquetaEstado(t.estado)}</span>
+                </div>
+              `).join('')}
+            </div>
+          ` : '<div class="vacio" style="padding:1.5rem;">Sin turnos registrados</div>'}
+        </div>`;
+
+  // Embebido en la atención: solo los paneles (las solapas de arriba los controlan).
+  if (opts.soloPaneles) {
+    return `<div class="ficha-embed">${panelPersonales}${panelClinica}${panelConsultas}</div>`;
+  }
 
   return `
     <div class="ficha-cols">
@@ -228,38 +268,9 @@ async function fichaPacienteHTML(pacienteId, opts = {}) {
           <button type="button" class="ficha-tab" data-ftab="clinica" onclick="fichaTab('clinica')">Datos clínicos${anamPendiente ? ` <span class="ficha-tab-alerta" title="Pendiente de carga"></span>` : ''}</button>
           <button type="button" class="ficha-tab" data-ftab="consultas" onclick="fichaTab('consultas')">Últimas consultas</button>
         </div>
-
-        <div class="ficha-panel active" data-fpanel="personales">
-          <div class="ficha-cards">
-            ${cardDato('tel', 'Teléfono', paciente.telefono)}
-            ${cardDato('mail', 'Email', paciente.email)}
-            ${cardDato('cal', 'Fecha de nacimiento', fechaNacLinda)}
-            ${cardDato('afil', 'N° de afiliado', paciente.numero_afiliado)}
-            ${cardDato('dir', 'Dirección', paciente.direccion, true)}
-            ${cardDato('obra', 'Obra social', paciente.obra_social, true)}
-          </div>
-        </div>
-
-        <div class="ficha-panel" data-fpanel="clinica">
-          ${panelAnamnesisHTML(anam, puedeEditarClinica, paciente.id)}
-        </div>
-
-        <div class="ficha-panel" data-fpanel="consultas">
-          ${turnos && turnos.length > 0 ? `
-            <div class="turnos-dia-lista">
-              ${turnos.map(t => `
-                <div class="turno-row"${emb ? ' style="cursor:default;"' : ` onclick="cerrarModal(); setTimeout(() => abrirModalTurno('${t.id}'), 100);"`}>
-                  <div class="turno-row-hora">${new Date(t.fecha_hora).toLocaleDateString('es-AR')}</div>
-                  <div class="turno-row-info">
-                    <div class="turno-row-nombre">${t.tipos_atencion?.nombre || 'Pendiente'}</div>
-                    <div class="turno-row-tipo">${t.profesionales?.nombre || ''} · ${formatearHora(t.fecha_hora)}</div>
-                  </div>
-                  <span class="badge badge-${t.estado}">${etiquetaEstado(t.estado)}</span>
-                </div>
-              `).join('')}
-            </div>
-          ` : '<div class="vacio" style="padding:1.5rem;">Sin turnos registrados</div>'}
-        </div>
+        ${panelPersonales}
+        ${panelClinica}
+        ${panelConsultas}
       </div>
     </div>`;
 }
@@ -579,19 +590,23 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
     },
 
     verTab(tab) {
+      const esPaciente = tab !== 'atencion';
       document.querySelectorAll('.fa-tab').forEach(b => b.classList.toggle('active', b.dataset.fatab === tab));
       const va = document.getElementById('fa-view-atencion');
       const vp = document.getElementById('fa-view-paciente');
-      if (va) va.classList.toggle('active', tab === 'atencion');
-      if (vp) vp.classList.toggle('active', tab === 'paciente');
-      if (tab === 'paciente' && !this._pacienteCargado) {
+      if (va) va.classList.toggle('active', !esPaciente);
+      if (vp) vp.classList.toggle('active', esPaciente);
+      if (!esPaciente) return;
+      if (!this._pacienteCargado) {
         this._pacienteCargado = true;
-        fichaPacienteHTML(turno.paciente_id, { embedded: true }).then(html => {
+        fichaPacienteHTML(turno.paciente_id, { embedded: true, soloPaneles: true }).then(html => {
           const cont = document.getElementById('fa-view-paciente');
           if (!cont) return;
           cont.innerHTML = html || '<div class="fa-vacio">No se pudo cargar la ficha.</div>';
-          fichaTab('personales');
+          fichaTab(tab);
         });
+      } else {
+        fichaTab(tab);
       }
     },
 
@@ -723,7 +738,7 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
   // --- Modal -----------------------------------------------------------
   abrirModal(`
     <style>
-      .modal { max-width: 720px; }
+      .modal { max-width: 760px; }
       .fa-body { background:#fff; }
       .fa-hero { position:relative; overflow:hidden; display:flex; align-items:center; gap:16px; background:linear-gradient(120deg,#F3F0FE,#ECE8FB); border:1px solid var(--borde-tenue); border-radius:16px; padding:16px 18px; margin-bottom:18px; }
       .fa-avatar { width:56px; height:56px; flex:none; border-radius:50%; background:linear-gradient(135deg,#C9BEF6,#9E8DE8); color:#fff; display:flex; align-items:center; justify-content:center; font-size:19px; font-weight:700; box-shadow:0 2px 8px rgba(83,74,183,.25); }
@@ -738,13 +753,16 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
       .fa-crono-val { font-size:20px; font-weight:600; line-height:1; font-variant-numeric:tabular-nums; }
       .fa-crono-fin { background:var(--fondo); border-color:var(--borde-tenue); color:var(--texto-secundario); }
 
-      .fa-tabs { display:flex; gap:4px; border-bottom:1px solid var(--borde-tenue); margin-bottom:16px; }
-      .fa-tab { display:inline-flex; align-items:center; gap:7px; background:none; border:none; border-bottom:2px solid transparent; margin-bottom:-1px; padding:9px 14px; font-size:13.5px; font-weight:600; color:var(--texto-secundario); cursor:pointer; transition:.12s; }
+      .modal-header.fa-modal-header { display:flex; align-items:flex-end; gap:8px; padding:0 14px; }
+      .modal-header.fa-modal-header .modal-cerrar { align-self:center; margin-bottom:2px; }
+      .fa-tabs { display:flex; gap:2px; flex:1; min-width:0; overflow-x:auto; }
+      .fa-tab { display:inline-flex; align-items:center; gap:7px; white-space:nowrap; background:none; border:none; border-bottom:2px solid transparent; margin-bottom:-1px; padding:13px 13px; font-size:13.5px; font-weight:600; color:var(--texto-secundario); cursor:pointer; transition:.12s; }
       .fa-tab svg { color:currentColor; }
       .fa-tab:hover { color:var(--texto); }
       .fa-tab.active { color:var(--primario); border-bottom-color:var(--primario); }
       .fa-view { display:none; }
       .fa-view.active { display:block; }
+      .ficha-embed { padding-top:2px; }
       .fa-pac-cargando { padding:26px; text-align:center; font-size:13px; color:var(--texto-secundario); }
       .fa-grid2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:18px; }
       .fa-grid2 > div { min-width:0; }
@@ -816,14 +834,20 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
       .fa-finalizar { display:inline-flex; align-items:center; gap:7px; }
     </style>
 
-    <div class="modal-header">
-      <div class="modal-titulo" style="font-size:15px; font-weight:600;">${soloLectura ? 'Ficha de atención · solo lectura' : 'Ficha de atención'}</div>
+    <div class="modal-header fa-modal-header">
+      <div class="fa-tabs">
+        <button type="button" class="fa-tab active" data-fatab="atencion" onclick="_ficha.verTab('atencion')">Ficha de atención</button>
+        <button type="button" class="fa-tab" data-fatab="personales" onclick="_ficha.verTab('personales')">Datos personales</button>
+        <button type="button" class="fa-tab" data-fatab="clinica" onclick="_ficha.verTab('clinica')">Datos clínicos</button>
+        <button type="button" class="fa-tab" data-fatab="consultas" onclick="_ficha.verTab('consultas')">Últimas consultas</button>
+      </div>
       <button class="modal-cerrar" onclick="_ficha.cerrarGuardando()">×</button>
     </div>
 
-    <form id="form-ficha">
+    <div id="form-ficha">
       <div class="modal-body fa-body">
 
+        <div id="fa-view-atencion" class="fa-view active">
         <div class="fa-hero">
           <div class="fa-avatar">${inic}</div>
           <div class="fa-hero-info">
@@ -834,12 +858,6 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
           ${cronoChip}
         </div>
 
-        <div class="fa-tabs">
-          <button type="button" class="fa-tab active" data-fatab="atencion" onclick="_ficha.verTab('atencion')">${ICO.at} Atención</button>
-          <button type="button" class="fa-tab" data-fatab="paciente" onclick="_ficha.verTab('paciente')"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.2 3.6-6.5 8-6.5s8 2.3 8 6.5"/></svg> Ficha del paciente</button>
-        </div>
-
-        <div id="fa-view-atencion" class="fa-view active">
         <div class="fa-grid2">
           <div>
             <div class="fa-sec-lbl">${ICO.at} Atenciones</div>
@@ -889,11 +907,11 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
           <div class="fa-footer-right">
             ${mostrarCancelar ? `<button type="button" id="fa-cancelar" class="btn fa-cancelar" title="Salir sin guardar y deshacer la atención" onclick="_ficha.cancelarSinGuardar()">Cancelar</button>` : ''}
             <button type="button" class="btn" onclick="_ficha.cerrarGuardando()">Cerrar</button>
-            <button type="submit" class="btn btn-primary-sm fa-finalizar">${ICO.check} Finalizar atención</button>
+            <button type="button" class="btn btn-primary-sm fa-finalizar" onclick="clearTimeout(window._fichaCancelTO); _ficha.persistir(true)">${ICO.check} Finalizar atención</button>
           </div>
         `}
       </div>
-    </form>
+    </div>
   `);
 
   // --- Post-render -----------------------------------------------------
@@ -940,10 +958,4 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
   }
 
   if (soloLectura) return;
-
-  document.getElementById('form-ficha').addEventListener('submit', (e) => {
-    e.preventDefault();
-    clearTimeout(window._fichaCancelTO);
-    _ficha.persistir(true);
-  });
 }
