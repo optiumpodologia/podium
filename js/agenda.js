@@ -280,6 +280,7 @@ function inyectarEstilosAgenda() {
     .prof-saludo-sub { font-size:12px; color:var(--texto-secundario); margin-top:1px; }
     .agenda-franja-band { position:absolute; left:2px; right:2px; background:rgba(109,91,208,0.05); border-radius:4px; z-index:0; pointer-events:none; }
     .agenda-hueco { position:absolute; left:2px; right:2px; z-index:1; cursor:pointer; border-radius:4px; border:1px dashed var(--primario-medio); background:rgba(109,91,208,0.04); box-sizing:border-box; display:flex; align-items:center; justify-content:center; transition:background .12s, border-color .12s; }
+    .agenda-celda-libre { position:absolute; left:2px; right:2px; z-index:0; border-radius:5px; background:rgba(109,91,208,0.07); }
     .agenda-hueco:hover { background:rgba(109,91,208,0.16); border-style:solid; }
     .agenda-hueco-mas { opacity:0.45; font-size:15px; font-weight:600; color:var(--primario); }
     .agenda-hueco:hover .agenda-hueco-mas { opacity:1; }
@@ -678,31 +679,28 @@ async function dibujarAgenda() {
       if (!esPasado) {
         const franjas = mapaFranjas[col.profesional.id] || [];
 
-        // Banda de fondo = horario en que atiende
-        franjas.forEach(fr => {
-          const topB = fr.ini - inicioMin;
-          const altoB = fr.fin - fr.ini;
-          if (altoB > 0) {
-            html += `<div class="agenda-franja-band" style="top:${topB}px; height:${altoB}px;"></div>`;
-          }
-        });
-
-        // Huecos: uno por cada renglón de la grilla del negocio que caiga dentro
-        // de la franja del profesional y no choque con un turno ni esté bloqueado.
-        // Solo para quien puede crear turnos; el profesional común no ve el "+".
-        if (puedeCrearTurno) slotsRegla.forEach(t => {
+        // Celdas violetas por slot, SEPARADAS entre sí (un bloque por renglón
+        // de la grilla que caiga dentro de la franja y no choque con un turno).
+        // Para quien puede crear turno son huecos clickeables con "+";
+        // para el profesional, solo el bloque (sin "+").
+        slotsRegla.forEach(t => {
           if (t + negocioSlot > finMin) return;
           const dentro = franjas.some(fr => t >= fr.ini && t + negocioSlot <= fr.fin);
           if (!dentro) return;
           if (bloqueadosMin.has(t)) return;
           if (haySolapamiento(t, t + negocioSlot, normales)) return;  // los sobreturnos NO bloquean el slot
           const topH = t - inicioMin + 2;
-          html += `<div class="agenda-hueco" style="top:${topH}px; height:${negocioSlot - 4}px;"
-            title="Dar turno ${minToHora(t)}"
-            onclick="abrirModalNuevoTurnoCasillero('${col.profesional.id}', ${numero}, '${fechaStrSel}', ${t})">
-            <span class="agenda-hueco-mas">+</span>
-            ${esGestor ? `<button class="agenda-hueco-bloq" title="Bloquear este horario" onclick="event.stopPropagation(); crearBloqueo('${col.profesional.id}','${fechaStrSel}',${t})">&#8709;</button>` : ''}
-            </div>`;
+          const altoH = negocioSlot - 4;
+          if (puedeCrearTurno) {
+            html += `<div class="agenda-hueco" style="top:${topH}px; height:${altoH}px;"
+              title="Dar turno ${minToHora(t)}"
+              onclick="abrirModalNuevoTurnoCasillero('${col.profesional.id}', ${numero}, '${fechaStrSel}', ${t})">
+              <span class="agenda-hueco-mas">+</span>
+              ${esGestor ? `<button class="agenda-hueco-bloq" title="Bloquear este horario" onclick="event.stopPropagation(); crearBloqueo('${col.profesional.id}','${fechaStrSel}',${t})">&#8709;</button>` : ''}
+              </div>`;
+          } else {
+            html += `<div class="agenda-celda-libre" style="top:${topH}px; height:${altoH}px;"></div>`;
+          }
         });
 
         if (franjas.length === 0) {
@@ -1541,8 +1539,8 @@ function ttNuevoPacienteDesdeTurno(profId, columna, fechaStr, startMin, esSobret
 // El click en el cuerpo abre el modal de turno completo; los íconos
 // hacen las acciones rápidas (con stopPropagation para no abrir el modal).
 function tarjetaTurnoHTML(t, numero, fechaStr, sobres, esPasado, inicioMin, esHuerfano) {
-  const top = turnoMinInicio(t) - inicioMin + 2;
-  const altura = Math.max(26, t.duracion_minutos - 4);
+  const top = turnoMinInicio(t) - inicioMin;
+  const altura = Math.max(28, t.duracion_minutos);
   const nombre = t.pacientes ? `${t.pacientes.apellido}, ${t.pacientes.nombre.split(' ')[0]}` : '-';
   const subtitulo = t.tipos_atencion?.nombre || (t.estado === 'agendado' ? 'Pendiente' : '');
   const tieneSobre = !!(sobres && sobres.length);
