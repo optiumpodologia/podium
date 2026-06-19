@@ -521,13 +521,15 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
       if (!cont) return;
       cont.innerHTML = items.length ? items.map(c => {
         const sub = tipo === 'prod' ? (c.descripcion || '') : '';
-        const stock = tipo === 'prod' ? ` &middot; stock ${c.stock}` : '';
+        const ico = tipo === 'prod' ? ICO.prod : ICO.at;
+        const tint = tipo === 'prod' ? 'fa-ico-verde' : 'fa-ico-violeta';
         return `<button type="button" class="fa-picker-item" onclick="_ficha.elegirPicker('${c.id}')">
+          <div class="fa-item-ico ${tint}">${ico}</div>
           <div class="fa-picker-item-body">
             <div class="fa-picker-item-nom">${c.nombre}</div>
             ${sub ? `<div class="fa-picker-item-sub">${sub}</div>` : ''}
           </div>
-          <div class="fa-picker-item-precio">${formatearPrecio(c.precio || 0)}${stock}</div>
+          <div class="fa-picker-item-precio">${formatearPrecio(c.precio || 0)}</div>
         </button>`;
       }).join('') : '<div class="fa-picker-vacio">Sin resultados</div>';
     },
@@ -594,7 +596,7 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
       else { el.textContent = ''; box.classList.remove('on'); }
     },
 
-    async persistir(finalizar) {
+    async persistir(finalizar, silencioso) {
       if (finalizar && this.lineasAt.length === 0) {
         mostrarMensaje('Agregá al menos una atención', 'advertencia');
         return false;
@@ -643,13 +645,18 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
         cerrarModal();
         if (typeof moduloActivo !== 'undefined' && moduloActivo === 'agenda' && typeof dibujarAgenda === 'function') dibujarAgenda();
         else if (typeof moduloActivo !== 'undefined' && moduloActivo === 'dashboard' && typeof renderDashboard === 'function') renderDashboard(document.getElementById('main'));
-      } else {
+      } else if (!silencioso) {
         mostrarMensaje('Borrador guardado', 'exito');
       }
       return true;
     },
 
-    guardarBorrador() { this.persistir(false); }
+    // Al cerrar la ficha (× o Cerrar) se guarda solo, sin finalizar el turno.
+    async cerrarGuardando() {
+      this.cerrarPicker();
+      if (!soloLectura) await this.persistir(false, true);
+      cerrarModal();
+    }
   };
 
   // --- Bloques condicionados a edición ---------------------------------
@@ -688,7 +695,8 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
 
       .fa-grid2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:18px; }
       .fa-grid2 > div { min-width:0; }
-      .fa-grid-evo { display:grid; grid-template-columns:1.55fr 1fr; gap:16px; margin-bottom:18px; }
+      .fa-grid-evo { display:grid; grid-template-columns:3fr 1fr; gap:16px; margin-bottom:18px; }
+      .fa-grid-evo > * { min-width:0; }
       .fa-sec-lbl { display:flex; align-items:center; gap:7px; font-size:13px; font-weight:600; color:var(--texto); margin-bottom:9px; }
       .fa-sec-lbl svg { color:var(--primario); }
       .fa-card { border:1px solid var(--borde-tenue); border-radius:13px; padding:11px; background:#fff; }
@@ -706,19 +714,21 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
       .fa-item-del:hover { color:var(--peligro); border-color:var(--peligro); background:var(--peligro-claro); }
       .fa-vacio { font-size:12.5px; color:var(--texto-secundario); padding:14px 4px; text-align:center; }
 
-      .fa-picker-ov { position:fixed; inset:0; background:rgba(20,16,40,.38); display:flex; align-items:center; justify-content:center; z-index:9999; padding:20px; }
-      .fa-picker-modal { background:#fff; width:100%; max-width:420px; max-height:70vh; display:flex; flex-direction:column; border-radius:14px; box-shadow:0 18px 50px rgba(0,0,0,.28); overflow:hidden; }
-      .fa-picker-head { display:flex; align-items:center; justify-content:space-between; padding:14px 16px; border-bottom:1px solid var(--borde-tenue); font-size:14px; font-weight:600; }
-      .fa-picker-x { border:none; background:transparent; font-size:22px; line-height:1; color:var(--texto-secundario); cursor:pointer; }
-      .fa-picker-search { margin:12px 16px 6px; padding:9px 12px; border:1px solid var(--borde-tenue); border-radius:9px; font:inherit; font-size:13px; }
-      .fa-picker-list { overflow-y:auto; padding:6px 10px 12px; }
-      .fa-picker-item { width:100%; display:flex; align-items:center; gap:10px; justify-content:space-between; text-align:left; background:#fff; border:1px solid transparent; border-radius:9px; padding:10px 11px; cursor:pointer; transition:.1s; }
+      .fa-picker-ov { position:fixed; inset:0; background:rgba(20,16,40,.42); display:flex; align-items:center; justify-content:center; z-index:9999; padding:20px; }
+      .fa-picker-modal { background:#fff; width:430px; max-width:calc(100vw - 40px); max-height:72vh; display:flex; flex-direction:column; border-radius:16px; box-shadow:0 22px 60px rgba(20,16,40,.32); overflow:hidden; }
+      .fa-picker-head { display:flex; align-items:center; justify-content:space-between; padding:15px 18px; border-bottom:1px solid var(--borde-tenue); font-size:14.5px; font-weight:700; color:var(--texto); background:linear-gradient(120deg,#F6F4FE,#FFFFFF); }
+      .fa-picker-x { border:none; background:transparent; font-size:22px; line-height:1; color:var(--texto-secundario); cursor:pointer; padding:0 2px; }
+      .fa-picker-x:hover { color:var(--texto); }
+      .fa-picker-search { margin:14px 16px 8px; padding:10px 13px; border:1px solid var(--borde-tenue); border-radius:10px; font:inherit; font-size:13px; outline:none; transition:border-color .12s; }
+      .fa-picker-search:focus { border-color:var(--primario-medio); }
+      .fa-picker-list { overflow-y:auto; padding:4px 10px 12px; }
+      .fa-picker-item { width:100%; display:flex; align-items:center; gap:11px; text-align:left; background:#fff; border:1px solid transparent; border-radius:11px; padding:9px 10px; cursor:pointer; transition:.1s; }
       .fa-picker-item:hover { background:var(--primario-claro); }
-      .fa-picker-item-body { min-width:0; }
+      .fa-picker-item-body { flex:1; min-width:0; }
       .fa-picker-item-nom { font-size:13px; font-weight:600; color:var(--texto); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
       .fa-picker-item-sub { font-size:11.5px; color:var(--texto-secundario); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-      .fa-picker-item-precio { font-size:12.5px; font-weight:600; color:var(--texto-secundario); white-space:nowrap; flex:none; }
-      .fa-picker-vacio { font-size:13px; color:var(--texto-secundario); text-align:center; padding:20px; }
+      .fa-picker-item-precio { font-size:13px; font-weight:700; color:var(--texto); white-space:nowrap; flex:none; }
+      .fa-picker-vacio { font-size:13px; color:var(--texto-secundario); text-align:center; padding:24px; }
       .fa-add { width:100%; margin-top:8px; display:flex; align-items:center; justify-content:center; gap:7px; background:var(--primario-claro); color:var(--primario); border:1px dashed var(--primario-medio); border-radius:10px; padding:10px; font-size:13px; font-weight:600; cursor:pointer; transition:.12s; }
       .fa-add:hover { filter:brightness(.97); }
       .fa-add-verde { background:var(--exito-claro); color:var(--exito); border-color:var(--exito); }
@@ -730,7 +740,7 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
       .fa-total { background:linear-gradient(135deg,#F3F0FE,#E9E4FB); border:1px solid var(--primario-medio); border-radius:13px; padding:15px 16px; display:flex; flex-direction:column; justify-content:center; }
       .fa-total-lbl { display:flex; align-items:center; justify-content:space-between; font-size:12.5px; font-weight:600; color:var(--texto-secundario); }
       .fa-total-lbl svg { color:var(--primario); }
-      .fa-total-val { font-size:31px; font-weight:600; color:var(--primario); line-height:1.1; margin:8px 0 4px; letter-spacing:-.01em; }
+      .fa-total-val { font-size:30px; font-weight:700; color:var(--primario); line-height:1.1; margin:8px 0 4px; letter-spacing:-.01em; }
       .fa-total-sub { font-size:11px; color:var(--texto-secundario); }
 
       .fa-prox { margin-bottom:4px; }
@@ -747,14 +757,12 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
 
       .fa-footer { display:flex; align-items:center; }
       .fa-footer-right { margin-left:auto; display:flex; gap:10px; }
-      .fa-btn-borrador { display:inline-flex; align-items:center; gap:7px; background:#fff; border:1px solid var(--borde-tenue); color:var(--texto-secundario); border-radius:10px; padding:9px 15px; font-size:13px; font-weight:600; cursor:pointer; }
-      .fa-btn-borrador:hover { border-color:var(--primario-medio); color:var(--primario); }
       .fa-finalizar { display:inline-flex; align-items:center; gap:7px; }
     </style>
 
     <div class="modal-header">
       <div class="modal-titulo" style="font-size:15px; font-weight:600;">${soloLectura ? 'Ficha de atención · solo lectura' : 'Ficha de atención'}</div>
-      <button class="modal-cerrar" onclick="cerrarModal()">×</button>
+      <button class="modal-cerrar" onclick="_ficha.cerrarGuardando()">×</button>
     </div>
 
     <form id="form-ficha">
@@ -811,9 +819,8 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
         ${soloLectura ? `
           <button type="button" class="btn" onclick="cerrarModal()" style="margin-left:auto;">Cerrar</button>
         ` : `
-          <button type="button" class="fa-btn-borrador" onclick="_ficha.guardarBorrador()">${ICO.guardar} Guardar borrador</button>
           <div class="fa-footer-right">
-            <button type="button" class="btn" onclick="cerrarModal()">Cancelar</button>
+            <button type="button" class="btn" onclick="_ficha.cerrarGuardando()">Cerrar</button>
             <button type="submit" class="btn btn-primary-sm fa-finalizar">${ICO.check} Finalizar atención</button>
           </div>
         `}
