@@ -886,26 +886,10 @@ input, select, textarea {
   text-overflow: ellipsis;
 }
 
-/* Estados: llegó naranja · atención naranja titilando · finalizado verde titilando · cobrado verde */
-.turno-card.estado-llego {
-  background: #FCEAD6;
-  border-left-color: var(--advertencia);
-  color: #6B4A12;
-}
-
-.turno-card.estado-en_atencion {
-  background: #FCEAD6;
-  border-left-color: var(--advertencia);
-  color: #6B4A12;
-  animation: pulso-naranja 1.5s ease-in-out infinite;
-}
-
-.turno-card.estado-finalizado {
-  background: var(--exito-claro);
-  border-left-color: var(--exito);
-  color: #0B5E3E;
-  animation: pulso-verde 1.5s ease-in-out infinite;
-}
+/* ====== Estados de turno SEGÚN VISTA ======
+   recepción vs consultorio ven el mismo turno con distinto color/aviso.
+   El "titilido" avisa a quién le toca actuar.
+   agendado = blanco (base) · llegó · atendiendo · atendido · cobrado */
 
 .turno-card.estado-cancelado,
 .turno-card.estado-ausente {
@@ -916,27 +900,56 @@ input, select, textarea {
   text-decoration: line-through;
 }
 
-.turno-card.estado-cobrado {
-  background: var(--exito-claro);
-  border-left-color: var(--exito);
-  color: #0B5E3E;
-}
+/* --- TARJETAS --- */
+/* RECEPCIÓN */
+.vista-recepcion .turno-card.estado-llego        { background:#FCEAD6; border-left-color:var(--advertencia); color:#6B4A12; }
+.vista-recepcion .turno-card.estado-en_atencion  { background:#FCEAD6; border-left-color:var(--advertencia); color:#6B4A12; animation:pulso-naranja 1.2s ease-in-out infinite; }
+.vista-recepcion .turno-card.estado-finalizado   { background:var(--exito-claro); border-left-color:var(--exito); color:#0B5E3E; animation:pulso-verde 1.2s ease-in-out infinite; }
+/* CONSULTORIO */
+.vista-consultorio .turno-card.estado-llego        { background:#FCEAD6; border-left-color:var(--advertencia); color:#6B4A12; animation:pulso-naranja 1.2s ease-in-out infinite; }
+.vista-consultorio .turno-card.estado-en_atencion  { background:var(--exito-claro); border-left-color:var(--exito); color:#0B5E3E; animation:pulso-verde 1.2s ease-in-out infinite; }
+.vista-consultorio .turno-card.estado-finalizado   { background:var(--exito-claro); border-left-color:var(--exito); color:#0B5E3E; }
+/* COBRADO: verde sólido (ambas vistas) */
+.turno-card.estado-cobrado { background:var(--exito-claro); border-left-color:var(--exito); color:#0B5E3E; }
 
+/* --- CHIPS DE SOBRETURNO (mismos estados/colores) --- */
+.turno-sobre-chip.estado-cobrado { background:var(--exito-claro); border-color:var(--exito); color:#0B5E3E; }
+/* RECEPCIÓN */
+.vista-recepcion .turno-sobre-chip.estado-llego        { background:#FCEAD6; border-color:var(--advertencia); color:#6B4A12; }
+.vista-recepcion .turno-sobre-chip.estado-en_atencion  { background:#FCEAD6; border-color:var(--advertencia); color:#6B4A12; animation:pulso-naranja 1.2s ease-in-out infinite; }
+.vista-recepcion .turno-sobre-chip.estado-finalizado   { background:var(--exito-claro); border-color:var(--exito); color:#0B5E3E; animation:pulso-verde 1.2s ease-in-out infinite; }
+/* CONSULTORIO */
+.vista-consultorio .turno-sobre-chip.estado-llego        { background:#FCEAD6; border-color:var(--advertencia); color:#6B4A12; animation:pulso-naranja 1.2s ease-in-out infinite; }
+.vista-consultorio .turno-sobre-chip.estado-en_atencion  { background:var(--exito-claro); border-color:var(--exito); color:#0B5E3E; animation:pulso-verde 1.2s ease-in-out infinite; }
+.vista-consultorio .turno-sobre-chip.estado-finalizado   { background:var(--exito-claro); border-color:var(--exito); color:#0B5E3E; }
+
+/* Titilido marcado: parpadea (opacidad) + aro de color. */
 @keyframes pulso-naranja {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(217,119,30,0.40); }
-  50%      { box-shadow: 0 0 0 5px rgba(217,119,30,0); }
+  0%, 100% { opacity:1;    box-shadow:0 0 0 0 rgba(217,119,30,0.55); }
+  50%      { opacity:0.5;  box-shadow:0 0 0 6px rgba(217,119,30,0); }
 }
 @keyframes pulso-verde {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(31,157,107,0.38); }
-  50%      { box-shadow: 0 0 0 5px rgba(31,157,107,0); }
+  0%, 100% { opacity:1;    box-shadow:0 0 0 0 rgba(31,157,107,0.55); }
+  50%      { opacity:0.5;  box-shadow:0 0 0 6px rgba(31,157,107,0); }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .turno-card.estado-en_atencion,
-  .turno-card.estado-finalizado,
-  .lc-en_atencion,
-  .lc-finalizado { animation: none; }
-}
+/* El titilido es un aviso funcional (a quién le toca actuar), por eso se
+   mantiene siempre. */
+
+/* Panel lateral de sobreturnos (vista profesional) */
+.agenda-centro { display: flex; gap: 16px; align-items: flex-start; }
+.agenda-centro > #agenda-grid-container { flex: 0 0 auto; }
+.sobre-panel { flex: 1 1 0; min-width: 200px; max-width: 340px; background: #fff; border: 1px solid var(--borde-tenue); border-radius: var(--radio-lg); padding: 14px; box-shadow: var(--sombra-card); }
+.sobre-panel-titulo { font-size: 14px; font-weight: 600; margin-bottom: 10px; }
+.sobre-panel-vacio { font-size: 13px; color: var(--texto-tenue); }
+.sobre-item { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--radio); border: 1px solid var(--borde-tenue); border-left: 3px solid var(--primario-medio); background: #fff; margin-bottom: 6px; cursor: pointer; transition: box-shadow .12s; }
+.sobre-item:hover { box-shadow: var(--sombra-card); }
+.sobre-item-nombre { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sobre-item-hora { font-size: 12px; color: var(--texto-tenue); flex-shrink: 0; }
+.sobre-item.estado-llego        { background: #FCEAD6; border-left-color: var(--advertencia); animation: pulso-naranja 1.2s ease-in-out infinite; }
+.sobre-item.estado-en_atencion  { background: var(--exito-claro); border-left-color: var(--exito); animation: pulso-verde 1.2s ease-in-out infinite; }
+.sobre-item.estado-finalizado   { background: var(--exito-claro); border-left-color: var(--exito); }
+.sobre-item.estado-cobrado      { background: var(--exito-claro); border-left-color: var(--exito); }
 
 .leyenda {
   display: flex;

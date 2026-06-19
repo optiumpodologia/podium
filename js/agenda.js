@@ -95,7 +95,10 @@ async function renderAgenda(container) {
           <div class="agenda-fecha-titulo" id="agenda-titulo"></div>
         </div>
 
-        <div id="agenda-grid-container"></div>
+        <div class="agenda-centro">
+          <div id="agenda-grid-container"></div>
+          ${esProf ? '<div id="agenda-sobre-panel" class="sobre-panel"></div>' : ''}
+        </div>
       </div>
 
       <div class="agenda-panel-derecho">${panelDerechoHtml}</div>
@@ -309,7 +312,7 @@ function inyectarEstilosAgenda() {
     .turno-card { transition:filter .1s, box-shadow .1s; }
     .turno-card:hover { filter:brightness(0.97); box-shadow:inset 0 0 0 2px rgba(0,0,0,0.10); }
     /* Chip de sobreturno (opción B: no parte la columna) */
-    .turno-sobre-chip { position:absolute; right:3px; bottom:3px; max-width:calc(100% - 12px); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; background:#fff; color:var(--primario); border:1px solid var(--primario-medio); font-size:10px; font-weight:600; padding:2px 7px; border-radius:9px; cursor:pointer; z-index:3; transition:filter .08s; }
+    .turno-sobre-chip { position:absolute; right:3px; bottom:3px; max-width:calc(100% - 12px); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; background:var(--primario-claro); color:var(--primario); border:1px solid var(--primario-medio); font-size:10px; font-weight:600; padding:2px 7px; border-radius:9px; cursor:pointer; z-index:3; transition:filter .08s; }
     .turno-sobre-chip:hover { filter:brightness(1.15); }
     .turno-sobre-suelto { bottom:auto; z-index:4; }
     .turno-card.es-sobreturno { border-left:3px solid #7c3aed; }
@@ -660,6 +663,7 @@ async function dibujarAgenda() {
   html += `</div>`;
 
   // Columnas de consultorio
+  const sobresPanel = [];
   columnas.forEach((col, idx) => {
     const numero = idx + 1;
     html += `<div class="agenda-consultorio-col" style="height:${altoTotal}px;">`;
@@ -675,6 +679,7 @@ async function dibujarAgenda() {
       // Separar turnos normales de sobreturnos (estos van como chip, no como tarjeta)
       const normales = susTurnos.filter(t => !t.es_sobreturno);
       const sobres = susTurnos.filter(t => t.es_sobreturno);
+      sobres.forEach(s => sobresPanel.push(s));
       const sobrePorMin = {};
       sobres.forEach(s => { const m = turnoMinInicio(s); (sobrePorMin[m] = sobrePorMin[m] || []).push(s); });
 
@@ -773,6 +778,27 @@ async function dibujarAgenda() {
   }
 
   grilla.innerHTML = html;
+
+  // Panel lateral de sobreturnos (solo vista profesional): se administran al lado.
+  const panelSobre = document.getElementById('agenda-sobre-panel');
+  if (panelSobre) {
+    if (!sobresPanel.length) {
+      panelSobre.innerHTML = `<div class="sobre-panel-titulo">Sobreturnos</div>
+        <div class="sobre-panel-vacio">No hay sobreturnos para este día.</div>`;
+    } else {
+      const items = sobresPanel
+        .slice()
+        .sort((a, b) => turnoMinInicio(a) - turnoMinInicio(b))
+        .map(s => {
+          const nom = s.pacientes ? `${s.pacientes.apellido}, ${s.pacientes.nombre.split(' ')[0]}` : 'Sobreturno';
+          return `<div class="sobre-item estado-${s.estado}" onclick="abrirModalTurno('${s.id}')" title="${nom}">
+            <div class="sobre-item-nombre">${nom}</div>
+            <div class="sobre-item-hora">${formatearHora(s.fecha_hora)}</div>
+          </div>`;
+        }).join('');
+      panelSobre.innerHTML = `<div class="sobre-panel-titulo">Sobreturnos</div>${items}`;
+    }
+  }
 
   // Paneles laterales (profesionales del día + resumen) — usan datos ya cargados.
   renderPanelDia(columnas, turnos);
