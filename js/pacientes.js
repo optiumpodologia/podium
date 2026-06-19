@@ -260,6 +260,9 @@ async function abrirModalPaciente(id) {
   };
   const OBRAS = ['OSDE', 'Swiss Medical', 'Galeno', 'Medifé', 'OMINT', 'IOMA', 'PAMI', 'OSECAC', 'Sancor Salud', 'Particular'];
   const notas = paciente.notas || '';
+  const fNum = `this.value=this.value.replace(/[^0-9]/g,'')`;
+  const fTel = `this.value=this.value.replace(/[^0-9 ]/g,'')`;
+  const fNom = `this.value=this.value.replace(/[^A-Za-zÁÉÍÓÚáéíóúÑñÜü ]/g,'').replace(/^ +/,'')`;
 
   abrirModal(`
     <style>
@@ -314,20 +317,23 @@ async function abrirModalPaciente(id) {
           <div>
             <div class="pac-sec-lbl"><span class="pac-sec-ico pac-ico-violeta">${I.user}</span> Datos personales</div>
             <div class="pac-row">
-              <div class="pac-field"><label>Apellido *</label><div class="pac-iw"><input type="text" name="apellido" value="${(paciente.apellido || '').replace(/"/g, '&quot;')}" required oninput="_pacSyncHero()"></div></div>
-              <div class="pac-field"><label>Nombre *</label><div class="pac-iw"><input type="text" name="nombre" value="${(paciente.nombre || '').replace(/"/g, '&quot;')}" required oninput="_pacSyncHero()"></div></div>
+              <div class="pac-field"><label>Apellido *</label><div class="pac-iw"><input type="text" name="apellido" value="${(paciente.apellido || '').replace(/"/g, '&quot;')}" required oninput="${fNom};_pacSyncHero()"></div></div>
+              <div class="pac-field"><label>Nombre *</label><div class="pac-iw"><input type="text" name="nombre" value="${(paciente.nombre || '').replace(/"/g, '&quot;')}" required oninput="${fNom};_pacSyncHero()"></div></div>
             </div>
             <div class="pac-row">
-              <div class="pac-field"><label>DNI</label><div class="pac-iw ico"><span class="pac-fico">${I.dni}</span><input type="text" name="dni" value="${paciente.dni || ''}"></div></div>
+              <div class="pac-field"><label>DNI</label><div class="pac-iw ico"><span class="pac-fico">${I.dni}</span><input type="text" name="dni" inputmode="numeric" value="${paciente.dni || ''}" oninput="${fNum}"></div></div>
               <div class="pac-field"><label>Fecha de nacimiento</label><div class="pac-iw ico"><span class="pac-fico">${I.cal}</span><input type="date" name="fecha_nacimiento" value="${paciente.fecha_nacimiento || ''}"></div></div>
+            </div>
+            <div class="pac-row">
+              <div class="pac-field"><label>Recomendado por</label><div class="pac-iw ico"><span class="pac-fico">${I.user}</span><input type="text" name="recomendado_por" value="${(paciente.recomendado_por || '').replace(/"/g, '&quot;')}" placeholder="Ej: Dra. Pérez, un familiar, Instagram…"></div></div>
             </div>
           </div>
 
           <div>
             <div class="pac-sec-lbl"><span class="pac-sec-ico pac-ico-violeta">${I.tel}</span> Contacto</div>
             <div class="pac-row">
-              <div class="pac-field"><label>Teléfono</label><div class="pac-iw ico"><span class="pac-fico">${I.tel}</span><input type="text" name="telefono" value="${paciente.telefono || ''}" placeholder="Fijo / línea"></div></div>
-              <div class="pac-field"><label>Celular</label><div class="pac-iw ico"><span class="pac-fico"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="20" x="5" y="2" rx="2"/><path d="M12 18h.01"/></svg></span><input type="text" name="celular" value="${paciente.celular || ''}" placeholder="11 2345 6789"></div></div>
+              <div class="pac-field"><label>Teléfono</label><div class="pac-iw ico"><span class="pac-fico">${I.tel}</span><input type="text" name="telefono" inputmode="numeric" value="${paciente.telefono || ''}" placeholder="Fijo / línea" oninput="${fTel}"></div></div>
+              <div class="pac-field"><label>WhatsApp</label><div class="pac-iw ico"><span class="pac-fico"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="20" x="5" y="2" rx="2"/><path d="M12 18h.01"/></svg></span><input type="text" name="celular" inputmode="numeric" value="${paciente.celular || ''}" placeholder="11 2345 6789" oninput="${fTel}"></div></div>
             </div>
             <div class="pac-row">
               <div class="pac-field"><label>Email</label><div class="pac-iw ico"><span class="pac-fico">${I.mail}</span><input type="email" name="email" value="${paciente.email || ''}" placeholder="correo@ejemplo.com"></div></div>
@@ -343,7 +349,7 @@ async function abrirModalPaciente(id) {
               <div class="pac-field"><label>Obra social</label><div class="pac-iw ico"><span class="pac-fico">${I.obra}</span><input type="text" name="obra_social" list="pac-os" value="${(paciente.obra_social || '').replace(/"/g, '&quot;')}" placeholder="Seleccionar obra social"></div></div>
             </div>
             <div class="pac-row">
-              <div class="pac-field"><label>N° de afiliado</label><div class="pac-iw ico"><span class="pac-fico">${I.afil}</span><input type="text" name="numero_afiliado" value="${paciente.numero_afiliado || ''}" placeholder="Número de afiliado"></div></div>
+              <div class="pac-field"><label>N° de afiliado</label><div class="pac-iw ico"><span class="pac-fico">${I.afil}</span><input type="text" name="numero_afiliado" inputmode="numeric" value="${paciente.numero_afiliado || ''}" placeholder="Número de afiliado" oninput="${fNum}"></div></div>
             </div>
             <datalist id="pac-os">${OBRAS.map(o => `<option value="${o}">`).join('')}</datalist>
           </div>

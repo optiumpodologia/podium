@@ -24,6 +24,7 @@ const ANAM_TEXTO = [
   { k: 'enfermedad_base',  label: 'Enfermedad de base' },
   { k: 'bajo_tratamiento', label: '¿Bajo tratamiento médico?' },
   { k: 'medicacion',       label: 'Medicación que toma' },
+  { k: 'calzado',          label: 'Talle / Calzado' },
 ];
 const ANAM_GRUPOS = [
   { k: 'antitetanica',         label: 'Vacuna antitetánica',   tipo: 'unica',    ops: ['Sí', 'No'] },
@@ -206,9 +207,7 @@ async function fichaPacienteHTML(pacienteId, opts = {}) {
             ${cardDato('tel', 'Teléfono', paciente.telefono)}
             ${cardDato('mail', 'Email', paciente.email)}
             ${cardDato('cal', 'Fecha de nacimiento', fechaNacLinda)}
-            ${cardDato('afil', 'N° de afiliado', paciente.numero_afiliado)}
             ${cardDato('dir', 'Dirección', paciente.direccion, true)}
-            ${cardDato('obra', 'Obra social', paciente.obra_social, true)}
           </div>
         </div>`;
 
@@ -248,7 +247,6 @@ async function fichaPacienteHTML(pacienteId, opts = {}) {
         <div class="ficha-dni">${paciente.dni ? 'DNI ' + paciente.dni : 'Sin DNI'}</div>
         <div class="ficha-resumen-datos">
           <div><span>Edad</span><strong>${edad !== null ? edad : '—'}</strong></div>
-          <div><span>Obra social</span><strong>${paciente.obra_social || '—'}</strong></div>
           <div><span>Primera visita</span><strong>${primeraVisita}</strong></div>
           <div><span>Última visita</span><strong>${ultimaVisita}</strong></div>
         </div>

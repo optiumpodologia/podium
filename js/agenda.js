@@ -1629,6 +1629,9 @@ function ttElegirPaciente(id) {
 // --- Alta rápida de paciente (vuelve al turno con el paciente elegido) ---
 function ttNuevoPacienteDesdeTurno(profId, columna, fechaStr, startMin, esSobreturno) {
   esSobreturno = !!esSobreturno;
+  const fNum = `this.value=this.value.replace(/[^0-9]/g,'')`;
+  const fTel = `this.value=this.value.replace(/[^0-9 ]/g,'')`;
+  const fNom = `this.value=this.value.replace(/[^A-Za-zÁÉÍÓÚáéíóúÑñÜü ]/g,'').replace(/^ +/,'')`;
   const npi = (p, w = 16) => `<svg viewBox="0 0 24 24" width="${w}" height="${w}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
   const NPICO = {
     userplus: '<circle cx="9" cy="8" r="4"/><path d="M3 21c0-3.8 3-5.8 6-5.8"/><path d="M16 11h6M19 8v6"/>',
@@ -1673,10 +1676,10 @@ function ttNuevoPacienteDesdeTurno(profId, columna, fechaStr, startMin, esSobret
     <form id="form-nuevo-pac-turno">
       <div class="modal-body">
         <div class="np-grid">
-          <div class="np-field"><label>Apellido <b>*</b></label><div class="np-iw"><span class="np-fico">${npi(NPICO.user)}</span><input type="text" name="apellido" required placeholder="Ej: Mangueras"></div></div>
-          <div class="np-field"><label>Nombre <b>*</b></label><div class="np-iw"><span class="np-fico">${npi(NPICO.user)}</span><input type="text" name="nombre" required placeholder="Ej: Nelida"></div></div>
-          <div class="np-field"><label>DNI</label><div class="np-iw"><span class="np-fico">${npi(NPICO.dni)}</span><input type="text" name="dni" placeholder="Ej: 33.123.456"></div></div>
-          <div class="np-field"><label>Teléfono</label><div class="np-iw"><span class="np-fico">${npi(NPICO.tel)}</span><input type="text" name="telefono" placeholder="Ej: 11 2345 6789"></div></div>
+          <div class="np-field"><label>Apellido <b>*</b></label><div class="np-iw"><span class="np-fico">${npi(NPICO.user)}</span><input type="text" name="apellido" required placeholder="Ej: Lopez" oninput="${fNom}"></div></div>
+          <div class="np-field"><label>Nombre <b>*</b></label><div class="np-iw"><span class="np-fico">${npi(NPICO.user)}</span><input type="text" name="nombre" required placeholder="Ej: Juana" oninput="${fNom}"></div></div>
+          <div class="np-field"><label>DNI</label><div class="np-iw"><span class="np-fico">${npi(NPICO.dni)}</span><input type="text" name="dni" inputmode="numeric" placeholder="Ej: 33123456" oninput="${fNum}"></div></div>
+          <div class="np-field"><label>WhatsApp</label><div class="np-iw"><span class="np-fico">${npi(NPICO.tel)}</span><input type="text" name="celular" inputmode="numeric" placeholder="Ej: 11 2345 6789" oninput="${fTel}"></div></div>
         </div>
 
         <div class="np-banner">
