@@ -27,7 +27,7 @@ let _ttPacientes = [];         // cache de pacientes para el typeahead del alta 
 let _miProfesional = null;     // (rol profesional) su propio registro de profesionales, para saludo y filtro
 
 // Escala vertical de la grilla: píxeles por minuto. >1 = celdas más altas.
-const ESCALA_AGENDA = 1.5;
+const ESCALA_AGENDA = 1.3;
 
 // --- Chat recepción <-> consultorio (tabla mensajes) ---
 let _msgPollId = null;         // setInterval del poll de no leídos; se limpia al salir de la agenda
