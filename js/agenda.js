@@ -1360,49 +1360,155 @@ async function abrirModalNuevoTurnoCasillero(profId, columna, fechaStr, startMin
     .order('apellido').order('nombre');
   _ttPacientes = pacientes || [];
 
-  const fechaLinda = new Date(fechaStr + 'T00:00')
-    .toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
+  const { data: profRow } = await sb.from('profesionales').select('nombre, foto_url').eq('id', profId).maybeSingle();
+  const profFoto = profRow?.foto_url || null;
+  const inicProf = (profNombre || 'P').split(' ').filter(Boolean).slice(0, 2).map(s => s[0]).join('').toUpperCase() || 'P';
+
+  let fechaLinda = new Date(fechaStr + 'T00:00')
+    .toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  fechaLinda = fechaLinda.charAt(0).toUpperCase() + fechaLinda.slice(1);
+  const hIni = minToHora(startMin);
+  const hFin = minToHora(startMin + profDur);
+
+  const NTI = (p, w = 16) => `<svg viewBox="0 0 24 24" width="${w}" height="${w}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+  const ntico = {
+    cal:   '<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>',
+    reloj: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    dur:   '<circle cx="12" cy="12" r="9"/><path d="M12 8v4"/><path d="M9 2h6"/>',
+    flag:  '<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/>',
+    user:  '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.2 3.6-6.5 8-6.5s8 2.3 8 6.5"/>',
+    busca: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
+    userp: '<circle cx="9" cy="8" r="4"/><path d="M3 21c0-3.6 3-5.5 6-5.5"/><path d="M16 11h6M19 8v6"/>',
+    nota:  '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6"/><path d="M9 17h4"/>',
+    lista: '<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M9 12h6"/><path d="M9 16h6"/>',
+    cons:  '<path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/>',
+    prof:  '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.2 3.6-6.5 8-6.5s8 2.3 8 6.5"/>',
+    mas:   '<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',
+    check: '<polyline points="20 6 9 17 4 12"/>'
+  };
+  const titulo = esSobreturno ? 'Sobreturno' : 'Nuevo turno';
+  const avatarHero = profFoto
+    ? `<img src="${profFoto}" alt="" class="nt-foto">`
+    : `<div class="nt-foto nt-foto-ini">${inicProf}</div>`;
 
   abrirModal(`
+    <style>
+      .modal { max-width: 800px; }
+      .nt-body { background:#fff; }
+      .nt-hero { position:relative; overflow:hidden; display:flex; align-items:center; gap:18px; background:linear-gradient(120deg,#F3F0FE,#ECE8FB); border:1px solid var(--borde-tenue); border-radius:16px; padding:18px 20px; margin-bottom:22px; }
+      .nt-foot { position:absolute; right:18px; top:50%; transform:translateY(-50%); width:130px; height:130px; color:var(--primario); opacity:.13; pointer-events:none; }
+      .nt-foto { width:74px; height:74px; flex:none; border-radius:50%; object-fit:cover; box-shadow:0 2px 10px rgba(83,74,183,.25); }
+      .nt-foto-ini { background:linear-gradient(135deg,#C9BEF6,#9E8DE8); color:#fff; display:flex; align-items:center; justify-content:center; font-size:24px; font-weight:700; }
+      .nt-hero-nombre { font-size:21px; font-weight:700; color:var(--texto); }
+      .nt-hero-rol { font-size:13px; font-weight:600; color:var(--primario); margin-top:1px; }
+      .nt-hero-fecha { display:flex; align-items:center; gap:6px; font-size:13px; color:var(--texto-secundario); margin:7px 0 11px; }
+      .nt-pills { display:flex; gap:9px; flex-wrap:wrap; }
+      .nt-pill { display:inline-flex; align-items:center; gap:6px; background:#fff; border:1px solid var(--borde-tenue); border-radius:10px; padding:7px 12px; font-size:12.5px; font-weight:600; color:var(--texto); }
+      .nt-pill svg { color:var(--primario); }
+
+      .nt-grid { display:grid; grid-template-columns:1fr 1fr; gap:18px 24px; align-items:start; }
+      .nt-sec-lbl { display:flex; align-items:center; gap:8px; font-size:14px; font-weight:600; margin-bottom:10px; }
+      .nt-sec-lbl svg { color:var(--primario); }
+      .nt-search { position:relative; }
+      .nt-search .nt-sico { position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--texto-tenue); }
+      .nt-search input { width:100%; padding:11px 12px 11px 36px; border:1px solid var(--borde-tenue); border-radius:10px; font:inherit; font-size:13.5px; }
+      .nt-search input:focus { border-color:var(--primario-medio); outline:none; }
+      .tt-resultados { position:absolute; left:0; right:0; top:100%; margin-top:4px; background:#fff; border:1px solid var(--borde-tenue); border-radius:10px; box-shadow:0 10px 30px rgba(0,0,0,.12); z-index:30; max-height:220px; overflow-y:auto; }
+      .nt-nuevo { display:inline-flex; align-items:center; gap:7px; margin-top:10px; background:var(--exito-claro); color:var(--exito); border:1px dashed var(--exito); border-radius:10px; padding:9px 14px; font-size:13px; font-weight:600; cursor:pointer; }
+      .nt-info { display:flex; align-items:center; gap:11px; background:rgba(83,74,183,.05); border:1px solid var(--borde-tenue); border-radius:13px; padding:14px 15px; font-size:12.5px; color:var(--texto-secundario); }
+      .nt-info-ico { width:34px; height:34px; flex:none; border-radius:9px; background:var(--primario-claro); color:var(--primario); display:flex; align-items:center; justify-content:center; }
+      .nt-info.sel { background:var(--exito-claro); border-color:rgba(31,157,107,.3); color:#0B5E3E; }
+      .nt-info.sel .nt-info-ico { background:rgba(31,157,107,.16); color:var(--exito); }
+
+      .nt-textarea { width:100%; min-height:120px; resize:vertical; padding:11px 12px; border:1px solid var(--borde-tenue); border-radius:10px; font:inherit; font-size:13.5px; }
+      .nt-textarea:focus { border-color:var(--primario-medio); outline:none; }
+      .nt-count { text-align:right; font-size:11px; color:var(--texto-secundario); margin-top:4px; }
+
+      .nt-resumen { background:var(--fondo); border:1px solid var(--borde-tenue); border-radius:13px; padding:15px 17px; }
+      .nt-resumen-tit { display:flex; align-items:center; gap:8px; font-size:13.5px; font-weight:600; margin-bottom:12px; }
+      .nt-resumen-tit svg { color:var(--primario); }
+      .nt-rfila { display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:13px; padding:6px 0; }
+      .nt-rfila-lbl { display:flex; align-items:center; gap:8px; color:var(--texto-secundario); }
+      .nt-rfila-lbl svg { color:var(--texto-tenue); }
+      .nt-rfila-val { font-weight:600; color:var(--texto); text-align:right; }
+      .nt-estado { display:inline-flex; align-items:center; font-size:11.5px; font-weight:600; color:#6B4A12; background:#FCEAD6; border-radius:20px; padding:3px 11px; }
+
+      .nt-foot-right { margin-left:auto; display:flex; gap:10px; }
+      .nt-crear { display:inline-flex; align-items:center; gap:8px; }
+    </style>
+
     <div class="modal-header">
-      <div class="modal-titulo">${esSobreturno ? 'Sobreturno' : 'Nuevo turno'} &middot; Consultorio ${columna}</div>
+      <div class="modal-titulo" style="display:flex; align-items:center; gap:9px;">${NTI(ntico.cal, 18)} ${titulo}</div>
       <button class="modal-cerrar" onclick="cerrarModal()">&times;</button>
     </div>
     <form id="form-turno-casillero">
-      <div class="modal-body">
-        <div style="background: var(--fondo); padding:10px 12px; border-radius: var(--radio); margin-bottom:1rem; font-size:13px;">
-          <strong>${profNombre}</strong>
-          <span style="color: var(--texto-secundario);"> &middot; ${fechaLinda}</span>
-        </div>
+      <div class="modal-body nt-body">
 
-        <div class="input-group" style="position:relative;">
-          <label>Paciente *</label>
-          <input type="text" id="tt-paciente-input" autocomplete="off"
-            placeholder="Buscar por apellido, nombre o DNI..."
-            value="${pacientePre ? (pacientePre.apellido + ', ' + pacientePre.nombre) : ''}"
-            oninput="ttFiltrarPacientes(this.value)">
-          <input type="hidden" name="paciente_id" id="tt-paciente-id" value="${pacientePre ? pacientePre.id : ''}">
-          <div id="tt-resultados" class="tt-resultados" style="display:none;"></div>
-          <div style="margin-top:6px;">
-            <button type="button" class="btn" style="font-size:12px; padding:4px 8px;"
-              onclick="ttNuevoPacienteDesdeTurno('${profId}', ${columna}, '${fechaStr}', ${startMin}, ${esSobreturno})">+ Nuevo paciente</button>
+        <div class="nt-hero">
+          <svg class="nt-foot" viewBox="0 0 120 120" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M44 92 C 36 78, 40 60, 56 54 C 70 49, 92 48, 96 60 C 99 70, 90 78, 78 79"/>
+            <path d="M78 79 C 74 86, 56 90, 48 86 C 42 83, 42 88, 44 92"/>
+            <path d="M30 96 C 38 86, 50 86, 58 90"/>
+            <path d="M40 90 C 34 84, 35 76, 42 73"/>
+            <path d="M48 89 C 45 81, 49 74, 56 72"/>
+          </svg>
+          ${avatarHero}
+          <div>
+            <div class="nt-hero-nombre">${profNombre}</div>
+            <div class="nt-hero-rol">Profesional · Consultorio ${columna}</div>
+            <div class="nt-hero-fecha">${NTI(ntico.cal, 15)} ${fechaLinda}</div>
+            <div class="nt-pills">
+              <span class="nt-pill">${NTI(ntico.reloj, 14)} ${hIni} hs</span>
+              <span class="nt-pill">${NTI(ntico.dur, 14)} ${profDur} min</span>
+              <span class="nt-pill">${NTI(ntico.flag, 14)} Finaliza ${hFin}</span>
+            </div>
           </div>
         </div>
 
-        <div style="font-size:13px; color: var(--texto-secundario); margin-bottom:1rem;">
-          Horario: <strong style="color: var(--texto);">${minToHora(startMin)}</strong>
-          &middot; duración <strong style="color: var(--texto);">${profDur} min</strong>
-          <span style="color: var(--texto-tenue);">(termina ${minToHora(startMin + profDur)})</span>
+        <div class="nt-grid">
+          <div>
+            <div class="nt-sec-lbl">${NTI(ntico.user)} Paciente</div>
+            <div class="nt-search">
+              <span class="nt-sico">${NTI(ntico.busca, 16)}</span>
+              <input type="text" id="tt-paciente-input" autocomplete="off"
+                placeholder="Buscar por apellido, nombre o DNI..."
+                value="${pacientePre ? (pacientePre.apellido + ', ' + pacientePre.nombre) : ''}"
+                oninput="ttFiltrarPacientes(this.value)">
+              <input type="hidden" name="paciente_id" id="tt-paciente-id" value="${pacientePre ? pacientePre.id : ''}">
+              <div id="tt-resultados" class="tt-resultados" style="display:none;"></div>
+            </div>
+            <button type="button" class="nt-nuevo"
+              onclick="ttNuevoPacienteDesdeTurno('${profId}', ${columna}, '${fechaStr}', ${startMin}, ${esSobreturno})">${NTI(ntico.mas, 16)} Nuevo paciente</button>
+
+            <div class="nt-sec-lbl" style="margin-top:22px;">${NTI(ntico.nota)} Notas de la cita <span style="font-weight:400; color:var(--texto-secundario);">(opcional)</span></div>
+            <textarea name="notas" class="nt-textarea" maxlength="200" placeholder="Ej: primera consulta, control, observaciones…" oninput="document.getElementById('nt-notas-count').textContent=this.value.length"></textarea>
+            <div class="nt-count"><span id="nt-notas-count">0</span>/200</div>
+          </div>
+
+          <div>
+            <div class="nt-info" id="tt-info">
+              <div class="nt-info-ico">${NTI(ntico.userp, 16)}</div>
+              <div>Seleccioná un paciente existente<br>o registrá uno nuevo.</div>
+            </div>
+
+            <div class="nt-resumen" style="margin-top:18px;">
+              <div class="nt-resumen-tit">${NTI(ntico.lista)} Resumen del turno</div>
+              <div class="nt-rfila"><span class="nt-rfila-lbl">${NTI(ntico.cons, 15)} Consultorio</span><span class="nt-rfila-val">${columna}</span></div>
+              <div class="nt-rfila"><span class="nt-rfila-lbl">${NTI(ntico.prof, 15)} Profesional</span><span class="nt-rfila-val">${profNombre}</span></div>
+              <div class="nt-rfila"><span class="nt-rfila-lbl">${NTI(ntico.cal, 15)} Fecha</span><span class="nt-rfila-val">${fechaLinda}</span></div>
+              <div class="nt-rfila"><span class="nt-rfila-lbl">${NTI(ntico.reloj, 15)} Horario</span><span class="nt-rfila-val">${hIni} hs</span></div>
+              <div class="nt-rfila"><span class="nt-rfila-lbl">${NTI(ntico.dur, 15)} Duración</span><span class="nt-rfila-val">${profDur} min</span></div>
+              <div class="nt-rfila"><span class="nt-rfila-lbl">${NTI(ntico.reloj, 15)} Estado</span><span class="nt-estado">${esSobreturno ? 'Sobreturno' : 'Pendiente de confirmación'}</span></div>
+            </div>
+          </div>
         </div>
 
-        <div class="input-group">
-          <label>Notas (opcional)</label>
-          <textarea name="notas" rows="2" placeholder="Ej: primera vez, necesita silla..."></textarea>
-        </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn" onclick="cerrarModal()">Cancelar</button>
-        <button type="submit" class="btn btn-primary-sm">Crear turno</button>
+        <div class="nt-foot-right">
+          <button type="button" class="btn" onclick="cerrarModal()">Cancelar</button>
+          <button type="submit" class="btn btn-primary-sm nt-crear">${NTI(ntico.check, 16)} ${esSobreturno ? 'Crear sobreturno' : 'Crear turno'}</button>
+        </div>
       </div>
     </form>
   `);
@@ -1513,6 +1619,11 @@ function ttElegirPaciente(id) {
   if (input) input.value = `${p.apellido}, ${p.nombre}`;
   if (hidden) hidden.value = id;
   if (cont) { cont.style.display = 'none'; cont.innerHTML = ''; }
+  const info = document.getElementById('tt-info');
+  if (info) {
+    info.classList.add('sel');
+    info.innerHTML = `<div class="nt-info-ico"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><div><strong>${p.apellido}, ${p.nombre}</strong>${p.dni ? `<br>DNI ${p.dni}` : ''}</div>`;
+  }
 }
 
 // --- Alta rápida de paciente (vuelve al turno con el paciente elegido) ---
