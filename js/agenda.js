@@ -2026,7 +2026,9 @@ const _AGI = {
   mas:   '<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',
   x:     '<path d="M18 6 6 18M6 6l12 12"/>',
   flecha:'<path d="m15 18-6-6 6-6"/>',
-  rayo:  '<path d="M13 2 3 14h7l-1 8 10-12h-7z"/>'
+  rayo:  '<path d="M13 2 3 14h7l-1 8 10-12h-7z"/>',
+  ojo:   '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>',
+  ban:   '<circle cx="12" cy="12" r="9"/><path d="m5.6 5.6 12.8 12.8"/>'
 };
 
 function _agInyectarEstilos() {
@@ -2078,16 +2080,24 @@ function _agInyectarEstilos() {
     /* Libre = verde */
     .ag-slot-libre { border-style:dashed; border-color:#9FD9BE; background:rgba(31,157,107,.05); cursor:pointer; transition:background .12s, border-color .12s; }
     .ag-slot-libre:hover { background:rgba(31,157,107,.13); border-style:solid; border-color:var(--exito); }
-    .ag-slot-libre .ag-slot-txt { color:var(--exito); font-weight:600; font-size:13px; display:flex; align-items:center; gap:7px; }
+    .ag-slot-libre .ag-slot-txt { color:var(--exito); font-weight:600; font-size:13px; display:flex; align-items:center; gap:7px; flex:1; }
     /* Tomado = violeta */
     .ag-slot-tomado { background:var(--primario-claro); border-color:var(--primario-medio); border-left:3px solid var(--primario); }
     .ag-slot-pac { flex:1; min-width:0; font-size:13px; font-weight:600; color:var(--texto); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .ag-slot-acc { display:flex; gap:4px; flex:none; }
+    .ag-slot-acc { display:flex; gap:4px; flex:none; margin-left:auto; }
     .ag-slot-btn { width:28px; height:28px; border:none; border-radius:8px; background:transparent; cursor:pointer; display:flex; align-items:center; justify-content:center; color:var(--texto-secundario); transition:background .1s, color .1s; }
     .ag-slot-btn.sobre { color:var(--advertencia); }
     .ag-slot-btn.sobre:hover { background:var(--advertencia-claro); color:var(--advertencia); }
     .ag-slot-btn.cancel:hover { background:var(--peligro-claro); color:var(--peligro); }
+    .ag-slot-btn.ver:hover { background:var(--primario-claro); color:var(--primario); }
+    .ag-slot-btn.bloq:hover { background:#ececf2; color:#555; }
     .ag-slot-btn[disabled] { opacity:.3; cursor:default; }
+    /* Bloqueado = "No disponible" */
+    .ag-slot-bloqueado { background:#f1f1f4; }
+    /* Sobreturno = sub-fila naranja, sangrada bajo su turno */
+    .ag-slot-sobre { background:var(--advertencia-claro); border-color:#F1C79B; border-left:3px solid var(--advertencia); margin-left:16px; }
+    .ag-sobre-ico { color:var(--advertencia); display:flex; align-items:center; width:42px; flex:none; }
+    .ag-sobre-tag { font-size:10px; font-weight:700; color:var(--advertencia); background:#fff; border:1px solid #F1C79B; border-radius:8px; padding:1px 6px; margin-left:7px; }
     .ag-chip { display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:600; background:var(--advertencia-claro); color:var(--advertencia); border:1px solid #F1C79B; border-radius:9px; padding:2px 9px; margin-left:6px; }
     .ag-sin-franja { font-size:12.5px; color:var(--texto-secundario); padding:14px 2px; }
 
@@ -2300,13 +2310,13 @@ async function agendarCargarDia() {
   const { data: turnos } = await sb.from('turnos')
     .select('id, profesional_id, paciente_id, fecha_hora, duracion_minutos, estado, es_sobreturno, pacientes(nombre, apellido)')
     .gte('fecha_hora', di.toISOString()).lte('fecha_hora', df.toISOString()).order('fecha_hora');
-  const { data: bloqueos } = await sb.from('bloqueos_agenda').select('profesional_id, hora_min').eq('fecha', fechaStr);
+  const { data: bloqueos } = await sb.from('bloqueos_agenda').select('id, profesional_id, hora_min').eq('fecha', fechaStr);
 
   _agTurnosProf = {}; _agFranjasProf = {}; _agBloqueosProf = {};
   (turnos || []).forEach(t => (_agTurnosProf[t.profesional_id] = _agTurnosProf[t.profesional_id] || []).push(t));
   ids.forEach(id => { _agFranjasProf[id] = mapaFr[id] || []; });
-  ids.forEach(id => { _agBloqueosProf[id] = new Set(); });
-  (bloqueos || []).forEach(b => { (_agBloqueosProf[b.profesional_id] = _agBloqueosProf[b.profesional_id] || new Set()).add(b.hora_min); });
+  ids.forEach(id => { _agBloqueosProf[id] = new Map(); });
+  (bloqueos || []).forEach(b => { (_agBloqueosProf[b.profesional_id] = _agBloqueosProf[b.profesional_id] || new Map()).set(b.hora_min, b.id); });
 
   // Solo los que atienden ese día (franja > 0)
   _agProfes = lista
@@ -2322,15 +2332,12 @@ async function agendarCargarDia() {
     main.innerHTML = `<div class="ag-main-empty">${_agIco(_AGI.cal, 40)}<div>No hay profesionales disponibles<br>en la fecha elegida.</div></div>`;
     return;
   }
-  cards.innerHTML = _agProfes.map(p => _agCardProfHTML(p)).join('');
-
-  // Si el prof seleccionado sigue atendiendo, mostrar su columna; si no, pedir elegir
-  if (_agModal.profId && _agProfes.some(p => p.id === _agModal.profId)) {
-    agendarRenderColumna();
-  } else {
-    _agModal.profId = null;
-    main.innerHTML = `<div class="ag-main-empty">${_agIco(_AGI.user, 40)}<div>Elegí un profesional<br>para ver sus horarios.</div></div>`;
+  // Si no hay un profesional válido elegido, seleccionamos el primero automáticamente.
+  if (!_agModal.profId || !_agProfes.some(p => p.id === _agModal.profId)) {
+    _agModal.profId = _agProfes[0].id;
   }
+  cards.innerHTML = _agProfes.map(p => _agCardProfHTML(p)).join('');
+  agendarRenderColumna();
   _agCentrarVentana();
 }
 
@@ -2346,7 +2353,7 @@ function _agDiaCerrado(txt) {
 function _agComputarSlots(profId) {
   const franjas = _agFranjasProf[profId] || [];
   const turnos = _agTurnosProf[profId] || [];
-  const bloq = _agBloqueosProf[profId] || new Set();
+  const bloq = _agBloqueosProf[profId] || new Map();
   const slot = _agModal.dur;
   const normales = turnos.filter(t => !t.es_sobreturno);
   const sobres = turnos.filter(t => t.es_sobreturno && t.estado !== 'cancelado');
@@ -2355,7 +2362,7 @@ function _agComputarSlots(profId) {
   let libres = 0;
   franjas.forEach(fr => {
     for (let t = fr.ini; t + slot <= fr.fin; t += slot) {
-      if (bloq.has(t)) { slots.push({ min: t, estado: 'bloq' }); continue; }
+      if (bloq.has(t)) { slots.push({ min: t, estado: 'bloq', bloqueoId: bloq.get(t) }); continue; }
       if (haySolapamiento(t, t + slot, normales)) continue; // ocupado: la tarjeta del turno se dibuja aparte
       slots.push({ min: t, estado: 'libre' });
       libres++;
@@ -2412,7 +2419,7 @@ function agendarRenderColumna() {
 
   // Unimos slots libres + turnos tomados en una sola lista ordenada por minuto
   const filas = [];
-  slots.forEach(s => { if (s.estado === 'libre') filas.push({ min: s.min, tipo: 'libre' }); else if (s.estado === 'bloq') filas.push({ min: s.min, tipo: 'bloq' }); });
+  slots.forEach(s => { if (s.estado === 'libre') filas.push({ min: s.min, tipo: 'libre' }); else if (s.estado === 'bloq') filas.push({ min: s.min, tipo: 'bloq', bloqueoId: s.bloqueoId }); });
   normales.forEach(t => filas.push({ min: turnoMinInicio(t), tipo: 'tomado', turno: t }));
   filas.sort((a, b) => a.min - b.min || (a.tipo === 'tomado' ? -1 : 1));
 
@@ -2429,32 +2436,55 @@ function agendarRenderColumna() {
           <div class="ag-slot ag-slot-libre" onclick="agendarClickHueco(${f.min}, false)">
             <span class="ag-slot-hora">${hora}</span>
             <span class="ag-slot-txt">${_agIco(_AGI.mas, 16)} Dar turno</span>
+            <span class="ag-slot-acc">
+              <button class="ag-slot-btn bloq" title="Bloquear este horario" onclick="event.stopPropagation(); agendarBloquear(${f.min})">${_agIco(_AGI.ban, 15)}</button>
+            </span>
           </div>`;
       }
       if (f.tipo === 'bloq') {
         return `
-          <div class="ag-slot" style="background:#f1f1f4;">
+          <div class="ag-slot ag-slot-bloqueado">
             <span class="ag-slot-hora" style="color:#999;">${hora}</span>
             <span class="ag-slot-pac" style="font-weight:500; color:#888;">No disponible</span>
+            <span class="ag-slot-acc">
+              ${f.bloqueoId ? `<button class="ag-slot-btn ver" title="Liberar horario" onclick="agendarDesbloquear('${f.bloqueoId}')">${_agIco(_AGI.x, 15)}</button>` : ''}
+            </span>
           </div>`;
       }
       // tomado
       const t = f.turno;
       const pac = t.pacientes ? `${t.pacientes.apellido}, ${(t.pacientes.nombre || '').split(' ')[0]}` : 'Paciente';
       const sobreDeEste = sobrePorMin[f.min] || [];
-      const chip = sobreDeEste.length
-        ? `<span class="ag-chip">${_agIco(_AGI.rayo, 12)} ${sobreDeEste[0].pacientes ? sobreDeEste[0].pacientes.apellido : 'Sobre'}</span>` : '';
       const yaTieneSobre = sobreDeEste.length >= 1;
       const puedeCancelar = ['agendado'].includes(t.estado);
-      return `
+      const ojoMain = t.paciente_id
+        ? `<button class="ag-slot-btn ver" title="Vista rápida del paciente" onclick="verFichaPaciente('${t.paciente_id}')">${_agIco(_AGI.ojo, 15)}</button>` : '';
+      let html = `
         <div class="ag-slot ag-slot-tomado">
           <span class="ag-slot-hora">${hora}</span>
-          <span class="ag-slot-pac">${pac}${chip}</span>
+          <span class="ag-slot-pac">${pac}</span>
           <span class="ag-slot-acc">
+            ${ojoMain}
             <button class="ag-slot-btn sobre" title="${yaTieneSobre ? 'Ya hay un sobreturno' : 'Dar sobreturno'}" ${yaTieneSobre ? 'disabled' : ''} onclick="agendarClickHueco(${f.min}, true)">${_agIco(_AGI.rayo, 15)}</button>
             <button class="ag-slot-btn cancel" title="${puedeCancelar ? 'Cancelar turno' : 'Solo se cancelan turnos agendados'}" ${puedeCancelar ? '' : 'disabled'} onclick="agendarCancelarTurno('${t.id}')">${_agIco(_AGI.x, 15)}</button>
           </span>
         </div>`;
+      // Sobreturno(s) como sub-fila naranja con sus propias acciones
+      sobreDeEste.forEach(s => {
+        const sp = s.pacientes ? `${s.pacientes.apellido}, ${(s.pacientes.nombre || '').split(' ')[0]}` : 'Sobreturno';
+        const ojoS = s.paciente_id
+          ? `<button class="ag-slot-btn ver" title="Vista rápida del paciente" onclick="verFichaPaciente('${s.paciente_id}')">${_agIco(_AGI.ojo, 14)}</button>` : '';
+        html += `
+          <div class="ag-slot ag-slot-sobre">
+            <span class="ag-slot-hora ag-sobre-ico">${_agIco(_AGI.rayo, 14)}</span>
+            <span class="ag-slot-pac">${sp}<span class="ag-sobre-tag">sobreturno</span></span>
+            <span class="ag-slot-acc">
+              ${ojoS}
+              <button class="ag-slot-btn cancel" title="Eliminar sobreturno" onclick="agendarCancelarTurno('${s.id}')">${_agIco(_AGI.x, 14)}</button>
+            </span>
+          </div>`;
+      });
+      return html;
     }).join('');
   }
 
@@ -2600,4 +2630,32 @@ function _agSyncPanel(fechaStr) {
       dibujarAgenda();
     }
   } catch (e) {}
+}
+
+// Bloquea un horario del profesional seleccionado (queda "No disponible").
+async function agendarBloquear(min) {
+  const profId = _agModal.profId;
+  if (!profId) return;
+  const fechaStr = agendaFechaStr(new Date(_agModal.fecha));
+  const { error } = await sb.from('bloqueos_agenda').insert({
+    negocio_id: usuarioActual.negocio_id,
+    profesional_id: profId,
+    fecha: fechaStr,
+    hora_min: min,
+    creado_por: usuarioActual.id
+  });
+  if (error) { mostrarMensaje('Error al bloquear: ' + error.message, 'error'); return; }
+  mostrarMensaje('Horario bloqueado', 'exito');
+  await agendarCargarDia();
+  _agSyncPanel(fechaStr);
+}
+
+// Libera un horario previamente bloqueado.
+async function agendarDesbloquear(bloqueoId) {
+  const { error } = await sb.from('bloqueos_agenda').delete().eq('id', bloqueoId);
+  if (error) { mostrarMensaje('Error: ' + error.message, 'error'); return; }
+  mostrarMensaje('Horario liberado', 'exito');
+  const fechaStr = agendaFechaStr(new Date(_agModal.fecha));
+  await agendarCargarDia();
+  _agSyncPanel(fechaStr);
 }
