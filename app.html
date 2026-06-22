@@ -29,7 +29,7 @@
   </div>
 </aside>
 
-<main class="main" id="main">
+<main class="main" id="main" style="grid-column:2;grid-row:1;">
   <div class="vacio">
     <svg width="34" height="34" viewBox="0 0 50 50" style="margin-bottom:0.5rem" aria-label="Cargando">
       <circle cx="25" cy="25" r="20" fill="none" stroke="#E6E3F7" stroke-width="5"/>
@@ -40,6 +40,12 @@
     Cargando...
   </div>
 </main>
+
+<!-- Contenedor PERSISTENTE de la agenda. Se monta una sola vez y queda vivo
+     (oculto, no destruido) al navegar a otras secciones: así la info del día
+     no se vuelve a traer ni recalcular cada vez que se vuelve a la agenda.
+     Ocupa la misma celda del grid que #main; se alternan por display. -->
+<div class="main" id="agenda-mount" style="grid-column:2;grid-row:1;display:none;"></div>
 
 </div>
 
@@ -176,7 +182,11 @@ function renderNav() {
 
 function navegar(moduloId) {
   if (!puedeVerModulo(usuarioActual, moduloId)) {
-    document.getElementById('main').innerHTML = '<div class="vacio">No tenés acceso a este módulo</div>';
+    const am = document.getElementById('agenda-mount');
+    if (am) am.style.display = 'none';
+    const mn = document.getElementById('main');
+    mn.style.display = '';
+    mn.innerHTML = '<div class="vacio">No tenés acceso a este módulo</div>';
     return;
   }
 
@@ -187,11 +197,31 @@ function navegar(moduloId) {
     el.classList.toggle('active', el.dataset.modulo === moduloId);
   });
 
+  const main = document.getElementById('main');
+  const agendaMount = document.getElementById('agenda-mount');
+
+  if (moduloId === 'agenda') {
+    // Agenda PERSISTENTE: se monta una sola vez; al volver, solo se muestra.
+    main.style.display = 'none';
+    agendaMount.style.display = '';
+    if (!agendaMount.dataset.montada) {
+      agendaMount.dataset.montada = '1';
+      renderAgenda(agendaMount);
+    } else if (typeof reentrarAgenda === 'function') {
+      reentrarAgenda();   // reanuda poll si hizo falta y refresca si cambió el día
+    }
+    return;
+  }
+
+  // Otras secciones: la agenda queda oculta (viva), se muestra #main.
+  agendaMount.style.display = 'none';
+  main.style.display = '';
+
   const modulo = MODULOS.find(m => m.id === moduloId);
   if (modulo && typeof modulo.render === 'function') {
-    modulo.render(document.getElementById('main'));
+    modulo.render(main);
   } else {
-    document.getElementById('main').innerHTML = '<div class="vacio">Módulo no disponible</div>';
+    main.innerHTML = '<div class="vacio">Módulo no disponible</div>';
   }
 }
 
