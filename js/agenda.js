@@ -214,6 +214,20 @@ function agendaIrHoy() {
 // ============================================================
 // HELPERS
 // ============================================================
+// Devuelve true si la jornada del día ya cerró: pasaron 2hs del último turno
+// (o es un día pasado). Sirve para decidir cuándo un "agendado" pasa a ausente.
+function calcularJornadaCerrada(turnos, esPasado) {
+  const GRACIA_MS = 2 * 60 * 60 * 1000;
+  let ultimoFin = 0;
+  (turnos || []).forEach(t => {
+    if (t.estado === 'cancelado' || !t.fecha_hora) return;
+    const fin = new Date(t.fecha_hora).getTime() + (t.duracion_minutos || 30) * 60000;
+    if (!isNaN(fin) && fin > ultimoFin) ultimoFin = fin;
+  });
+  if (esPasado) return true;
+  return ultimoFin > 0 && Date.now() > ultimoFin + GRACIA_MS;
+}
+
 function agendaFechaStr(fecha) {
   // YYYY-MM-DD en horario local (no UTC, para no correrse de día)
   const y = fecha.getFullYear();
@@ -677,6 +691,10 @@ async function dibujarAgenda() {
     (turnosPorProf[t.profesional_id] = turnosPorProf[t.profesional_id] || []).push(t);
   });
 
+  // Jornada cerrada: un turno sin recibir se considera AUSENTE recién cuando ya
+  // pasaron ~2hs del último turno del día (no apenas vence su horario).
+  const jornadaCerrada = calcularJornadaCerrada(turnos, esPasado);
+
   // Bloqueos del día (celdas "no disponible"), agrupados por profesional.
   const { data: bloqueos } = await sb.from('bloqueos_agenda')
     .select('*')
@@ -837,7 +855,7 @@ async function dibujarAgenda() {
       const minConCard = new Set();
       normales.forEach(t => {
         minConCard.add(turnoMinInicio(t));
-        html += tarjetaTurnoHTML(t, numero, fechaStrSel, sobrePorMin[turnoMinInicio(t)] || [], esPasado, esHoy, inicioMin);
+        html += tarjetaTurnoHTML(t, numero, fechaStrSel, sobrePorMin[turnoMinInicio(t)] || [], esPasado, esHoy, inicioMin, false, jornadaCerrada);
       });
 
       // Sobreturnos huérfanos (se borró el turno base): NO ocupan el slot.
@@ -961,15 +979,9 @@ function renderPanelDia(columnas, turnos, esPasado) {
   const res = document.getElementById('agenda-resumen-dia');
   if (res) {
     const ts = turnos || [];
-    const ahora = Date.now();
-    // "Ausente" = nunca se recibió y su horario ya terminó (o marcado ausente).
-    const finPasado = (t) => {
-      if (!t.fecha_hora) return false;
-      const ini = new Date(t.fecha_hora).getTime();
-      if (isNaN(ini)) return false;
-      return ini + (t.duracion_minutos || 30) * 60000 < ahora;
-    };
-    const esAusente = (t) => t.estado === 'ausente' || (t.estado === 'agendado' && !t.es_sobreturno && finPasado(t));
+    // "Ausente" = nunca se recibió y la jornada ya cerró (2hs post último turno, o día pasado).
+    const jornadaCerrada = calcularJornadaCerrada(ts, esPasado);
+    const esAusente = (t) => t.estado === 'ausente' || (t.estado === 'agendado' && !t.es_sobreturno && jornadaCerrada);
     const total = ts.filter(t => t.estado !== 'cancelado').length;
     const pendientes = ts.filter(t => ['agendado', 'llego', 'en_atencion'].includes(t.estado) && !esAusente(t)).length;
     const atendidos = ts.filter(t => ['finalizado', 'cobrado'].includes(t.estado)).length;
@@ -1838,13 +1850,12 @@ function ttNuevoPacienteDesdeTurno(profId, columna, fechaStr, startMin, esSobret
 // Dibuja la tarjeta del turno en la columna, con su tira de íconos.
 // El click en el cuerpo abre el modal de turno completo; los íconos
 // hacen las acciones rápidas (con stopPropagation para no abrir el modal).
-function tarjetaTurnoHTML(t, numero, fechaStr, sobres, esPasado, esHoy, inicioMin, esHuerfano) {
+function tarjetaTurnoHTML(t, numero, fechaStr, sobres, esPasado, esHoy, inicioMin, esHuerfano, jornadaCerrada) {
   const top = (turnoMinInicio(t) - inicioMin) * ESCALA_AGENDA;
   const altura = Math.max(52, t.duracion_minutos * ESCALA_AGENDA);
   const nombre = t.pacientes ? `${t.pacientes.apellido}, ${t.pacientes.nombre.split(' ')[0]}` : '-';
-  // Nunca se recibió y su horario ya terminó => no vino => AUSENTE (hoy o días pasados).
-  const _finTurno = t.fecha_hora ? new Date(t.fecha_hora).getTime() + (t.duracion_minutos || 30) * 60000 : 0;
-  const esAusentePasado = t.estado === 'agendado' && !t.es_sobreturno && _finTurno && _finTurno < Date.now();
+  // Sin recibir + jornada ya cerrada (2hs post último turno, o día pasado) => AUSENTE.
+  const esAusentePasado = t.estado === 'agendado' && !t.es_sobreturno && jornadaCerrada;
   const estadoVisual = esAusentePasado ? 'ausente' : t.estado;
   const subtitulo = estadoVisual === 'ausente' ? 'Ausente' : (t.tipos_atencion?.nombre || (t.estado === 'agendado' ? 'Pendiente' : ''));
   const tieneSobre = !!(sobres && sobres.length);
