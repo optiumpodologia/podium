@@ -2000,7 +2000,7 @@ function _agInyectarEstilos() {
   st.id = 'estilos-agendar-modal';
   st.textContent = `
     /* Ventana flotante "Dar turno" (no bloquea la agenda de atrás) */
-    .agw-frame { position:fixed; top:74px; left:20px; z-index:90; width:580px; height:600px; min-width:440px; min-height:360px; max-width:96vw; max-height:calc(100vh - 28px); resize:both; display:flex; flex-direction:column; background:#fff; border:1px solid var(--borde); border-radius:16px; box-shadow:0 24px 60px -18px rgba(20,20,40,.45); overflow:hidden; }
+    .agw-frame { position:fixed; top:74px; left:20px; z-index:90; width:560px; height:600px; max-width:96vw; max-height:calc(100vh - 36px); display:flex; flex-direction:column; background:#fff; border:1px solid var(--borde); border-radius:16px; box-shadow:0 24px 60px -18px rgba(20,20,40,.45); overflow:hidden; }
     .agw-head { flex:none; display:flex; align-items:center; justify-content:space-between; gap:10px; padding:11px 16px; background:linear-gradient(120deg,#F3F0FE,#ECE8FB); border-bottom:1px solid var(--borde-tenue); cursor:move; user-select:none; }
     .agw-title { display:flex; align-items:center; gap:9px; font-size:15px; font-weight:700; color:var(--texto); }
     .agw-title svg { color:var(--primario); }
@@ -2023,7 +2023,7 @@ function _agInyectarEstilos() {
     .ag-prof-info { min-width:0; flex:1; }
     .ag-prof-nombre { font-size:14px; font-weight:700; color:var(--texto); white-space:nowrap; }
     .ag-prof-stats { display:flex; gap:6px; margin-top:5px; flex-wrap:wrap; }
-    .ag-stat { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:600; border-radius:7px; padding:2px 7px; }
+    .ag-stat { display:inline-flex; align-items:center; justify-content:center; min-width:24px; font-size:11.5px; font-weight:700; border-radius:7px; padding:2px 7px; }
     .ag-stat.libres { background:var(--exito-claro); color:var(--exito); }
     .ag-stat.tomados { background:var(--primario-claro); color:var(--primario); }
     .ag-stat.sobres { background:var(--advertencia-claro); color:var(--advertencia); }
@@ -2339,9 +2339,9 @@ function _agCardProfHTML(p) {
       <div class="ag-prof-info">
         <div class="ag-prof-nombre">${p.nombre}</div>
         <div class="ag-prof-stats">
-          <span class="ag-stat libres">${p.libres} libres</span>
-          <span class="ag-stat tomados">${p.tomados} tomados</span>
-          <span class="ag-stat sobres">${p.sobres} sobre</span>
+          <span class="ag-stat libres" title="Libres">${p.libres}</span>
+          <span class="ag-stat tomados" title="Tomados">${p.tomados}</span>
+          <span class="ag-stat sobres" title="Sobreturnos">${p.sobres}</span>
         </div>
       </div>
     </button>`;
