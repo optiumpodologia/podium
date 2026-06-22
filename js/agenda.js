@@ -2088,6 +2088,8 @@ function _agInyectarEstilos() {
     .ag-slot-btn { width:28px; height:28px; border:none; border-radius:8px; background:transparent; cursor:pointer; display:flex; align-items:center; justify-content:center; color:var(--texto-secundario); transition:background .1s, color .1s; }
     .ag-slot-btn.sobre { color:var(--advertencia); }
     .ag-slot-btn.sobre:hover { background:var(--advertencia-claro); color:var(--advertencia); }
+    .ag-slot-btn.sobre.activo { background:var(--advertencia-claro); color:var(--advertencia); box-shadow:inset 0 0 0 1.5px var(--advertencia); }
+    .ag-slot-btn.sobre.activo:hover { background:#F8DCBE; }
     .ag-slot-btn.cancel:hover { background:var(--peligro-claro); color:var(--peligro); }
     .ag-slot-btn.ver:hover { background:var(--primario-claro); color:var(--primario); }
     .ag-slot-btn.bloq:hover { background:#ececf2; color:#555; }
@@ -2455,35 +2457,43 @@ function agendarRenderColumna() {
       const t = f.turno;
       const pac = t.pacientes ? `${t.pacientes.apellido}, ${(t.pacientes.nombre || '').split(' ')[0]}` : 'Paciente';
       const sobreDeEste = sobrePorMin[f.min] || [];
-      const yaTieneSobre = sobreDeEste.length >= 1;
+      const tieneSobre = sobreDeEste.length >= 1;
       const puedeCancelar = ['agendado'].includes(t.estado);
       const ojoMain = t.paciente_id
         ? `<button class="ag-slot-btn ver" title="Vista rápida del paciente" onclick="verFichaPaciente('${t.paciente_id}')">${_agIco(_AGI.ojo, 15)}</button>` : '';
+      // ⚡: si ya hay sobreturno, se resalta y al clickearlo despliega; si no, da sobreturno.
+      const btnRayo = tieneSobre
+        ? `<button class="ag-slot-btn sobre activo" title="Ver sobreturno" onclick="agendarToggleSobre('${t.id}')">${_agIco(_AGI.rayo, 15)}</button>`
+        : `<button class="ag-slot-btn sobre" title="Dar sobreturno" onclick="agendarClickHueco(${f.min}, true)">${_agIco(_AGI.rayo, 15)}</button>`;
       let html = `
         <div class="ag-slot ag-slot-tomado">
           <span class="ag-slot-hora">${hora}</span>
           <span class="ag-slot-pac">${pac}</span>
           <span class="ag-slot-acc">
             ${ojoMain}
-            <button class="ag-slot-btn sobre" title="${yaTieneSobre ? 'Ya hay un sobreturno' : 'Dar sobreturno'}" ${yaTieneSobre ? 'disabled' : ''} onclick="agendarClickHueco(${f.min}, true)">${_agIco(_AGI.rayo, 15)}</button>
+            ${btnRayo}
             <button class="ag-slot-btn cancel" title="${puedeCancelar ? 'Cancelar turno' : 'Solo se cancelan turnos agendados'}" ${puedeCancelar ? '' : 'disabled'} onclick="agendarCancelarTurno('${t.id}')">${_agIco(_AGI.x, 15)}</button>
           </span>
         </div>`;
-      // Sobreturno(s) como sub-fila naranja con sus propias acciones
-      sobreDeEste.forEach(s => {
-        const sp = s.pacientes ? `${s.pacientes.apellido}, ${(s.pacientes.nombre || '').split(' ')[0]}` : 'Sobreturno';
-        const ojoS = s.paciente_id
-          ? `<button class="ag-slot-btn ver" title="Vista rápida del paciente" onclick="verFichaPaciente('${s.paciente_id}')">${_agIco(_AGI.ojo, 14)}</button>` : '';
-        html += `
-          <div class="ag-slot ag-slot-sobre">
-            <span class="ag-slot-hora ag-sobre-ico">${_agIco(_AGI.rayo, 14)}</span>
-            <span class="ag-slot-pac">${sp}<span class="ag-sobre-tag">sobreturno</span></span>
-            <span class="ag-slot-acc">
-              ${ojoS}
-              <button class="ag-slot-btn cancel" title="Eliminar sobreturno" onclick="agendarCancelarTurno('${s.id}')">${_agIco(_AGI.x, 14)}</button>
-            </span>
-          </div>`;
-      });
+      // Sobreturno(s): ocultos hasta clickear el rayo.
+      if (tieneSobre) {
+        html += `<div class="ag-sobre-wrap" id="ag-sobre-${t.id}" style="display:none;">`;
+        sobreDeEste.forEach(s => {
+          const sp = s.pacientes ? `${s.pacientes.apellido}, ${(s.pacientes.nombre || '').split(' ')[0]}` : 'Sobreturno';
+          const ojoS = s.paciente_id
+            ? `<button class="ag-slot-btn ver" title="Vista rápida del paciente" onclick="verFichaPaciente('${s.paciente_id}')">${_agIco(_AGI.ojo, 14)}</button>` : '';
+          html += `
+            <div class="ag-slot ag-slot-sobre">
+              <span class="ag-slot-hora ag-sobre-ico">${_agIco(_AGI.rayo, 14)}</span>
+              <span class="ag-slot-pac">${sp}<span class="ag-sobre-tag">sobreturno</span></span>
+              <span class="ag-slot-acc">
+                ${ojoS}
+                <button class="ag-slot-btn cancel" title="Eliminar sobreturno" onclick="agendarCancelarTurno('${s.id}')">${_agIco(_AGI.x, 14)}</button>
+              </span>
+            </div>`;
+        });
+        html += `</div>`;
+      }
       return html;
     }).join('');
   }
@@ -2630,6 +2640,13 @@ function _agSyncPanel(fechaStr) {
       dibujarAgenda();
     }
   } catch (e) {}
+}
+
+// Despliega u oculta el sobreturno de un turno (lo abre el rayo resaltado).
+function agendarToggleSobre(turnoId) {
+  const el = document.getElementById('ag-sobre-' + turnoId);
+  if (!el) return;
+  el.style.display = el.style.display === 'none' ? '' : 'none';
 }
 
 // Bloquea un horario del profesional seleccionado (queda "No disponible").
