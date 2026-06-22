@@ -2055,9 +2055,8 @@ function _agInyectarEstilos() {
     .agw-panel-toggle { width:28px; height:28px; border:none; border-radius:8px; background:rgba(109,91,208,0.12); color:var(--primario); cursor:pointer; display:flex; align-items:center; justify-content:center; padding:0; transition:background .1s; }
     .agw-panel-toggle:hover { background:rgba(109,91,208,0.22); }
     /* Panel izquierdo colapsado: ventana más angosta y grilla a 2 columnas. */
-    .agw-frame.ag-sin-panel { width:620px; }
-    .ag-sin-panel .ag-rail-nuevo { display:none; }
-    .ag-sin-panel .ag-body { grid-template-columns: 200px minmax(0, 1fr); }
+    .agw-frame.agw-anim { transition: width .26s ease, left .26s ease; }
+    .agw-frame.ag-sin-panel { width:606px; }
     .agw-title { display:flex; align-items:center; gap:9px; font-size:15px; font-weight:700; color:var(--texto); }
     .agw-title svg { color:var(--primario); }
     .agw-head-actions { display:flex; align-items:center; gap:12px; }
@@ -2065,9 +2064,11 @@ function _agInyectarEstilos() {
     .agw-close { width:30px; height:30px; border:none; border-radius:8px; background:transparent; font-size:20px; line-height:1; color:var(--texto-secundario); cursor:pointer; }
     .agw-close:hover { background:rgba(0,0,0,.07); color:var(--texto); }
     .agw-body { flex:1 1 auto; min-height:0; padding:14px; overflow:hidden; }
-    .ag-body { display:grid; grid-template-columns: 200px 200px minmax(0, 1fr); gap:14px; align-items:stretch; height:100%; min-height:0; }
-    .ag-rail-nuevo { display:flex; flex-direction:column; gap:14px; min-height:0; overflow:hidden auto; }
-    .ag-rail { display:flex; flex-direction:column; gap:14px; min-width:196px; min-height:0; overflow:hidden auto; }
+    .ag-body { display:flex; align-items:stretch; height:100%; min-height:0; }
+    .ag-rail-nuevo { flex:0 0 auto; width:200px; margin-right:14px; display:flex; flex-direction:column; gap:14px; min-height:0; overflow:hidden auto; transition: width .26s ease, margin-right .26s ease, opacity .2s ease; }
+    .ag-rail-nuevo .ag-card { width:200px; box-sizing:border-box; }
+    .ag-sin-panel .ag-rail-nuevo { width:0; margin-right:0; opacity:0; }
+    .ag-rail { flex:0 0 auto; width:200px; margin-right:14px; display:flex; flex-direction:column; gap:14px; min-height:0; overflow:hidden auto; }
     /* Riel nuevo: secciones */
     .ag-sec-titulo { font-size:11px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--texto-secundario); margin:0 0 9px; display:flex; align-items:center; gap:6px; }
     .ag-sec-titulo svg { color:var(--primario); }
@@ -2113,7 +2114,7 @@ function _agInyectarEstilos() {
     .ag-stat.sobres { background:var(--advertencia-claro); color:var(--advertencia); }
     .ag-prof-dot { width:9px; height:9px; border-radius:50%; flex:none; }
 
-    .ag-main { display:flex; flex-direction:column; min-height:0; }
+    .ag-main { flex:1 1 auto; min-width:0; display:flex; flex-direction:column; min-height:0; }
     .ag-main-empty { min-height:320px; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; color:var(--texto-secundario); gap:12px; }
     .ag-main-empty svg { color:var(--primario); opacity:.45; }
 
@@ -2222,6 +2223,8 @@ async function abrirAgendarTurnos() {
   _agPanelOculto = true;     // arranca oculto (decisión del usuario)
   _agAplicarPanel();
   _agCentrarVentana();
+  // La transición se activa después de posicionar, así abrir no "desliza".
+  setTimeout(() => document.getElementById('agendar-win')?.classList.add('agw-anim'), 80);
   _agHabilitarArrastre();
 
   // cache de pacientes para el typeahead (una vez por apertura)
@@ -2248,12 +2251,13 @@ function agendarTogglePanel() {
 function _agAplicarPanel() {
   const win = document.getElementById('agendar-win');
   if (!win) return;
-  // Borde derecho actual: lo mantenemos fijo, así el panel se abre/cierra
-  // hacia la IZQUIERDA y no desplaza el calendario ni los horarios.
+  // Mantenemos el borde derecho fijo: el panel crece/colapsa hacia la IZQUIERDA
+  // (de 0 a 200px) en sincronía con el ancho de la ventana, así el calendario y
+  // los horarios no se mueven. 606 = 820 - (200 panel + 14 separación).
   const r = win.getBoundingClientRect();
   const derecha = r.left + r.width;
   win.classList.toggle('ag-sin-panel', _agPanelOculto);
-  const nuevoAncho = win.offsetWidth;            // ya refleja la nueva clase
+  const nuevoAncho = _agPanelOculto ? 606 : 820;
   win.style.left = Math.max(8, Math.round(derecha - nuevoAncho)) + 'px';
   win.style.right = 'auto';
   const btn = document.getElementById('ag-panel-toggle');
