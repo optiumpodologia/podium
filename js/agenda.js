@@ -2009,8 +2009,8 @@ function _agInyectarEstilos() {
     .agw-close { width:30px; height:30px; border:none; border-radius:8px; background:transparent; font-size:20px; line-height:1; color:var(--texto-secundario); cursor:pointer; }
     .agw-close:hover { background:rgba(0,0,0,.07); color:var(--texto); }
     .agw-body { padding:14px; overflow-y:auto; }
-    .ag-body { display:grid; grid-template-columns: 200px 1fr; gap:14px; align-items:start; }
-    .ag-rail { display:flex; flex-direction:column; gap:14px; }
+    .ag-body { display:grid; grid-template-columns: max-content 1fr; gap:14px; align-items:start; }
+    .ag-rail { display:flex; flex-direction:column; gap:14px; min-width:196px; }
     .ag-card { background:#fff; border:1px solid var(--borde-tenue); border-radius:14px; padding:12px; }
     .ag-minical-wrap { padding:10px 12px; }
     .ag-cards { display:flex; flex-direction:column; gap:9px; max-height:calc(100vh - 430px); min-height:90px; overflow-y:auto; padding-right:2px; }
@@ -2021,12 +2021,12 @@ function _agInyectarEstilos() {
     .ag-prof-foto { width:42px; height:42px; flex:none; border-radius:50%; object-fit:cover; }
     .ag-prof-foto-ini { background:linear-gradient(135deg,#C9BEF6,#9E8DE8); color:#fff; display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:700; }
     .ag-prof-info { min-width:0; flex:1; }
-    .ag-prof-nombre { font-size:14px; font-weight:700; color:var(--texto); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .ag-prof-nombre { font-size:14px; font-weight:700; color:var(--texto); white-space:nowrap; }
     .ag-prof-stats { display:flex; gap:6px; margin-top:5px; flex-wrap:wrap; }
     .ag-stat { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:600; border-radius:7px; padding:2px 7px; }
     .ag-stat.libres { background:var(--exito-claro); color:var(--exito); }
     .ag-stat.tomados { background:var(--primario-claro); color:var(--primario); }
-    .ag-stat.sobres { background:#FCEAD6; color:#8a5a17; }
+    .ag-stat.sobres { background:var(--advertencia-claro); color:var(--advertencia); }
     .ag-prof-dot { width:9px; height:9px; border-radius:50%; flex:none; }
 
     .ag-main { min-height:420px; }
@@ -2038,23 +2038,22 @@ function _agInyectarEstilos() {
     .ag-col-head-nombre { font-size:16px; font-weight:700; color:var(--texto); }
     .ag-col-head-fecha { font-size:12.5px; color:var(--texto-secundario); }
     .ag-slots { display:flex; flex-direction:column; gap:6px; max-height:calc(100vh - 250px); overflow-y:auto; padding-right:4px; }
-    .ag-slot { display:flex; align-items:center; gap:9px; border-radius:10px; padding:8px 11px; border:1px solid var(--borde-tenue); }
+    .ag-slot { display:flex; align-items:center; gap:9px; border-radius:10px; padding:9px 11px; border:1px solid var(--borde-tenue); }
     .ag-slot-hora { font-size:13px; font-weight:700; color:var(--texto); width:42px; flex:none; }
-    .ag-slot-libre { border-style:dashed; border-color:var(--primario-medio); background:rgba(109,91,208,.04); cursor:pointer; transition:background .12s, border-color .12s; }
-    .ag-slot-libre:hover { background:rgba(109,91,208,.13); border-style:solid; }
-    .ag-slot-libre .ag-slot-txt { color:var(--primario); font-weight:600; font-size:13px; display:flex; align-items:center; gap:7px; }
-    .ag-slot-tomado { background:#fff; }
-    .ag-slot-mid { flex:1; min-width:0; }
-    .ag-slot-pac { font-size:13px; font-weight:600; color:var(--texto); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .ag-slot-meta { display:flex; align-items:center; gap:6px; margin-top:3px; flex-wrap:wrap; }
-    .ag-slot-meta .ag-chip { margin-left:0; }
-    .ag-slot-est { font-size:10.5px; font-weight:600; border-radius:20px; padding:1px 8px; background:var(--fondo); color:var(--texto-secundario); }
+    /* Libre = verde */
+    .ag-slot-libre { border-style:dashed; border-color:#9FD9BE; background:rgba(31,157,107,.05); cursor:pointer; transition:background .12s, border-color .12s; }
+    .ag-slot-libre:hover { background:rgba(31,157,107,.13); border-style:solid; border-color:var(--exito); }
+    .ag-slot-libre .ag-slot-txt { color:var(--exito); font-weight:600; font-size:13px; display:flex; align-items:center; gap:7px; }
+    /* Tomado = violeta */
+    .ag-slot-tomado { background:var(--primario-claro); border-color:var(--primario-medio); border-left:3px solid var(--primario); }
+    .ag-slot-pac { flex:1; min-width:0; font-size:13px; font-weight:600; color:var(--texto); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .ag-slot-acc { display:flex; gap:4px; flex:none; }
     .ag-slot-btn { width:28px; height:28px; border:none; border-radius:8px; background:transparent; cursor:pointer; display:flex; align-items:center; justify-content:center; color:var(--texto-secundario); transition:background .1s, color .1s; }
-    .ag-slot-btn.sobre:hover { background:#FCEAD6; color:#8a5a17; }
+    .ag-slot-btn.sobre { color:var(--advertencia); }
+    .ag-slot-btn.sobre:hover { background:var(--advertencia-claro); color:var(--advertencia); }
     .ag-slot-btn.cancel:hover { background:var(--peligro-claro); color:var(--peligro); }
     .ag-slot-btn[disabled] { opacity:.3; cursor:default; }
-    .ag-chip { display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:600; background:var(--primario-claro); color:var(--primario); border:1px solid var(--primario-medio); border-radius:9px; padding:2px 9px; margin-left:6px; }
+    .ag-chip { display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:600; background:var(--advertencia-claro); color:var(--advertencia); border:1px solid #F1C79B; border-radius:9px; padding:2px 9px; margin-left:6px; }
     .ag-sin-franja { font-size:12.5px; color:var(--texto-secundario); padding:14px 2px; }
 
     /* Sub-panel de alta */
@@ -2383,13 +2382,12 @@ function agendarRenderColumna() {
         return `
           <div class="ag-slot" style="background:#f1f1f4;">
             <span class="ag-slot-hora" style="color:#999;">${hora}</span>
-            <div class="ag-slot-mid"><div class="ag-slot-pac" style="font-weight:500; color:#888;">No disponible</div></div>
+            <span class="ag-slot-pac" style="font-weight:500; color:#888;">No disponible</span>
           </div>`;
       }
       // tomado
       const t = f.turno;
       const pac = t.pacientes ? `${t.pacientes.apellido}, ${(t.pacientes.nombre || '').split(' ')[0]}` : 'Paciente';
-      const estadoTxt = { agendado: 'Agendado', llego: 'En sala', en_atencion: 'Atendiendo', finalizado: 'Finalizado', ausente: 'Ausente' }[t.estado] || t.estado;
       const sobreDeEste = sobrePorMin[f.min] || [];
       const chip = sobreDeEste.length
         ? `<span class="ag-chip">${_agIco(_AGI.rayo, 12)} ${sobreDeEste[0].pacientes ? sobreDeEste[0].pacientes.apellido : 'Sobre'}</span>` : '';
@@ -2398,10 +2396,7 @@ function agendarRenderColumna() {
       return `
         <div class="ag-slot ag-slot-tomado">
           <span class="ag-slot-hora">${hora}</span>
-          <div class="ag-slot-mid">
-            <div class="ag-slot-pac">${pac}</div>
-            <div class="ag-slot-meta"><span class="ag-slot-est">${estadoTxt}</span>${chip}</div>
-          </div>
+          <span class="ag-slot-pac">${pac}${chip}</span>
           <span class="ag-slot-acc">
             <button class="ag-slot-btn sobre" title="${yaTieneSobre ? 'Ya hay un sobreturno' : 'Dar sobreturno'}" ${yaTieneSobre ? 'disabled' : ''} onclick="agendarClickHueco(${f.min}, true)">${_agIco(_AGI.rayo, 15)}</button>
             <button class="ag-slot-btn cancel" title="${puedeCancelar ? 'Cancelar turno' : 'Solo se cancelan turnos agendados'}" ${puedeCancelar ? '' : 'disabled'} onclick="agendarCancelarTurno('${t.id}')">${_agIco(_AGI.x, 15)}</button>
