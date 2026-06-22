@@ -2018,6 +2018,7 @@ let _agModal = { fecha: null, profId: null, dur: 45, abierto: false };
 let _agFiltro = { estado: 'todos' };                 // todos | libre | tomado | sobre
 let _agProx = { scope: 'todos', cargando: false };   // scope del buscador "próximo disponible"
 let _agProxProfes = [];                              // lista de profesionales activos (para el selector)
+let _agPanelOculto = true;                           // riel izquierdo oculto/visible
 let _agProfes = [];          // [{id,nombre,color,foto_url, libres,tomados,sobres, atiende}]
 let _agTurnosProf = {};      // profId -> [turnos del día]
 let _agFranjasProf = {};     // profId -> [{ini,fin}]
@@ -2036,6 +2037,7 @@ const _AGI = {
   mas:   '<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',
   x:     '<path d="M18 6 6 18M6 6l12 12"/>',
   flecha:'<path d="m15 18-6-6 6-6"/>',
+  flechaDer:'<path d="m9 18 6-6-6-6"/>',
   rayo:  '<path d="M13 2 3 14h7l-1 8 10-12h-7z"/>',
   ojo:   '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>',
   ban:   '<circle cx="12" cy="12" r="9"/><path d="m5.6 5.6 12.8 12.8"/>'
@@ -2049,16 +2051,23 @@ function _agInyectarEstilos() {
     /* Ventana flotante "Dar turno" (no bloquea la agenda de atrás) */
     .agw-frame { position:fixed; top:74px; left:20px; z-index:90; width:820px; max-width:96vw; height:min(720px, calc(100vh - 48px)); display:flex; flex-direction:column; background:#fff; border:1px solid var(--borde); border-radius:16px; box-shadow:0 24px 60px -18px rgba(20,20,40,.45); overflow:hidden; }
     .agw-head { flex:none; display:flex; align-items:center; justify-content:space-between; gap:10px; padding:11px 16px; background:linear-gradient(120deg,#F3F0FE,#ECE8FB); border-bottom:1px solid var(--borde-tenue); cursor:move; user-select:none; }
+    .agw-head-left { display:flex; align-items:center; gap:8px; }
+    .agw-panel-toggle { width:28px; height:28px; border:none; border-radius:8px; background:rgba(109,91,208,0.12); color:var(--primario); cursor:pointer; display:flex; align-items:center; justify-content:center; padding:0; transition:background .1s; }
+    .agw-panel-toggle:hover { background:rgba(109,91,208,0.22); }
+    /* Panel izquierdo colapsado: ventana más angosta y grilla a 2 columnas. */
+    .agw-frame.ag-sin-panel { width:620px; }
+    .ag-sin-panel .ag-rail-nuevo { display:none; }
+    .ag-sin-panel .ag-body { grid-template-columns: 200px minmax(0, 1fr); }
     .agw-title { display:flex; align-items:center; gap:9px; font-size:15px; font-weight:700; color:var(--texto); }
     .agw-title svg { color:var(--primario); }
     .agw-head-actions { display:flex; align-items:center; gap:12px; }
     .agw-hint { font-size:11px; color:var(--texto-secundario); }
     .agw-close { width:30px; height:30px; border:none; border-radius:8px; background:transparent; font-size:20px; line-height:1; color:var(--texto-secundario); cursor:pointer; }
     .agw-close:hover { background:rgba(0,0,0,.07); color:var(--texto); }
-    .agw-body { flex:1 1 auto; min-height:0; padding:14px; overflow-y:auto; }
-    .ag-body { display:grid; grid-template-columns: 200px 200px minmax(0, 1fr); gap:14px; align-items:start; }
-    .ag-rail-nuevo { display:flex; flex-direction:column; gap:14px; }
-    .ag-rail { display:flex; flex-direction:column; gap:14px; min-width:196px; }
+    .agw-body { flex:1 1 auto; min-height:0; padding:14px; overflow:hidden; }
+    .ag-body { display:grid; grid-template-columns: 200px 200px minmax(0, 1fr); gap:14px; align-items:stretch; height:100%; min-height:0; }
+    .ag-rail-nuevo { display:flex; flex-direction:column; gap:14px; min-height:0; overflow-y:auto; }
+    .ag-rail { display:flex; flex-direction:column; gap:14px; min-width:196px; min-height:0; overflow-y:auto; }
     /* Riel nuevo: secciones */
     .ag-sec-titulo { font-size:11px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--texto-secundario); margin:0 0 9px; display:flex; align-items:center; gap:6px; }
     .ag-sec-titulo svg { color:var(--primario); }
@@ -2104,7 +2113,7 @@ function _agInyectarEstilos() {
     .ag-stat.sobres { background:var(--advertencia-claro); color:var(--advertencia); }
     .ag-prof-dot { width:9px; height:9px; border-radius:50%; flex:none; }
 
-    .ag-main { display:flex; flex-direction:column; }
+    .ag-main { display:flex; flex-direction:column; min-height:0; }
     .ag-main-empty { min-height:320px; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; color:var(--texto-secundario); gap:12px; }
     .ag-main-empty svg { color:var(--primario); opacity:.45; }
 
@@ -2112,7 +2121,7 @@ function _agInyectarEstilos() {
     .ag-col-head .ag-prof-dot { width:11px; height:11px; }
     .ag-col-head-nombre { font-size:16px; font-weight:700; color:var(--texto); }
     .ag-col-head-fecha { font-size:12.5px; color:var(--texto-secundario); }
-    .ag-slots { display:flex; flex-direction:column; gap:6px; }
+    .ag-slots { display:flex; flex-direction:column; gap:6px; flex:1 1 auto; min-height:0; overflow-y:auto; }
     .ag-slot { display:flex; align-items:center; gap:9px; border-radius:10px; padding:9px 11px; border:1px solid var(--borde-tenue); }
     .ag-slot-hora { font-size:13px; font-weight:700; color:var(--texto); width:42px; flex:none; }
     /* Libre = verde */
@@ -2179,7 +2188,10 @@ async function abrirAgendarTurnos() {
   win.className = 'agw-frame';
   win.innerHTML = `
     <div class="agw-head" id="agw-head">
-      <div class="agw-title">${_agIco(_AGI.cal, 17)} Dar turno</div>
+      <div class="agw-head-left">
+        <button class="agw-panel-toggle" id="ag-panel-toggle" title="Mostrar panel" onclick="agendarTogglePanel()"></button>
+        <div class="agw-title">${_agIco(_AGI.cal, 17)} Dar turno</div>
+      </div>
       <div class="agw-head-actions">
         <span class="agw-hint">Arrastrá para mover</span>
         <button class="agw-close" title="Cerrar" onclick="cerrarAgendarTurnos()">&times;</button>
@@ -2191,7 +2203,7 @@ async function abrirAgendarTurnos() {
           <div class="ag-card">
             <div class="ag-sec-titulo">${_agIco(_AGI.reloj, 14)} Próximo disponible</div>
             <select class="ag-prox-scope" id="ag-prox-scope" onchange="agendarProxScope(this.value)"></select>
-            <button class="ag-prox-buscar" id="ag-prox-buscar" onclick="agendarBuscarProximo()">${_agIco(_AGI.busca, 15)} Buscar huecos</button>
+            <button class="ag-prox-buscar" id="ag-prox-buscar" onclick="agendarBuscarProximo()">${_agIco(_AGI.busca, 15)} Próximos libres</button>
             <div class="ag-prox-list" id="ag-prox-list"></div>
           </div>
           <div class="ag-card">
@@ -2207,6 +2219,8 @@ async function abrirAgendarTurnos() {
       </div>
     </div>`;
   document.body.appendChild(win);
+  _agPanelOculto = true;     // arranca oculto (decisión del usuario)
+  _agAplicarPanel();
   _agCentrarVentana();
   _agHabilitarArrastre();
 
@@ -2223,6 +2237,23 @@ async function abrirAgendarTurnos() {
 function cerrarAgendarTurnos() {
   _agModal.abierto = false;
   document.getElementById('agendar-win')?.remove();
+}
+
+// Oculta/muestra el riel izquierdo (flechita de la barra de título).
+function agendarTogglePanel() {
+  _agPanelOculto = !_agPanelOculto;
+  _agAplicarPanel();
+}
+
+function _agAplicarPanel() {
+  const win = document.getElementById('agendar-win');
+  if (!win) return;
+  win.classList.toggle('ag-sin-panel', _agPanelOculto);
+  const btn = document.getElementById('ag-panel-toggle');
+  if (btn) {
+    btn.innerHTML = _agIco(_agPanelOculto ? _AGI.flechaDer : _AGI.flecha, 18);
+    btn.title = _agPanelOculto ? 'Mostrar panel' : 'Ocultar panel';
+  }
 }
 
 // Arrastre de la ventana flotante (desktop). Los listeners de movimiento se
@@ -2247,7 +2278,7 @@ function _agHabilitarArrastre() {
   const head = document.getElementById('agw-head');
   if (!win || !head) return;
   head.addEventListener('mousedown', (e) => {
-    if (e.target.closest('.agw-close')) return;
+    if (e.target.closest('.agw-close, .agw-panel-toggle')) return;
     _agModal.movida = true;   // a partir de acá no se auto-centra
     const r = win.getBoundingClientRect();
     win.style.left = r.left + 'px';
