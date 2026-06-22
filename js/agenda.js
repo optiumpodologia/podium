@@ -2049,7 +2049,7 @@ function _agInyectarEstilos() {
   st.id = 'estilos-agendar-modal';
   st.textContent = `
     /* Ventana flotante "Dar turno" (no bloquea la agenda de atrás) */
-    .agw-frame { position:fixed; top:74px; left:20px; z-index:90; width:820px; max-width:96vw; height:min(720px, calc(100vh - 48px)); display:flex; flex-direction:column; background:#fff; border:1px solid var(--borde); border-radius:16px; box-shadow:0 24px 60px -18px rgba(20,20,40,.45); overflow:hidden; }
+    .agw-frame { position:fixed; top:74px; left:20px; z-index:90; width:820px; max-width:96vw; height:min(900px, calc(100vh - 24px)); display:flex; flex-direction:column; background:#fff; border:1px solid var(--borde); border-radius:16px; box-shadow:0 24px 60px -18px rgba(20,20,40,.45); overflow:hidden; }
     .agw-head { flex:none; display:flex; align-items:center; justify-content:space-between; gap:10px; padding:11px 16px; background:linear-gradient(120deg,#F3F0FE,#ECE8FB); border-bottom:1px solid var(--borde-tenue); cursor:move; user-select:none; }
     .agw-head-left { display:flex; align-items:center; gap:8px; }
     .agw-panel-toggle { width:28px; height:28px; border:none; border-radius:8px; background:rgba(109,91,208,0.12); color:var(--primario); cursor:pointer; display:flex; align-items:center; justify-content:center; padding:0; transition:background .1s; }
@@ -2066,8 +2066,8 @@ function _agInyectarEstilos() {
     .agw-close:hover { background:rgba(0,0,0,.07); color:var(--texto); }
     .agw-body { flex:1 1 auto; min-height:0; padding:14px; overflow:hidden; }
     .ag-body { display:grid; grid-template-columns: 200px 200px minmax(0, 1fr); gap:14px; align-items:stretch; height:100%; min-height:0; }
-    .ag-rail-nuevo { display:flex; flex-direction:column; gap:14px; min-height:0; overflow-y:auto; }
-    .ag-rail { display:flex; flex-direction:column; gap:14px; min-width:196px; min-height:0; overflow-y:auto; }
+    .ag-rail-nuevo { display:flex; flex-direction:column; gap:14px; min-height:0; overflow:hidden auto; }
+    .ag-rail { display:flex; flex-direction:column; gap:14px; min-width:196px; min-height:0; overflow:hidden auto; }
     /* Riel nuevo: secciones */
     .ag-sec-titulo { font-size:11px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--texto-secundario); margin:0 0 9px; display:flex; align-items:center; gap:6px; }
     .ag-sec-titulo svg { color:var(--primario); }
@@ -2076,7 +2076,7 @@ function _agInyectarEstilos() {
     .ag-prox-buscar { width:100%; margin-top:8px; display:flex; align-items:center; justify-content:center; gap:7px; font:inherit; font-size:12.5px; font-weight:600; padding:8px; border:none; border-radius:9px; background:var(--primario); color:#fff; cursor:pointer; transition:filter .1s; }
     .ag-prox-buscar:hover { filter:brightness(1.06); }
     .ag-prox-buscar:disabled { opacity:.6; cursor:default; }
-    .ag-prox-list { display:flex; flex-direction:column; gap:6px; margin-top:10px; max-height:230px; overflow-y:auto; }
+    .ag-prox-list { display:flex; flex-direction:column; gap:6px; margin-top:10px; max-height:230px; overflow:hidden auto; }
     .ag-prox-item { display:flex; align-items:center; gap:8px; width:100%; text-align:left; padding:7px 9px; border:1px solid var(--borde-tenue); border-radius:9px; background:#fff; cursor:pointer; transition:background .1s, border-color .1s; }
     .ag-prox-item:hover { background:var(--primario-claro); border-color:var(--primario-medio); }
     .ag-prox-hora { font-size:13px; font-weight:700; color:var(--primario); min-width:42px; }
@@ -2121,7 +2121,7 @@ function _agInyectarEstilos() {
     .ag-col-head .ag-prof-dot { width:11px; height:11px; }
     .ag-col-head-nombre { font-size:16px; font-weight:700; color:var(--texto); }
     .ag-col-head-fecha { font-size:12.5px; color:var(--texto-secundario); }
-    .ag-slots { display:flex; flex-direction:column; gap:6px; flex:1 1 auto; min-height:0; overflow-y:auto; }
+    .ag-slots { display:flex; flex-direction:column; gap:6px; flex:1 1 auto; min-height:0; overflow:hidden auto; }
     .ag-slot { display:flex; align-items:center; gap:9px; border-radius:10px; padding:9px 11px; border:1px solid var(--borde-tenue); }
     .ag-slot-hora { font-size:13px; font-weight:700; color:var(--texto); width:42px; flex:none; }
     /* Libre = verde */
@@ -2203,7 +2203,7 @@ async function abrirAgendarTurnos() {
           <div class="ag-card">
             <div class="ag-sec-titulo">${_agIco(_AGI.reloj, 14)} Próximo disponible</div>
             <select class="ag-prox-scope" id="ag-prox-scope" onchange="agendarProxScope(this.value)"></select>
-            <button class="ag-prox-buscar" id="ag-prox-buscar" onclick="agendarBuscarProximo()">${_agIco(_AGI.busca, 15)} Próximos libres</button>
+            <button class="ag-prox-buscar" id="ag-prox-buscar" onclick="agendarBuscarProximo()">${_agIco(_AGI.busca, 15)} Buscar</button>
             <div class="ag-prox-list" id="ag-prox-list"></div>
           </div>
           <div class="ag-card">
@@ -2248,7 +2248,14 @@ function agendarTogglePanel() {
 function _agAplicarPanel() {
   const win = document.getElementById('agendar-win');
   if (!win) return;
+  // Borde derecho actual: lo mantenemos fijo, así el panel se abre/cierra
+  // hacia la IZQUIERDA y no desplaza el calendario ni los horarios.
+  const r = win.getBoundingClientRect();
+  const derecha = r.left + r.width;
   win.classList.toggle('ag-sin-panel', _agPanelOculto);
+  const nuevoAncho = win.offsetWidth;            // ya refleja la nueva clase
+  win.style.left = Math.max(8, Math.round(derecha - nuevoAncho)) + 'px';
+  win.style.right = 'auto';
   const btn = document.getElementById('ag-panel-toggle');
   if (btn) {
     btn.innerHTML = _agIco(_agPanelOculto ? _AGI.flechaDer : _AGI.flecha, 18);
