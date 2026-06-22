@@ -347,6 +347,10 @@ function inyectarEstilosAgenda() {
     .agenda-bloqueo { position:absolute; left:2px; right:2px; background:#3a3a3a; color:#fff; border-radius:4px; z-index:2; display:flex; align-items:center; justify-content:center; gap:8px; font-size:11px; font-weight:600; }
     .agenda-hueco-bloq { position:absolute; top:3px; right:3px; width:21px; height:21px; border:1px solid rgba(0,0,0,0.12); border-radius:5px; background:rgba(255,255,255,0.9); cursor:pointer; font-size:12px; line-height:1; display:flex; align-items:center; justify-content:center; padding:0; color:#666; z-index:2; transition:background .08s, color .08s; }
     .agenda-hueco-bloq:hover { background:var(--peligro); color:#fff; border-color:var(--peligro); }
+    /* Botón "Dar turno" del sidebar (estilo siempre presente, sin esperar al modal) */
+    .ag-dar-turno-btn { display:flex; align-items:center; justify-content:center; gap:9px; width:100%; background:var(--primario); color:#fff; border:none; border-radius:13px; padding:13px; font:inherit; font-size:14.5px; font-weight:700; cursor:pointer; box-shadow:0 6px 16px -8px rgba(83,74,183,.8); transition:filter .12s; }
+    .ag-dar-turno-btn:hover { filter:brightness(1.06); }
+    .ag-dar-turno-btn svg { stroke:#fff; }
   `;
   document.head.appendChild(st);
 }
@@ -1995,8 +1999,8 @@ function _agInyectarEstilos() {
   const st = document.createElement('style');
   st.id = 'estilos-agendar-modal';
   st.textContent = `
-    .ag-modal-wide { max-width: 1020px; width: 96vw; }
-    .ag-body { display:grid; grid-template-columns: 300px 1fr; gap:18px; align-items:start; }
+    .ag-modal-wide { max-width: 860px; width: 94vw; }
+    .ag-body { display:grid; grid-template-columns: 244px 1fr; gap:16px; align-items:start; }
     .ag-rail { display:flex; flex-direction:column; gap:14px; }
     .ag-card { background:#fff; border:1px solid var(--borde-tenue); border-radius:14px; padding:12px; }
     .ag-minical-wrap { padding:10px 12px; }
@@ -2060,10 +2064,6 @@ function _agInyectarEstilos() {
     .ag-alta-notas { width:100%; min-height:80px; resize:vertical; padding:10px 12px; border:1px solid var(--borde-tenue); border-radius:10px; font:inherit; font-size:13px; box-sizing:border-box; margin-top:14px; }
     .ag-alta-notas:focus { border-color:var(--primario-medio); outline:none; }
     .ag-alta-acc { display:flex; justify-content:flex-end; gap:10px; margin-top:18px; }
-
-    .ag-dar-turno-btn { display:flex; align-items:center; justify-content:center; gap:9px; width:100%; background:var(--primario); color:#fff; border:none; border-radius:13px; padding:13px; font:inherit; font-size:14.5px; font-weight:700; cursor:pointer; box-shadow:0 6px 16px -8px rgba(83,74,183,.8); transition:filter .12s; }
-    .ag-dar-turno-btn:hover { filter:brightness(1.06); }
-    .ag-dar-turno-btn svg { stroke:#fff; }
   `;
   document.head.appendChild(st);
 }
@@ -2091,7 +2091,7 @@ async function abrirAgendarTurnos() {
   `);
   document.querySelector('.modal')?.classList.add('ag-modal-wide');
   const _agModalEl = document.querySelector('.modal');
-  if (_agModalEl) { _agModalEl.style.maxWidth = '1020px'; _agModalEl.style.width = '96vw'; }
+  if (_agModalEl) { _agModalEl.style.maxWidth = '860px'; _agModalEl.style.width = '94vw'; }
 
   // cache de pacientes para el typeahead (una vez por apertura)
   const { data: pac } = await sb.from('pacientes').select('id, nombre, apellido, dni').order('apellido').order('nombre');
@@ -2278,7 +2278,6 @@ function _agCardProfHTML(p) {
           <span class="ag-stat sobres">${p.sobres} sobre</span>
         </div>
       </div>
-      <span class="ag-prof-dot" style="background:${p.color || 'var(--primario)'};"></span>
     </button>`;
 }
 
