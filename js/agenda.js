@@ -1999,7 +1999,16 @@ function _agInyectarEstilos() {
   const st = document.createElement('style');
   st.id = 'estilos-agendar-modal';
   st.textContent = `
-    .ag-modal-wide { max-width: 860px; width: 94vw; }
+    /* Ventana flotante "Dar turno" (no bloquea la agenda de atrás) */
+    .agw-frame { position:fixed; top:74px; right:20px; z-index:90; width:860px; max-width:94vw; max-height:calc(100vh - 96px); display:flex; flex-direction:column; background:#fff; border:1px solid var(--borde); border-radius:16px; box-shadow:0 24px 60px -18px rgba(20,20,40,.45); overflow:hidden; }
+    .agw-head { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:11px 16px; background:linear-gradient(120deg,#F3F0FE,#ECE8FB); border-bottom:1px solid var(--borde-tenue); cursor:move; user-select:none; }
+    .agw-title { display:flex; align-items:center; gap:9px; font-size:15px; font-weight:700; color:var(--texto); }
+    .agw-title svg { color:var(--primario); }
+    .agw-head-actions { display:flex; align-items:center; gap:12px; }
+    .agw-hint { font-size:11px; color:var(--texto-secundario); }
+    .agw-close { width:30px; height:30px; border:none; border-radius:8px; background:transparent; font-size:20px; line-height:1; color:var(--texto-secundario); cursor:pointer; }
+    .agw-close:hover { background:rgba(0,0,0,.07); color:var(--texto); }
+    .agw-body { padding:16px; overflow-y:auto; }
     .ag-body { display:grid; grid-template-columns: 244px 1fr; gap:16px; align-items:start; }
     .ag-rail { display:flex; flex-direction:column; gap:14px; }
     .ag-card { background:#fff; border:1px solid var(--borde-tenue); border-radius:14px; padding:12px; }
@@ -2072,14 +2081,24 @@ function _agInyectarEstilos() {
 async function abrirAgendarTurnos() {
   if (!puede(usuarioActual, 'crear_turno')) return;
   _agInyectarEstilos();
+
+  // Si ya está abierta, no duplicar (es una ventana, no un modal).
+  if (document.getElementById('agendar-win')) return;
+
   _agModal = { fecha: new Date(), profId: null, dur: 45, abierto: true };
 
-  abrirModal(`
-    <div class="modal-header">
-      <div class="modal-titulo" style="display:flex; align-items:center; gap:9px;">${_agIco(_AGI.cal, 18)} Dar turno</div>
-      <button class="modal-cerrar" onclick="cerrarAgendarTurnos()">&times;</button>
+  const win = document.createElement('div');
+  win.id = 'agendar-win';
+  win.className = 'agw-frame';
+  win.innerHTML = `
+    <div class="agw-head" id="agw-head">
+      <div class="agw-title">${_agIco(_AGI.cal, 17)} Dar turno</div>
+      <div class="agw-head-actions">
+        <span class="agw-hint">Arrastrá para mover</span>
+        <button class="agw-close" title="Cerrar" onclick="cerrarAgendarTurnos()">&times;</button>
+      </div>
     </div>
-    <div class="modal-body">
+    <div class="agw-body">
       <div class="ag-body">
         <div class="ag-rail">
           <div class="ag-card ag-minical-wrap"><div id="ag-minical"></div></div>
@@ -2087,11 +2106,9 @@ async function abrirAgendarTurnos() {
         </div>
         <div id="ag-main" class="ag-main"></div>
       </div>
-    </div>
-  `);
-  document.querySelector('.modal')?.classList.add('ag-modal-wide');
-  const _agModalEl = document.querySelector('.modal');
-  if (_agModalEl) { _agModalEl.style.maxWidth = '860px'; _agModalEl.style.width = '94vw'; }
+    </div>`;
+  document.body.appendChild(win);
+  _agHabilitarArrastre();
 
   // cache de pacientes para el typeahead (una vez por apertura)
   const { data: pac } = await sb.from('pacientes').select('id, nombre, apellido, dni').order('apellido').order('nombre');
@@ -2103,7 +2120,39 @@ async function abrirAgendarTurnos() {
 
 function cerrarAgendarTurnos() {
   _agModal.abierto = false;
-  cerrarModal();
+  document.getElementById('agendar-win')?.remove();
+}
+
+// Arrastre de la ventana flotante (desktop). Los listeners de movimiento se
+// agregan al apretar y se sueltan al soltar, así no quedan colgados.
+function _agHabilitarArrastre() {
+  const win = document.getElementById('agendar-win');
+  const head = document.getElementById('agw-head');
+  if (!win || !head) return;
+  head.addEventListener('mousedown', (e) => {
+    if (e.target.closest('.agw-close')) return;
+    const r = win.getBoundingClientRect();
+    win.style.left = r.left + 'px';
+    win.style.top = r.top + 'px';
+    win.style.right = 'auto';
+    const ox = e.clientX - r.left, oy = e.clientY - r.top;
+    document.body.style.userSelect = 'none';
+    const mover = (ev) => {
+      const w = win.offsetWidth;
+      let x = Math.max(8, Math.min(ev.clientX - ox, window.innerWidth - w - 8));
+      let y = Math.max(8, Math.min(ev.clientY - oy, window.innerHeight - 44));
+      win.style.left = x + 'px';
+      win.style.top = y + 'px';
+    };
+    const soltar = () => {
+      document.removeEventListener('mousemove', mover);
+      document.removeEventListener('mouseup', soltar);
+      document.body.style.userSelect = '';
+    };
+    document.addEventListener('mousemove', mover);
+    document.addEventListener('mouseup', soltar);
+    e.preventDefault();
+  });
 }
 
 // --- Mini calendario propio del modal -------------------------
