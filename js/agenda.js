@@ -2015,6 +2015,9 @@ async function quitarBloqueo(id) {
 // ============================================================
 
 let _agModal = { fecha: null, profId: null, dur: 45, abierto: false };
+let _agFiltro = { estado: 'todos' };                 // todos | libre | tomado | sobre
+let _agProx = { scope: 'todos', cargando: false };   // scope del buscador "próximo disponible"
+let _agProxProfes = [];                              // lista de profesionales activos (para el selector)
 let _agProfes = [];          // [{id,nombre,color,foto_url, libres,tomados,sobres, atiende}]
 let _agTurnosProf = {};      // profId -> [turnos del día]
 let _agFranjasProf = {};     // profId -> [{ini,fin}]
@@ -2044,7 +2047,7 @@ function _agInyectarEstilos() {
   st.id = 'estilos-agendar-modal';
   st.textContent = `
     /* Ventana flotante "Dar turno" (no bloquea la agenda de atrás) */
-    .agw-frame { position:fixed; top:74px; left:20px; z-index:90; width:560px; max-width:96vw; max-height:calc(100vh - 36px); display:flex; flex-direction:column; background:#fff; border:1px solid var(--borde); border-radius:16px; box-shadow:0 24px 60px -18px rgba(20,20,40,.45); overflow:hidden; }
+    .agw-frame { position:fixed; top:74px; left:20px; z-index:90; width:820px; max-width:96vw; height:min(720px, calc(100vh - 48px)); display:flex; flex-direction:column; background:#fff; border:1px solid var(--borde); border-radius:16px; box-shadow:0 24px 60px -18px rgba(20,20,40,.45); overflow:hidden; }
     .agw-head { flex:none; display:flex; align-items:center; justify-content:space-between; gap:10px; padding:11px 16px; background:linear-gradient(120deg,#F3F0FE,#ECE8FB); border-bottom:1px solid var(--borde-tenue); cursor:move; user-select:none; }
     .agw-title { display:flex; align-items:center; gap:9px; font-size:15px; font-weight:700; color:var(--texto); }
     .agw-title svg { color:var(--primario); }
@@ -2053,8 +2056,36 @@ function _agInyectarEstilos() {
     .agw-close { width:30px; height:30px; border:none; border-radius:8px; background:transparent; font-size:20px; line-height:1; color:var(--texto-secundario); cursor:pointer; }
     .agw-close:hover { background:rgba(0,0,0,.07); color:var(--texto); }
     .agw-body { flex:1 1 auto; min-height:0; padding:14px; overflow-y:auto; }
-    .ag-body { display:grid; grid-template-columns: max-content minmax(0, 1fr); gap:14px; align-items:start; }
+    .ag-body { display:grid; grid-template-columns: 200px 200px minmax(0, 1fr); gap:14px; align-items:start; }
+    .ag-rail-nuevo { display:flex; flex-direction:column; gap:14px; }
     .ag-rail { display:flex; flex-direction:column; gap:14px; min-width:196px; }
+    /* Riel nuevo: secciones */
+    .ag-sec-titulo { font-size:11px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--texto-secundario); margin:0 0 9px; display:flex; align-items:center; gap:6px; }
+    .ag-sec-titulo svg { color:var(--primario); }
+    /* Próximo disponible */
+    .ag-prox-scope { width:100%; font:inherit; font-size:12.5px; padding:7px 9px; border:1px solid var(--borde); border-radius:9px; background:#fff; color:var(--texto); cursor:pointer; }
+    .ag-prox-buscar { width:100%; margin-top:8px; display:flex; align-items:center; justify-content:center; gap:7px; font:inherit; font-size:12.5px; font-weight:600; padding:8px; border:none; border-radius:9px; background:var(--primario); color:#fff; cursor:pointer; transition:filter .1s; }
+    .ag-prox-buscar:hover { filter:brightness(1.06); }
+    .ag-prox-buscar:disabled { opacity:.6; cursor:default; }
+    .ag-prox-list { display:flex; flex-direction:column; gap:6px; margin-top:10px; max-height:230px; overflow-y:auto; }
+    .ag-prox-item { display:flex; align-items:center; gap:8px; width:100%; text-align:left; padding:7px 9px; border:1px solid var(--borde-tenue); border-radius:9px; background:#fff; cursor:pointer; transition:background .1s, border-color .1s; }
+    .ag-prox-item:hover { background:var(--primario-claro); border-color:var(--primario-medio); }
+    .ag-prox-hora { font-size:13px; font-weight:700; color:var(--primario); min-width:42px; }
+    .ag-prox-meta { display:flex; flex-direction:column; min-width:0; }
+    .ag-prox-dia { font-size:11px; color:var(--texto-secundario); text-transform:capitalize; }
+    .ag-prox-prof { font-size:12px; font-weight:600; color:var(--texto); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .ag-prox-msg { font-size:12px; color:var(--texto-secundario); padding:6px 2px; }
+    /* Filtro de estado de hueco (segmentado) */
+    .ag-filtro-seg { display:flex; flex-direction:column; gap:5px; }
+    .ag-filtro-btn { display:flex; align-items:center; gap:8px; width:100%; text-align:left; font:inherit; font-size:12.5px; font-weight:600; padding:8px 10px; border:1px solid var(--borde-tenue); border-radius:9px; background:#fff; color:var(--texto-secundario); cursor:pointer; transition:all .1s; }
+    .ag-filtro-btn:hover { border-color:var(--primario-medio); }
+    .ag-filtro-btn.activo { background:var(--primario-claro); border-color:var(--primario-medio); color:var(--primario); }
+    .ag-filtro-dot { width:9px; height:9px; border-radius:50%; flex:none; }
+    .ag-filtro-dot.libre { background:var(--exito); }
+    .ag-filtro-dot.tomado { background:var(--primario); }
+    .ag-filtro-dot.sobre { background:var(--advertencia); }
+    .ag-filtro-dot.todos { background:linear-gradient(90deg, var(--exito) 33%, var(--primario) 33% 66%, var(--advertencia) 66%); }
+    .ag-slots-vacio { font-size:12.5px; color:var(--texto-secundario); padding:14px 4px; text-align:center; }
     .ag-card { background:#fff; border:1px solid var(--borde-tenue); border-radius:14px; padding:12px; }
     .ag-minical-wrap { padding:10px 12px; flex:none; }
     .ag-cards { display:flex; flex-direction:column; gap:9px; }
@@ -2156,6 +2187,18 @@ async function abrirAgendarTurnos() {
     </div>
     <div class="agw-body">
       <div class="ag-body">
+        <div class="ag-rail-nuevo">
+          <div class="ag-card">
+            <div class="ag-sec-titulo">${_agIco(_AGI.reloj, 14)} Próximo disponible</div>
+            <select class="ag-prox-scope" id="ag-prox-scope" onchange="agendarProxScope(this.value)"></select>
+            <button class="ag-prox-buscar" id="ag-prox-buscar" onclick="agendarBuscarProximo()">${_agIco(_AGI.busca, 15)} Buscar huecos</button>
+            <div class="ag-prox-list" id="ag-prox-list"></div>
+          </div>
+          <div class="ag-card">
+            <div class="ag-sec-titulo">${_agIco(_AGI.cal, 14)} Mostrar</div>
+            <div class="ag-filtro-seg" id="ag-filtro-seg"></div>
+          </div>
+        </div>
         <div class="ag-rail">
           <div class="ag-card ag-minical-wrap"><div id="ag-minical"></div></div>
           <div id="ag-cards" class="ag-cards"></div>
@@ -2172,6 +2215,8 @@ async function abrirAgendarTurnos() {
   _agTtPacientes = pac || [];
 
   agendarMiniCal();
+  agendarRenderFiltro();
+  await agendarInitProx();
   await agendarCargarDia();
 }
 
@@ -2347,7 +2392,6 @@ async function agendarCargarDia() {
   }
   cards.innerHTML = _agProfes.map(p => _agCardProfHTML(p)).join('');
   agendarRenderColumna();
-  _agCentrarVentana();
 }
 
 function _agDiaCerrado(txt) {
@@ -2409,6 +2453,168 @@ function agendarSelProf(profId) {
   agendarRenderColumna();
 }
 
+// === Riel izquierdo: filtro "Mostrar" =========================
+function agendarRenderFiltro() {
+  const cont = document.getElementById('ag-filtro-seg');
+  if (!cont) return;
+  const ops = [
+    { k: 'todos', txt: 'Todos', dot: 'todos' },
+    { k: 'libre', txt: 'Libres', dot: 'libre' },
+    { k: 'tomado', txt: 'Con turno', dot: 'tomado' },
+    { k: 'sobre', txt: 'Sobreturnos', dot: 'sobre' }
+  ];
+  cont.innerHTML = ops.map(o => `
+    <button class="ag-filtro-btn${_agFiltro.estado === o.k ? ' activo' : ''}" onclick="agendarSetFiltro('${o.k}')">
+      <span class="ag-filtro-dot ${o.dot}"></span>${o.txt}
+    </button>`).join('');
+}
+
+function agendarSetFiltro(estado) {
+  _agFiltro.estado = estado;
+  agendarRenderFiltro();
+  agendarRenderColumna();
+}
+
+// === Riel izquierdo: "Próximo disponible" =====================
+// Llena el selector de alcance con los profesionales activos.
+async function agendarInitProx() {
+  const { data: profes } = await sb.from('profesionales')
+    .select('id, nombre').eq('activo', true).order('nombre');
+  _agProxProfes = profes || [];
+  const sel = document.getElementById('ag-prox-scope');
+  if (sel) {
+    sel.innerHTML = `<option value="todos">Cualquier profesional</option>` +
+      _agProxProfes.map(p => `<option value="${p.id}">${p.nombre}</option>`).join('');
+    sel.value = _agProx.scope;
+  }
+}
+
+function agendarProxScope(v) { _agProx.scope = v; }
+
+// 'YYYY-MM-DD' -> Date local (mediodía, evita corrimientos de zona horaria)
+function _proxFecha(str) {
+  const [y, m, d] = str.split('-').map(Number);
+  return new Date(y, m - 1, d, 12, 0, 0, 0);
+}
+
+// Busca los primeros huecos libres en los próximos días para el alcance elegido.
+async function agendarBuscarProximo() {
+  const btn = document.getElementById('ag-prox-buscar');
+  const list = document.getElementById('ag-prox-list');
+  if (!list || _agProx.cargando) return;
+  _agProx.cargando = true;
+  if (btn) btn.disabled = true;
+  list.innerHTML = `<div class="ag-prox-msg">Buscando…</div>`;
+
+  const DIAS = 21;            // ventana de búsqueda
+  const TOPE = 12;            // máximo de resultados
+  const slot = _agModal.dur || 45;
+  const negId = usuarioActual.negocio_id;
+
+  const scopeProfes = _agProx.scope === 'todos'
+    ? _agProxProfes
+    : _agProxProfes.filter(p => p.id === _agProx.scope);
+  const profIds = scopeProfes.map(p => p.id);
+  const nombrePorId = {};
+  scopeProfes.forEach(p => { nombrePorId[p.id] = p.nombre; });
+
+  const cerrar = () => { _agProx.cargando = false; if (btn) btn.disabled = false; };
+  if (profIds.length === 0) { list.innerHTML = `<div class="ag-prox-msg">Sin profesionales.</div>`; cerrar(); return; }
+
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+  const fin = new Date(hoy); fin.setDate(fin.getDate() + DIAS - 1); fin.setHours(23, 59, 59, 999);
+  const hoyStr = agendaFechaStr(hoy);
+  const finStr = agendaFechaStr(fin);
+  const ahoraMin = (() => { const n = new Date(); return n.getHours() * 60 + n.getMinutes(); })();
+
+  // Lecturas en bloque para toda la ventana (pocas consultas).
+  const [fersR, diasLabNegR, labProfR, espProfR, turnosR, bloqsR] = await Promise.all([
+    sb.from('feriados').select('fecha').eq('negocio_id', negId).gte('fecha', hoyStr).lte('fecha', finStr),
+    sb.from('dias_laborales').select('dia_semana, activo').eq('negocio_id', negId),
+    sb.from('dias_laborales_profesional').select('profesional_id, dia_semana, hora_inicio, hora_fin').in('profesional_id', profIds),
+    sb.from('dias_especiales_profesional').select('profesional_id, fecha, no_viene, hora_inicio, hora_fin').in('profesional_id', profIds).gte('fecha', hoyStr).lte('fecha', finStr),
+    sb.from('turnos').select('profesional_id, fecha_hora, duracion_minutos, estado, es_sobreturno').gte('fecha_hora', hoy.toISOString()).lte('fecha_hora', fin.toISOString()).neq('estado', 'cancelado'),
+    sb.from('bloqueos_agenda').select('profesional_id, fecha, hora_min').gte('fecha', hoyStr).lte('fecha', finStr)
+  ]);
+
+  const feriadoSet = new Set((fersR.data || []).map(f => f.fecha));
+  const negConfig = (diasLabNegR.data || []).some(d => d.activo);
+  const negActivo = (dow) => !negConfig || (diasLabNegR.data || []).some(d => d.dia_semana === dow && d.activo);
+
+  const limpia = (arr) => (arr || []).map(x => ({ ini: parseHoraMin(x.hora_inicio), fin: parseHoraMin(x.hora_fin) }))
+    .filter(f => f.ini != null && f.fin != null && f.fin > f.ini);
+  const labMap = {};
+  (labProfR.data || []).forEach(l => { (labMap[l.profesional_id + '|' + l.dia_semana] = labMap[l.profesional_id + '|' + l.dia_semana] || []).push(l); });
+  const espMap = {};
+  (espProfR.data || []).forEach(e => { (espMap[e.profesional_id + '|' + e.fecha] = espMap[e.profesional_id + '|' + e.fecha] || []).push(e); });
+  const turnoMap = {};
+  (turnosR.data || []).forEach(t => { if (t.es_sobreturno) return; const fs = agendaFechaStr(new Date(t.fecha_hora)); (turnoMap[t.profesional_id + '|' + fs] = turnoMap[t.profesional_id + '|' + fs] || []).push(t); });
+  const bloqMap = {};
+  (bloqsR.data || []).forEach(b => { const k = b.profesional_id + '|' + b.fecha; (bloqMap[k] = bloqMap[k] || new Set()).add(b.hora_min); });
+
+  const franjasDe = (profId, fechaStr, dow) => {
+    const esp = espMap[profId + '|' + fechaStr] || [];
+    if (esp.some(e => e.no_viene)) return [];
+    const espH = esp.filter(e => !e.no_viene && e.hora_inicio && e.hora_fin);
+    if (espH.length) return limpia(espH);
+    return limpia(labMap[profId + '|' + dow] || []);
+  };
+
+  const resultados = [];
+  for (let i = 0; i < DIAS && resultados.length < TOPE * 3; i++) {
+    const d = new Date(hoy); d.setDate(d.getDate() + i);
+    const fechaStr = agendaFechaStr(d);
+    const dow = d.getDay();
+    if (feriadoSet.has(fechaStr) || !negActivo(dow)) continue;
+    const esHoy = (i === 0);
+    profIds.forEach(pid => {
+      const franjas = franjasDe(pid, fechaStr, dow);
+      if (!franjas.length) return;
+      const ocup = turnoMap[pid + '|' + fechaStr] || [];
+      const bset = bloqMap[pid + '|' + fechaStr] || new Set();
+      franjas.forEach(fr => {
+        for (let m = fr.ini; m + slot <= fr.fin; m += slot) {
+          if (esHoy && m <= ahoraMin) continue;       // no ofrecer horas pasadas de hoy
+          if (bset.has(m)) continue;
+          if (haySolapamiento(m, m + slot, ocup)) continue;
+          resultados.push({ fechaStr, fecha: d, min: m, profId: pid, prof: nombrePorId[pid] });
+        }
+      });
+    });
+  }
+
+  resultados.sort((a, b) => (a.fechaStr < b.fechaStr ? -1 : a.fechaStr > b.fechaStr ? 1 : a.min - b.min));
+  const top = resultados.slice(0, TOPE);
+
+  if (top.length === 0) {
+    list.innerHTML = `<div class="ag-prox-msg">No se encontraron huecos en los próximos ${DIAS} días.</div>`;
+  } else {
+    list.innerHTML = top.map(r => {
+      const dia = r.fecha.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' });
+      return `
+        <button class="ag-prox-item" onclick="agendarIrAProximo('${r.fechaStr}','${r.profId}',${r.min})">
+          <span class="ag-prox-hora">${minToHora(r.min)}</span>
+          <span class="ag-prox-meta">
+            <span class="ag-prox-dia">${dia}</span>
+            <span class="ag-prox-prof">${r.prof}</span>
+          </span>
+        </button>`;
+    }).join('');
+  }
+  cerrar();
+}
+
+// Salta al día/profesional del hueco elegido y abre el alta en ese horario.
+async function agendarIrAProximo(fechaStr, profId, min) {
+  _agModal.fecha = _proxFecha(fechaStr);
+  _agModal.profId = profId;
+  _agFiltro.estado = 'todos';
+  agendarRenderFiltro();
+  agendarMiniCal();
+  await agendarCargarDia();
+  agendarClickHueco(min, false);
+}
+
 // --- Columna de UN profesional --------------------------------
 function agendarRenderColumna() {
   const main = document.getElementById('ag-main');
@@ -2432,13 +2638,25 @@ function agendarRenderColumna() {
   normales.forEach(t => filas.push({ min: turnoMinInicio(t), tipo: 'tomado', turno: t }));
   filas.sort((a, b) => a.min - b.min || (a.tipo === 'tomado' ? -1 : 1));
 
+  // Filtro "Mostrar" (riel izquierdo): todos | libre | tomado | sobre
+  const fEstado = _agFiltro.estado;
+  const forzarSobre = (fEstado === 'sobre');
+  let filasVis = filas;
+  if (fEstado === 'libre') filasVis = filas.filter(f => f.tipo === 'libre');
+  else if (fEstado === 'tomado') filasVis = filas.filter(f => f.tipo === 'tomado');
+  else if (fEstado === 'sobre') filasVis = filas.filter(f => f.tipo === 'tomado' && (sobrePorMin[f.min] || []).length);
+
   let cuerpo = '';
   if (franjas.length === 0) {
     cuerpo = `<div class="ag-sin-franja">Este profesional no tiene horario cargado para esta fecha.</div>`;
-  } else if (filas.length === 0) {
-    cuerpo = `<div class="ag-sin-franja">Sin horarios disponibles.</div>`;
+  } else if (filasVis.length === 0) {
+    const vacioMsg = fEstado === 'libre' ? 'No quedan horarios libres.'
+      : fEstado === 'tomado' ? 'No hay turnos tomados.'
+      : fEstado === 'sobre' ? 'No hay sobreturnos.'
+      : 'Sin horarios disponibles.';
+    cuerpo = `<div class="ag-slots-vacio">${vacioMsg}</div>`;
   } else {
-    cuerpo = filas.map(f => {
+    cuerpo = filasVis.map(f => {
       const hora = minToHora(f.min);
       if (f.tipo === 'libre') {
         return `
@@ -2484,7 +2702,7 @@ function agendarRenderColumna() {
         </div>`;
       // Sobreturno(s): ocultos hasta clickear el rayo.
       if (tieneSobre) {
-        html += `<div class="ag-sobre-wrap" id="ag-sobre-${t.id}" style="display:none;">`;
+        html += `<div class="ag-sobre-wrap" id="ag-sobre-${t.id}" style="display:${forzarSobre ? '' : 'none'};">`;
         sobreDeEste.forEach(s => {
           const sp = s.pacientes ? `${s.pacientes.apellido}, ${(s.pacientes.nombre || '').split(' ')[0]}` : 'Sobreturno';
           const ojoS = s.paciente_id
@@ -2514,7 +2732,6 @@ function agendarRenderColumna() {
       </div>
     </div>
     <div class="ag-slots">${cuerpo}</div>`;
-  _agCentrarVentana();
 }
 
 // --- Sub-panel de alta (paciente + confirmar) -----------------
