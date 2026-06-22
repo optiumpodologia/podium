@@ -47,6 +47,11 @@ async function renderAgenda(container) {
         <div class="card" style="padding: 12px;">
           <div id="mini-calendario"></div>
         </div>`;
+  const cardDarTurno = puede(usuarioActual, 'crear_turno') ? `
+        <button class="ag-dar-turno-btn" onclick="abrirAgendarTurnos()">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M12 14v4"/><path d="M10 16h4"/></svg>
+          Dar turno
+        </button>` : '';
   const cardSaludo = `<div class="card prof-saludo-card" id="agenda-prof-saludo"></div>`;
   const cardProfesDia = `
         <div class="card" style="padding: 14px;">
@@ -80,7 +85,7 @@ async function renderAgenda(container) {
 
   // Profesional: saludo → calendario → notas a la izquierda; Resumen + Mensajes a la derecha.
   // Gestor: calendario → profesionales a la izquierda; Resumen + Notas + Mensajes a la derecha.
-  const sidebarHtml = esProf ? (cardSaludo + cardMiniCal + cardNotas) : (cardSaludo + cardMiniCal + cardProfesDia + cardNotas);
+  const sidebarHtml = esProf ? (cardSaludo + cardMiniCal + cardDarTurno + cardNotas) : (cardSaludo + cardMiniCal + cardDarTurno + cardProfesDia + cardNotas);
   const panelDerechoHtml = cardResumen + cardMensajes;
 
   container.innerHTML = `
@@ -1902,4 +1907,547 @@ async function quitarBloqueo(id) {
   const { error } = await sb.from('bloqueos_agenda').delete().eq('id', id);
   if (error) { mostrarMensaje('Error: ' + error.message, 'error'); return; }
   await dibujarAgenda();
+}
+
+// ============================================================
+// PASO 2a — MODAL "DAR TURNO"  (agendar aparte del panel del día)
+// ------------------------------------------------------------
+// Liviano y autocontenido: calendario + tarjetas de profesionales
+// (con stats libres/tomados/sobreturnos) + columna de UN profesional.
+// Acciones: dar turno, dar sobreturno, cancelar turno.
+// No usa el grilla pesado del panel ni drag/swap/bloqueos.
+// El panel del día (persistente) sigue intacto; si lo agendado cae en
+// la fecha que el panel está mostrando, se refresca solo.
+// ============================================================
+
+let _agModal = { fecha: null, profId: null, dur: 45, abierto: false };
+let _agProfes = [];          // [{id,nombre,color,foto_url, libres,tomados,sobres, atiende}]
+let _agTurnosProf = {};      // profId -> [turnos del día]
+let _agFranjasProf = {};     // profId -> [{ini,fin}]
+let _agBloqueosProf = {};    // profId -> Set(hora_min)
+let _agTtPacientes = [];     // cache typeahead
+
+function _agIco(p, w = 16) {
+  return `<svg viewBox="0 0 24 24" width="${w}" height="${w}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+}
+const _AGI = {
+  cal:   '<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>',
+  reloj: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  user:  '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.2 3.6-6.5 8-6.5s8 2.3 8 6.5"/>',
+  busca: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
+  check: '<polyline points="20 6 9 17 4 12"/>',
+  mas:   '<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',
+  x:     '<path d="M18 6 6 18M6 6l12 12"/>',
+  flecha:'<path d="m15 18-6-6 6-6"/>',
+  rayo:  '<path d="M13 2 3 14h7l-1 8 10-12h-7z"/>'
+};
+
+function _agInyectarEstilos() {
+  if (document.getElementById('estilos-agendar-modal')) return;
+  const st = document.createElement('style');
+  st.id = 'estilos-agendar-modal';
+  st.textContent = `
+    .ag-modal-wide { max-width: 1020px; width: 96vw; }
+    .ag-body { display:grid; grid-template-columns: 300px 1fr; gap:18px; align-items:start; }
+    .ag-rail { display:flex; flex-direction:column; gap:14px; }
+    .ag-card { background:#fff; border:1px solid var(--borde-tenue); border-radius:14px; padding:12px; }
+    .ag-minical-wrap { padding:10px 12px; }
+    .ag-cards { display:flex; flex-direction:column; gap:10px; max-height:430px; overflow-y:auto; padding-right:2px; }
+    .ag-cards-vacio { font-size:12.5px; color:var(--texto-secundario); padding:8px 4px; }
+    .ag-prof-card { display:flex; align-items:center; gap:11px; background:#fff; border:1px solid var(--borde-tenue); border-radius:13px; padding:11px 12px; cursor:pointer; transition:border-color .12s, box-shadow .12s, background .12s; text-align:left; }
+    .ag-prof-card:hover { border-color:var(--primario-medio); box-shadow:0 4px 14px -8px rgba(83,74,183,.5); }
+    .ag-prof-card.sel { border-color:var(--primario); background:linear-gradient(120deg,#F5F2FE,#FFFFFF); box-shadow:0 4px 14px -8px rgba(83,74,183,.6); }
+    .ag-prof-foto { width:42px; height:42px; flex:none; border-radius:50%; object-fit:cover; }
+    .ag-prof-foto-ini { background:linear-gradient(135deg,#C9BEF6,#9E8DE8); color:#fff; display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:700; }
+    .ag-prof-info { min-width:0; flex:1; }
+    .ag-prof-nombre { font-size:14px; font-weight:700; color:var(--texto); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .ag-prof-stats { display:flex; gap:6px; margin-top:5px; flex-wrap:wrap; }
+    .ag-stat { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:600; border-radius:7px; padding:2px 7px; }
+    .ag-stat.libres { background:var(--exito-claro); color:var(--exito); }
+    .ag-stat.tomados { background:var(--primario-claro); color:var(--primario); }
+    .ag-stat.sobres { background:#FCEAD6; color:#8a5a17; }
+    .ag-prof-dot { width:9px; height:9px; border-radius:50%; flex:none; }
+
+    .ag-main { min-height:430px; }
+    .ag-main-empty { display:flex; flex-direction:column; align-items:center; justify-content:center; height:430px; text-align:center; color:var(--texto-secundario); gap:12px; }
+    .ag-main-empty svg { color:var(--primario); opacity:.45; }
+
+    .ag-col-head { display:flex; align-items:center; gap:9px; margin-bottom:10px; }
+    .ag-col-head .ag-prof-dot { width:11px; height:11px; }
+    .ag-col-head-nombre { font-size:16px; font-weight:700; color:var(--texto); }
+    .ag-col-head-fecha { font-size:12.5px; color:var(--texto-secundario); }
+    .ag-slots { display:flex; flex-direction:column; gap:7px; max-height:392px; overflow-y:auto; padding-right:4px; }
+    .ag-slot { display:flex; align-items:center; gap:11px; border-radius:11px; padding:10px 13px; border:1px solid var(--borde-tenue); }
+    .ag-slot-hora { font-size:13px; font-weight:700; color:var(--texto); width:48px; flex:none; }
+    .ag-slot-libre { border-style:dashed; border-color:var(--primario-medio); background:rgba(109,91,208,.04); cursor:pointer; transition:background .12s, border-color .12s; }
+    .ag-slot-libre:hover { background:rgba(109,91,208,.13); border-style:solid; }
+    .ag-slot-libre .ag-slot-txt { color:var(--primario); font-weight:600; font-size:13px; display:flex; align-items:center; gap:7px; }
+    .ag-slot-tomado { background:#fff; }
+    .ag-slot-pac { flex:1; min-width:0; font-size:13.5px; font-weight:600; color:var(--texto); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .ag-slot-est { font-size:11px; font-weight:600; border-radius:20px; padding:2px 9px; background:var(--fondo); color:var(--texto-secundario); }
+    .ag-slot-acc { display:flex; gap:5px; }
+    .ag-slot-btn { width:28px; height:28px; border:none; border-radius:8px; background:transparent; cursor:pointer; display:flex; align-items:center; justify-content:center; color:var(--texto-secundario); transition:background .1s, color .1s; }
+    .ag-slot-btn.sobre:hover { background:#FCEAD6; color:#8a5a17; }
+    .ag-slot-btn.cancel:hover { background:var(--peligro-claro); color:var(--peligro); }
+    .ag-slot-btn[disabled] { opacity:.3; cursor:default; }
+    .ag-chip { display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:600; background:var(--primario-claro); color:var(--primario); border:1px solid var(--primario-medio); border-radius:9px; padding:2px 9px; margin-left:6px; }
+    .ag-sin-franja { font-size:12.5px; color:var(--texto-secundario); padding:14px 2px; }
+
+    /* Sub-panel de alta */
+    .ag-alta-hero { display:flex; align-items:center; gap:13px; background:linear-gradient(120deg,#F3F0FE,#ECE8FB); border:1px solid var(--borde-tenue); border-radius:14px; padding:14px 16px; margin-bottom:16px; }
+    .ag-alta-hero-nombre { font-size:16px; font-weight:700; color:var(--texto); }
+    .ag-alta-hero-sub { font-size:12.5px; color:var(--texto-secundario); margin-top:2px; }
+    .ag-alta-tag { display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:700; background:#FCEAD6; color:#8a5a17; border-radius:20px; padding:3px 10px; margin-left:8px; }
+    .ag-sec-lbl { display:flex; align-items:center; gap:8px; font-size:13.5px; font-weight:600; margin-bottom:9px; }
+    .ag-sec-lbl svg { color:var(--primario); }
+    .ag-search { position:relative; }
+    .ag-search .ag-sico { position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--texto-tenue); }
+    .ag-search input { width:100%; padding:11px 12px 11px 36px; border:1px solid var(--borde-tenue); border-radius:10px; font:inherit; font-size:13.5px; box-sizing:border-box; }
+    .ag-search input:focus { border-color:var(--primario-medio); outline:none; }
+    .ag-tt-res { position:absolute; left:0; right:0; top:100%; margin-top:4px; background:#fff; border:1px solid var(--borde-tenue); border-radius:10px; box-shadow:0 10px 30px rgba(0,0,0,.12); z-index:30; max-height:230px; overflow-y:auto; }
+    .ag-tt-item { padding:9px 12px; cursor:pointer; font-size:13px; border-bottom:1px solid var(--borde-tenue); }
+    .ag-tt-item:last-child { border-bottom:none; }
+    .ag-tt-item:hover { background:var(--fondo); }
+    .ag-tt-vacio { color:var(--texto-secundario); cursor:default; }
+    .ag-alta-notas { width:100%; min-height:80px; resize:vertical; padding:10px 12px; border:1px solid var(--borde-tenue); border-radius:10px; font:inherit; font-size:13px; box-sizing:border-box; margin-top:14px; }
+    .ag-alta-notas:focus { border-color:var(--primario-medio); outline:none; }
+    .ag-alta-acc { display:flex; justify-content:flex-end; gap:10px; margin-top:18px; }
+
+    .ag-dar-turno-btn { display:flex; align-items:center; justify-content:center; gap:9px; width:100%; background:var(--primario); color:#fff; border:none; border-radius:13px; padding:13px; font:inherit; font-size:14.5px; font-weight:700; cursor:pointer; box-shadow:0 6px 16px -8px rgba(83,74,183,.8); transition:filter .12s; }
+    .ag-dar-turno-btn:hover { filter:brightness(1.06); }
+    .ag-dar-turno-btn svg { stroke:#fff; }
+  `;
+  document.head.appendChild(st);
+}
+
+// --- Apertura -------------------------------------------------
+async function abrirAgendarTurnos() {
+  if (!puede(usuarioActual, 'crear_turno')) return;
+  _agInyectarEstilos();
+  _agModal = { fecha: new Date(), profId: null, dur: 45, abierto: true };
+
+  abrirModal(`
+    <div class="modal-header">
+      <div class="modal-titulo" style="display:flex; align-items:center; gap:9px;">${_agIco(_AGI.cal, 18)} Dar turno</div>
+      <button class="modal-cerrar" onclick="cerrarAgendarTurnos()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="ag-body">
+        <div class="ag-rail">
+          <div class="ag-card ag-minical-wrap"><div id="ag-minical"></div></div>
+          <div id="ag-cards" class="ag-cards"></div>
+        </div>
+        <div id="ag-main" class="ag-main"></div>
+      </div>
+    </div>
+  `);
+  document.querySelector('.modal')?.classList.add('ag-modal-wide');
+  const _agModalEl = document.querySelector('.modal');
+  if (_agModalEl) { _agModalEl.style.maxWidth = '1020px'; _agModalEl.style.width = '96vw'; }
+
+  // cache de pacientes para el typeahead (una vez por apertura)
+  const { data: pac } = await sb.from('pacientes').select('id, nombre, apellido, dni').order('apellido').order('nombre');
+  _agTtPacientes = pac || [];
+
+  agendarMiniCal();
+  await agendarCargarDia();
+}
+
+function cerrarAgendarTurnos() {
+  _agModal.abierto = false;
+  cerrarModal();
+}
+
+// --- Mini calendario propio del modal -------------------------
+function agendarMiniCal() {
+  const cont = document.getElementById('ag-minical');
+  if (!cont) return;
+  const fecha = new Date(_agModal.fecha);
+  const anio = fecha.getFullYear(), mes = fecha.getMonth();
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+
+  const primerDia = new Date(anio, mes, 1);
+  const diasMes = new Date(anio, mes + 1, 0).getDate();
+  let pds = primerDia.getDay(); pds = pds === 0 ? 6 : pds - 1;
+  const nombreMes = primerDia.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
+
+  let html = `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+      <button class="btn-icon" style="width:24px; height:24px; font-size:11px;" onclick="agendarCambiarMes(-1)">&lsaquo;</button>
+      <div style="font-size:12px; font-weight:600; text-transform:capitalize;">${nombreMes}</div>
+      <button class="btn-icon" style="width:24px; height:24px; font-size:11px;" onclick="agendarCambiarMes(1)">&rsaquo;</button>
+    </div>
+    <div style="display:grid; grid-template-columns:repeat(7,1fr); gap:2px; text-align:center; font-size:10px;">
+      ${['L', 'M', 'M', 'J', 'V', 'S', 'D'].map(d => `<div style="color:var(--texto-tenue); padding:4px 0;">${d}</div>`).join('')}`;
+  for (let i = 0; i < pds; i++) html += '<div></div>';
+  for (let d = 1; d <= diasMes; d++) {
+    const fd = new Date(anio, mes, d);
+    const esHoy = fd.getTime() === hoy.getTime();
+    const esSel = fd.toDateString() === _agModal.fecha.toDateString();
+    let s = 'padding:5px 0; font-size:11px; border-radius:4px; cursor:pointer;';
+    if (esSel) s += 'background:var(--primario); color:#fff; font-weight:600;';
+    else if (esHoy) s += 'background:var(--primario-claro); color:var(--primario); font-weight:600;';
+    else s += 'color:var(--texto);';
+    html += `<div style="${s}" onclick="agendarSelFecha(${anio},${mes},${d})">${d}</div>`;
+  }
+  html += '</div>';
+  cont.innerHTML = html;
+}
+
+function agendarCambiarMes(dir) {
+  const f = new Date(_agModal.fecha);
+  f.setMonth(f.getMonth() + dir);
+  _agModal.fecha = f;
+  agendarMiniCal();
+}
+
+function agendarSelFecha(anio, mes, dia) {
+  _agModal.fecha = new Date(anio, mes, dia);
+  _agModal.profId = null;
+  agendarMiniCal();
+  agendarCargarDia();
+}
+
+// --- Carga del día: profesionales que atienden + stats --------
+async function agendarCargarDia() {
+  const cards = document.getElementById('ag-cards');
+  const main = document.getElementById('ag-main');
+  if (!cards || !main) return;
+  cards.innerHTML = `<div class="ag-cards-vacio">Cargando…</div>`;
+  main.innerHTML = `<div class="ag-main-empty">${_agIco(_AGI.reloj, 40)}<div>Cargando agenda…</div></div>`;
+
+  const fecha = new Date(_agModal.fecha);
+  const fechaStr = agendaFechaStr(fecha);
+
+  // Duración del negocio (paso de la grilla)
+  const { data: conf } = await sb.from('configuracion')
+    .select('duracion_turno_minutos').eq('negocio_id', usuarioActual.negocio_id).maybeSingle();
+  _agModal.dur = parseInt(conf?.duracion_turno_minutos) || 45;
+
+  // Feriado del negocio → cerrado
+  const { data: fer } = await sb.from('feriados')
+    .select('descripcion').eq('negocio_id', usuarioActual.negocio_id).eq('fecha', fechaStr);
+  if (fer && fer.length) { _agDiaCerrado(fer[0].descripcion || 'Feriado'); return; }
+
+  // Día no laboral del negocio
+  const { data: diasLab } = await sb.from('dias_laborales')
+    .select('dia_semana, activo').eq('negocio_id', usuarioActual.negocio_id);
+  const hayConfig = diasLab && diasLab.some(d => d.activo);
+  const diaActivo = diasLab && diasLab.some(d => d.dia_semana === fecha.getDay() && d.activo);
+  if (hayConfig && !diaActivo) { _agDiaCerrado('El negocio no atiende este día'); return; }
+
+  // Profesionales activos + franjas del día
+  const { data: profes } = await sb.from('profesionales')
+    .select('id, nombre, color, foto_url, activo').eq('activo', true).order('nombre');
+  const lista = profes || [];
+  const ids = lista.map(p => p.id);
+  const mapaFr = ids.length ? await mapaFranjasProfes(ids, fecha) : {};
+
+  // Turnos del día (todos) + bloqueos
+  const di = new Date(fecha); di.setHours(0, 0, 0, 0);
+  const df = new Date(fecha); df.setHours(23, 59, 59, 999);
+  const { data: turnos } = await sb.from('turnos')
+    .select('id, profesional_id, paciente_id, fecha_hora, duracion_minutos, estado, es_sobreturno, pacientes(nombre, apellido)')
+    .gte('fecha_hora', di.toISOString()).lte('fecha_hora', df.toISOString()).order('fecha_hora');
+  const { data: bloqueos } = await sb.from('bloqueos_agenda').select('profesional_id, hora_min').eq('fecha', fechaStr);
+
+  _agTurnosProf = {}; _agFranjasProf = {}; _agBloqueosProf = {};
+  (turnos || []).forEach(t => (_agTurnosProf[t.profesional_id] = _agTurnosProf[t.profesional_id] || []).push(t));
+  ids.forEach(id => { _agFranjasProf[id] = mapaFr[id] || []; });
+  ids.forEach(id => { _agBloqueosProf[id] = new Set(); });
+  (bloqueos || []).forEach(b => { (_agBloqueosProf[b.profesional_id] = _agBloqueosProf[b.profesional_id] || new Set()).add(b.hora_min); });
+
+  // Solo los que atienden ese día (franja > 0)
+  _agProfes = lista
+    .filter(p => (_agFranjasProf[p.id] || []).length > 0)
+    .map(p => {
+      const c = _agComputarSlots(p.id);
+      return { ...p, libres: c.libres, tomados: c.tomados, sobres: c.sobres };
+    });
+
+  // Render tarjetas
+  if (_agProfes.length === 0) {
+    cards.innerHTML = `<div class="ag-cards-vacio">Ningún profesional atiende este día.</div>`;
+    main.innerHTML = `<div class="ag-main-empty">${_agIco(_AGI.cal, 40)}<div>No hay profesionales disponibles<br>en la fecha elegida.</div></div>`;
+    return;
+  }
+  cards.innerHTML = _agProfes.map(p => _agCardProfHTML(p)).join('');
+
+  // Si el prof seleccionado sigue atendiendo, mostrar su columna; si no, pedir elegir
+  if (_agModal.profId && _agProfes.some(p => p.id === _agModal.profId)) {
+    agendarRenderColumna();
+  } else {
+    _agModal.profId = null;
+    main.innerHTML = `<div class="ag-main-empty">${_agIco(_AGI.user, 40)}<div>Elegí un profesional<br>para ver sus horarios.</div></div>`;
+  }
+}
+
+function _agDiaCerrado(txt) {
+  const cards = document.getElementById('ag-cards');
+  const main = document.getElementById('ag-main');
+  if (cards) cards.innerHTML = `<div class="ag-cards-vacio">Día cerrado.</div>`;
+  if (main) main.innerHTML = `<div class="ag-main-empty">${_agIco(_AGI.cal, 40)}<div style="font-weight:600; color:var(--texto);">${txt}</div><div>No se dan turnos en esta fecha.</div></div>`;
+  _agProfes = [];
+}
+
+// Calcula slots libres / tomados / sobreturnos para un profesional ese día
+function _agComputarSlots(profId) {
+  const franjas = _agFranjasProf[profId] || [];
+  const turnos = _agTurnosProf[profId] || [];
+  const bloq = _agBloqueosProf[profId] || new Set();
+  const slot = _agModal.dur;
+  const normales = turnos.filter(t => !t.es_sobreturno);
+  const sobres = turnos.filter(t => t.es_sobreturno && t.estado !== 'cancelado');
+
+  const slots = [];
+  let libres = 0;
+  franjas.forEach(fr => {
+    for (let t = fr.ini; t + slot <= fr.fin; t += slot) {
+      if (bloq.has(t)) { slots.push({ min: t, estado: 'bloq' }); continue; }
+      if (haySolapamiento(t, t + slot, normales)) continue; // ocupado: la tarjeta del turno se dibuja aparte
+      slots.push({ min: t, estado: 'libre' });
+      libres++;
+    }
+  });
+  const tomados = normales.filter(t => ['agendado', 'llego', 'en_atencion', 'finalizado'].includes(t.estado)).length;
+  return { slots, libres, tomados, sobres: sobres.length, franjas };
+}
+
+function _agCardProfHTML(p) {
+  const ini = (p.nombre || 'P').split(' ').filter(Boolean).slice(0, 2).map(s => s[0]).join('').toUpperCase() || 'P';
+  const foto = p.foto_url
+    ? `<img src="${p.foto_url}" alt="" class="ag-prof-foto">`
+    : `<div class="ag-prof-foto ag-prof-foto-ini">${ini}</div>`;
+  const sel = _agModal.profId === p.id ? ' sel' : '';
+  return `
+    <button class="ag-prof-card${sel}" onclick="agendarSelProf('${p.id}')">
+      ${foto}
+      <div class="ag-prof-info">
+        <div class="ag-prof-nombre">${p.nombre}</div>
+        <div class="ag-prof-stats">
+          <span class="ag-stat libres">${p.libres} libres</span>
+          <span class="ag-stat tomados">${p.tomados} tomados</span>
+          <span class="ag-stat sobres">${p.sobres} sobre</span>
+        </div>
+      </div>
+      <span class="ag-prof-dot" style="background:${p.color || 'var(--primario)'};"></span>
+    </button>`;
+}
+
+function agendarSelProf(profId) {
+  _agModal.profId = profId;
+  // refrescar resaltado de tarjetas
+  const cards = document.getElementById('ag-cards');
+  if (cards) cards.innerHTML = _agProfes.map(p => _agCardProfHTML(p)).join('');
+  agendarRenderColumna();
+}
+
+// --- Columna de UN profesional --------------------------------
+function agendarRenderColumna() {
+  const main = document.getElementById('ag-main');
+  if (!main) return;
+  const prof = _agProfes.find(p => p.id === _agModal.profId);
+  if (!prof) return;
+
+  const { slots, franjas } = _agComputarSlots(_agModal.profId);
+  const turnos = _agTurnosProf[_agModal.profId] || [];
+  const normales = turnos.filter(t => !t.es_sobreturno && t.estado !== 'cancelado');
+  const sobres = turnos.filter(t => t.es_sobreturno && t.estado !== 'cancelado');
+  const sobrePorMin = {};
+  sobres.forEach(s => { const m = turnoMinInicio(s); (sobrePorMin[m] = sobrePorMin[m] || []).push(s); });
+
+  let fechaLinda = new Date(_agModal.fecha).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
+  fechaLinda = fechaLinda.charAt(0).toUpperCase() + fechaLinda.slice(1);
+
+  // Unimos slots libres + turnos tomados en una sola lista ordenada por minuto
+  const filas = [];
+  slots.forEach(s => { if (s.estado === 'libre') filas.push({ min: s.min, tipo: 'libre' }); else if (s.estado === 'bloq') filas.push({ min: s.min, tipo: 'bloq' }); });
+  normales.forEach(t => filas.push({ min: turnoMinInicio(t), tipo: 'tomado', turno: t }));
+  filas.sort((a, b) => a.min - b.min || (a.tipo === 'tomado' ? -1 : 1));
+
+  let cuerpo = '';
+  if (franjas.length === 0) {
+    cuerpo = `<div class="ag-sin-franja">Este profesional no tiene horario cargado para esta fecha.</div>`;
+  } else if (filas.length === 0) {
+    cuerpo = `<div class="ag-sin-franja">Sin horarios disponibles.</div>`;
+  } else {
+    cuerpo = filas.map(f => {
+      const hora = minToHora(f.min);
+      if (f.tipo === 'libre') {
+        return `
+          <div class="ag-slot ag-slot-libre" onclick="agendarClickHueco(${f.min}, false)">
+            <span class="ag-slot-hora">${hora}</span>
+            <span class="ag-slot-txt">${_agIco(_AGI.mas, 16)} Dar turno</span>
+          </div>`;
+      }
+      if (f.tipo === 'bloq') {
+        return `
+          <div class="ag-slot" style="background:#f1f1f4; color:#888;">
+            <span class="ag-slot-hora">${hora}</span>
+            <span class="ag-slot-pac" style="font-weight:500; color:#888;">No disponible</span>
+          </div>`;
+      }
+      // tomado
+      const t = f.turno;
+      const pac = t.pacientes ? `${t.pacientes.apellido}, ${(t.pacientes.nombre || '').split(' ')[0]}` : 'Paciente';
+      const estadoTxt = { agendado: 'Agendado', llego: 'En sala', en_atencion: 'Atendiendo', finalizado: 'Finalizado', ausente: 'Ausente' }[t.estado] || t.estado;
+      const sobreDeEste = sobrePorMin[f.min] || [];
+      const chip = sobreDeEste.length
+        ? `<span class="ag-chip">${_agIco(_AGI.rayo, 12)} ${sobreDeEste[0].pacientes ? sobreDeEste[0].pacientes.apellido : 'Sobre'}</span>` : '';
+      const yaTieneSobre = sobreDeEste.length >= 1;
+      const puedeCancelar = ['agendado'].includes(t.estado);
+      return `
+        <div class="ag-slot ag-slot-tomado">
+          <span class="ag-slot-hora">${hora}</span>
+          <span class="ag-slot-pac">${pac}${chip}</span>
+          <span class="ag-slot-est">${estadoTxt}</span>
+          <span class="ag-slot-acc">
+            <button class="ag-slot-btn sobre" title="${yaTieneSobre ? 'Ya hay un sobreturno' : 'Dar sobreturno'}" ${yaTieneSobre ? 'disabled' : ''} onclick="agendarClickHueco(${f.min}, true)">${_agIco(_AGI.rayo, 15)}</button>
+            <button class="ag-slot-btn cancel" title="${puedeCancelar ? 'Cancelar turno' : 'Solo se cancelan turnos agendados'}" ${puedeCancelar ? '' : 'disabled'} onclick="agendarCancelarTurno('${t.id}')">${_agIco(_AGI.x, 15)}</button>
+          </span>
+        </div>`;
+    }).join('');
+  }
+
+  main.innerHTML = `
+    <div class="ag-col-head">
+      <span class="ag-prof-dot" style="background:${prof.color || 'var(--primario)'};"></span>
+      <div>
+        <div class="ag-col-head-nombre">${prof.nombre}</div>
+        <div class="ag-col-head-fecha">${fechaLinda}</div>
+      </div>
+    </div>
+    <div class="ag-slots">${cuerpo}</div>`;
+}
+
+// --- Sub-panel de alta (paciente + confirmar) -----------------
+function agendarClickHueco(min, esSobre) {
+  const main = document.getElementById('ag-main');
+  const prof = _agProfes.find(p => p.id === _agModal.profId);
+  if (!main || !prof) return;
+
+  const hora = minToHora(min);
+  const horaFin = minToHora(min + _agModal.dur);
+  let fechaLinda = new Date(_agModal.fecha).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
+  fechaLinda = fechaLinda.charAt(0).toUpperCase() + fechaLinda.slice(1);
+  const ini = (prof.nombre || 'P').split(' ').filter(Boolean).slice(0, 2).map(s => s[0]).join('').toUpperCase() || 'P';
+  const foto = prof.foto_url
+    ? `<img src="${prof.foto_url}" alt="" class="ag-prof-foto">`
+    : `<div class="ag-prof-foto ag-prof-foto-ini">${ini}</div>`;
+  const tag = esSobre ? `<span class="ag-alta-tag">${_agIco(_AGI.rayo, 12)} Sobreturno</span>` : '';
+
+  main.innerHTML = `
+    <div class="ag-alta-hero">
+      ${foto}
+      <div>
+        <div class="ag-alta-hero-nombre">${prof.nombre}${tag}</div>
+        <div class="ag-alta-hero-sub">${fechaLinda} · ${hora}–${horaFin} hs · ${_agModal.dur} min</div>
+      </div>
+    </div>
+    <div class="ag-sec-lbl">${_agIco(_AGI.user)} Paciente</div>
+    <div class="ag-search">
+      <span class="ag-sico">${_agIco(_AGI.busca, 16)}</span>
+      <input type="text" id="ag-tt-input" autocomplete="off" placeholder="Buscar por apellido, nombre o DNI…" oninput="agendarTtFiltrar(this.value)">
+      <input type="hidden" id="ag-tt-id" value="">
+      <div id="ag-tt-res" class="ag-tt-res" style="display:none;"></div>
+    </div>
+    <textarea id="ag-alta-notas" class="ag-alta-notas" maxlength="200" placeholder="Notas de la cita (opcional)…"></textarea>
+    <div class="ag-alta-acc">
+      <button class="btn" onclick="agendarRenderColumna()">Volver</button>
+      <button class="btn btn-primary-sm" style="display:inline-flex; align-items:center; gap:8px;" onclick="agendarConfirmar(${min}, ${esSobre ? 'true' : 'false'})">${_agIco(_AGI.check, 16)} ${esSobre ? 'Crear sobreturno' : 'Crear turno'}</button>
+    </div>`;
+  setTimeout(() => document.getElementById('ag-tt-input')?.focus(), 30);
+}
+
+function agendarTtFiltrar(q) {
+  const cont = document.getElementById('ag-tt-res');
+  const hidden = document.getElementById('ag-tt-id');
+  if (hidden) hidden.value = '';
+  if (!cont) return;
+  const term = (q || '').toLowerCase().trim();
+  if (!term) { cont.style.display = 'none'; cont.innerHTML = ''; return; }
+  const res = _agTtPacientes.filter(p => `${p.apellido} ${p.nombre} ${p.dni || ''}`.toLowerCase().includes(term)).slice(0, 8);
+  cont.innerHTML = res.length === 0
+    ? `<div class="ag-tt-item ag-tt-vacio">Sin resultados</div>`
+    : res.map(p => `<div class="ag-tt-item" onclick="agendarTtElegir('${p.id}')"><strong>${p.apellido}, ${p.nombre}</strong>${p.dni ? `<span style="color:var(--texto-secundario);"> · ${p.dni}</span>` : ''}</div>`).join('');
+  cont.style.display = 'block';
+}
+
+function agendarTtElegir(id) {
+  const p = _agTtPacientes.find(x => x.id === id);
+  if (!p) return;
+  const input = document.getElementById('ag-tt-input');
+  const hidden = document.getElementById('ag-tt-id');
+  const cont = document.getElementById('ag-tt-res');
+  if (input) input.value = `${p.apellido}, ${p.nombre}`;
+  if (hidden) hidden.value = id;
+  if (cont) { cont.style.display = 'none'; cont.innerHTML = ''; }
+}
+
+// --- Crear turno / sobreturno (validación propia + insert) ----
+async function agendarConfirmar(min, esSobre) {
+  const profId = _agModal.profId;
+  const pacienteId = document.getElementById('ag-tt-id')?.value || '';
+  const notas = (document.getElementById('ag-alta-notas')?.value || '').trim() || null;
+  if (!profId) return;
+  if (!pacienteId) { mostrarMensaje('Elegí un paciente de la lista.', 'advertencia'); return; }
+
+  const fecha = new Date(_agModal.fecha);
+  const fechaStr = agendaFechaStr(fecha);
+  const dur = _agModal.dur;
+  const ini = min, fin = min + dur;
+
+  // 1) Entra en la franja del profesional
+  const franjas = _agFranjasProf[profId] || [];
+  if (!franjas.some(f => ini >= f.ini && fin <= f.fin)) {
+    mostrarMensaje('El turno no entra en el horario del profesional.', 'error'); return;
+  }
+  // 2) Solapamiento (sobreturno puede superponerse)
+  const normales = (_agTurnosProf[profId] || []).filter(t => !t.es_sobreturno);
+  if (!esSobre && haySolapamiento(ini, fin, normales)) {
+    mostrarMensaje('Se superpone con otro turno de ese profesional.', 'error'); return;
+  }
+  const fechaHora = new Date(`${fechaStr}T${minToHora(min)}:00`);
+  // 3) Un solo sobreturno por horario
+  if (esSobre) {
+    const { count } = await sb.from('turnos').select('id', { count: 'exact', head: true })
+      .eq('profesional_id', profId).eq('fecha_hora', fechaHora.toISOString()).eq('es_sobreturno', true);
+    if ((count || 0) >= 1) { mostrarMensaje('Ya hay un sobreturno en ese horario.', 'advertencia'); return; }
+  }
+
+  const { error } = await sb.from('turnos').insert({
+    negocio_id: usuarioActual.negocio_id,
+    paciente_id: pacienteId,
+    profesional_id: profId,
+    fecha_hora: fechaHora.toISOString(),
+    duracion_minutos: dur,
+    estado: 'agendado',
+    es_sobreturno: !!esSobre,
+    notas: notas,
+    creado_por: usuarioActual.id
+  });
+  if (error) { mostrarMensaje('Error: ' + error.message, 'error'); return; }
+
+  mostrarMensaje(esSobre ? 'Sobreturno creado' : 'Turno creado', 'exito');
+  await agendarCargarDia();   // recalcula stats + columna
+  _agSyncPanel(fechaStr);     // si el panel muestra esta fecha, lo refresca
+}
+
+async function agendarCancelarTurno(turnoId) {
+  if (!confirm('¿Cancelar este turno?')) return;
+  const { error } = await sb.from('turnos').update({ estado: 'cancelado' }).eq('id', turnoId);
+  if (error) { mostrarMensaje('Error: ' + error.message, 'error'); return; }
+  mostrarMensaje('Turno cancelado', 'exito');
+  const fechaStr = agendaFechaStr(new Date(_agModal.fecha));
+  await agendarCargarDia();
+  _agSyncPanel(fechaStr);
+}
+
+// Si el panel persistente está mostrando la misma fecha, lo redibuja.
+function _agSyncPanel(fechaStr) {
+  try {
+    if (typeof agendaFechaActual !== 'undefined' && agendaFechaStr(agendaFechaActual) === fechaStr) {
+      dibujarAgenda();
+    }
+  } catch (e) {}
 }
