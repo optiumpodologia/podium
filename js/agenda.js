@@ -377,6 +377,9 @@ async function obtenerDiaAgenda(fecha, cantColumnas, esPasado) {
         columnas[idx] = { columna: r.columna, profesional: r.profesionales, registroId: r.id };
       }
     });
+    // Sumar (sin quitar nada) a los que deberían atender hoy/futuro y aún no
+    // están sentados, en las columnas libres. El pasado no se toca.
+    if (!esPasado) await topUpSiembra(columnas, fecha, cantColumnas, negId, fechaStr);
     return columnas;
   }
 
@@ -423,14 +426,15 @@ async function obtenerDiaAgenda(fecha, cantColumnas, esPasado) {
   return columnas;
 }
 
-// Calcula quién debería atender ese día desde días laborales + especiales.
-// Devuelve [{ columna, profesional }] sentando en el primer casillero libre.
-async function calcularSiembra(fecha, cantColumnas) {
+// Lista ordenada de profesionales que DEBERÍAN atender ese día
+// (trabajan ese día de la semana o tienen un "viene" especial, y no están
+// ausentes por un "no viene"). Fuente única para sembrar y para el top-up.
+async function profesionalesQueAtienden(fecha) {
   const fechaStr = agendaFechaStr(fecha);
   const diaSemana = fecha.getDay();
 
   const { data: profesionales } = await sb.from('profesionales')
-    .select('id, nombre, color, usuario_id')
+    .select('id, nombre, color, usuario_id, foto_url')
     .eq('activo', true)
     .order('nombre');
   if (!profesionales || profesionales.length === 0) return [];
@@ -451,10 +455,15 @@ async function calcularSiembra(fecha, cantColumnas) {
   const vienenEspecial = new Set((especiales || []).filter(e => !e.no_viene).map(e => e.profesional_id));
   const tienenLaboral = new Set((laborales || []).map(l => l.profesional_id));
 
-  const atienden = profesionales.filter(p =>
+  return profesionales.filter(p =>
     (tienenLaboral.has(p.id) || vienenEspecial.has(p.id)) && !ausentes.has(p.id)
   );
+}
 
+// Calcula quién debería atender ese día y los sienta desde el primer casillero.
+// Devuelve [{ columna, profesional }].
+async function calcularSiembra(fecha, cantColumnas) {
+  const atienden = await profesionalesQueAtienden(fecha);
   const out = [];
   let col = 1;
   for (const prof of atienden) {
@@ -463,6 +472,45 @@ async function calcularSiembra(fecha, cantColumnas) {
     col++;
   }
   return out;
+}
+
+// TOP-UP de siembra (solo presente/futuro): sienta en las columnas libres a
+// los profesionales que deberían atender este día y todavía no están sentados.
+// No quita a nadie y respeta los "no viene". Si no hay columnas libres, no
+// consulta nada. Persiste en agenda_dia para que la asignación quede estable.
+async function topUpSiembra(columnas, fecha, cantColumnas, negId, fechaStr) {
+  const libres = [];
+  for (let i = 0; i < cantColumnas; i++) if (!columnas[i]) libres.push(i + 1);
+  if (!libres.length) return;
+
+  const atienden = await profesionalesQueAtienden(fecha);
+  if (!atienden.length) return;
+
+  const sentados = new Set(columnas.filter(c => c && c.profesional).map(c => c.profesional.id));
+  const faltan = atienden.filter(p => !sentados.has(p.id));
+  if (!faltan.length) return;
+
+  const aSentar = [];
+  for (const prof of faltan) {
+    const col = libres.shift();
+    if (!col) break;
+    aSentar.push({ columna: col, profesional: prof });
+  }
+  if (!aSentar.length) return;
+
+  const filas = aSentar.map(s => ({
+    negocio_id: negId, fecha: fechaStr, columna: s.columna, profesional_id: s.profesional.id
+  }));
+  const { data: insertados, error } = await sb.from('agenda_dia')
+    .insert(filas).select('id, columna, profesional_id');
+  if (error) { console.warn('top-up siembra:', error.message); return; }
+  (insertados || []).forEach(ins => {
+    const s = aSentar.find(x => x.columna === ins.columna);
+    const idx = ins.columna - 1;
+    if (s && idx >= 0 && idx < cantColumnas) {
+      columnas[idx] = { columna: ins.columna, profesional: s.profesional, registroId: ins.id };
+    }
+  });
 }
 
 // ============================================================
