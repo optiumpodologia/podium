@@ -351,6 +351,11 @@ function inyectarEstilosAgenda() {
     .ag-dar-turno-btn { display:flex; align-items:center; justify-content:center; gap:9px; width:100%; background:var(--primario); color:#fff; border:none; border-radius:13px; padding:13px; font:inherit; font-size:14.5px; font-weight:700; cursor:pointer; box-shadow:0 6px 16px -8px rgba(83,74,183,.8); transition:filter .12s; }
     .ag-dar-turno-btn:hover { filter:brightness(1.06); }
     .ag-dar-turno-btn svg { stroke:#fff; }
+    /* Columnas adaptables: la grilla llena el centro; las columnas se achican
+       (tope 220) para que entren más; por debajo del mínimo, scroll horizontal. */
+    .agenda-centro > #agenda-grid-container { flex:1 1 auto; min-width:0; overflow-x:auto; }
+    /* Con 5+ consultorios, el panel derecho se angosta para darle aire a la grilla. */
+    .agenda-layout.ag-muchas-cols { grid-template-columns: 232px minmax(0, 1fr) 240px; }
   `;
   document.head.appendChild(st);
 }
@@ -642,6 +647,9 @@ async function dibujarAgenda() {
     _agendaCols = columnas;
   }
 
+  // Con 5+ columnas, el panel derecho se angosta para darle aire a la grilla.
+  document.querySelector('.agenda-layout')?.classList.toggle('ag-muchas-cols', cantColumnas >= 5);
+
   // Turnos del día
   const fechaInicio = new Date(agendaFechaActual); fechaInicio.setHours(0,0,0,0);
   const fechaFin = new Date(agendaFechaActual); fechaFin.setHours(23,59,59,999);
@@ -702,7 +710,7 @@ async function dibujarAgenda() {
   const altoTotal = slotsRegla.length * negocioSlot * ESCALA_AGENDA;
 
   let html = `<div class="agenda-grid-col ${esPasado ? 'es-pasado' : ''} ${esProfesional ? 'vista-consultorio' : 'vista-recepcion'}"
-    style="grid-template-columns: 56px repeat(${cantColumnas}, minmax(0, 1fr)); width:${56 + cantColumnas * 220}px;">`;
+    style="grid-template-columns: 56px repeat(${cantColumnas}, minmax(150px, 220px)); width:100%;">`;
 
   // Encabezados. Con un solo consultorio, el número va en el cuadrado de la
   // esquina (arriba de los horarios). Con varios, va en cada columna.
