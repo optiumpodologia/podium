@@ -356,6 +356,9 @@ function inyectarEstilosAgenda() {
     .agenda-centro > #agenda-grid-container { flex:1 1 auto; min-width:0; overflow-x:auto; }
     /* Con 5+ consultorios, el panel derecho se angosta para darle aire a la grilla. */
     .agenda-layout.ag-muchas-cols { grid-template-columns: 232px minmax(0, 1fr) 240px; }
+    /* Día pasado: conserva los colores de estado (con un leve apagado para que
+       se note que es viejo) y permite el clic (vista rápida). */
+    .agenda-grid-col.es-pasado { filter: grayscale(0.3); opacity: 0.94; pointer-events: auto; }
   `;
   document.head.appendChild(st);
 }
@@ -539,6 +542,8 @@ async function dibujarAgenda() {
   const hoy = new Date(); hoy.setHours(0,0,0,0);
   const diaSel = new Date(agendaFechaActual); diaSel.setHours(0,0,0,0);
   const esPasado = diaSel < hoy;
+  const esHoy = diaSel.getTime() === hoy.getTime();
+  const esFuturo = diaSel > hoy;
 
   const { data: config } = await sb.from('configuracion').select('*')
     .eq('negocio_id', usuarioActual.negocio_id).maybeSingle();
@@ -786,13 +791,21 @@ async function dibujarAgenda() {
           if (haySolapamiento(t, t + negocioSlot, normales)) return;  // los sobreturnos NO bloquean el slot
           const topH = (t - inicioMin) * ESCALA_AGENDA + 2;
           const altoH = negocioSlot * ESCALA_AGENDA - 4;
-          if (puedeCrearTurno) {
+          const btnBloq = esGestor
+            ? `<button class="agenda-hueco-bloq" title="Bloquear este horario" onclick="event.stopPropagation(); crearBloqueo('${col.profesional.id}','${fechaStrSel}',${t})">&#8709;</button>`
+            : '';
+          if (esHoy && puedeCrearTurno) {
+            // HOY: dar turno (+) y bloquear horario
             html += `<div class="agenda-hueco" style="top:${topH}px; height:${altoH}px;"
               title="Dar turno ${minToHora(t)}"
               onclick="abrirModalNuevoTurnoCasillero('${col.profesional.id}', ${numero}, '${fechaStrSel}', ${t})">
               <span class="agenda-hueco-mas">+</span>
-              ${esGestor ? `<button class="agenda-hueco-bloq" title="Bloquear este horario" onclick="event.stopPropagation(); crearBloqueo('${col.profesional.id}','${fechaStrSel}',${t})">&#8709;</button>` : ''}
+              ${btnBloq}
               </div>`;
+          } else if (esFuturo && esGestor) {
+            // FUTURO: no se dan turnos desde el panel (va por la ventana "Dar turno"),
+            // pero sí se puede bloquear el horario.
+            html += `<div class="agenda-celda-libre" style="top:${topH}px; height:${altoH}px;">${btnBloq}</div>`;
           } else {
             html += `<div class="agenda-celda-libre" style="top:${topH}px; height:${altoH}px;"></div>`;
           }
@@ -816,7 +829,7 @@ async function dibujarAgenda() {
       const minConCard = new Set();
       normales.forEach(t => {
         minConCard.add(turnoMinInicio(t));
-        html += tarjetaTurnoHTML(t, numero, fechaStrSel, sobrePorMin[turnoMinInicio(t)] || [], esPasado, inicioMin);
+        html += tarjetaTurnoHTML(t, numero, fechaStrSel, sobrePorMin[turnoMinInicio(t)] || [], esPasado, esHoy, inicioMin);
       });
 
       // Sobreturnos huérfanos (se borró el turno base): NO ocupan el slot.
@@ -1809,13 +1822,17 @@ function ttNuevoPacienteDesdeTurno(profId, columna, fechaStr, startMin, esSobret
 // Dibuja la tarjeta del turno en la columna, con su tira de íconos.
 // El click en el cuerpo abre el modal de turno completo; los íconos
 // hacen las acciones rápidas (con stopPropagation para no abrir el modal).
-function tarjetaTurnoHTML(t, numero, fechaStr, sobres, esPasado, inicioMin, esHuerfano) {
+function tarjetaTurnoHTML(t, numero, fechaStr, sobres, esPasado, esHoy, inicioMin, esHuerfano) {
   const top = (turnoMinInicio(t) - inicioMin) * ESCALA_AGENDA;
   const altura = Math.max(44, t.duracion_minutos * ESCALA_AGENDA);
   const nombre = t.pacientes ? `${t.pacientes.apellido}, ${t.pacientes.nombre.split(' ')[0]}` : '-';
-  const subtitulo = t.tipos_atencion?.nombre || (t.estado === 'agendado' ? 'Pendiente' : '');
+  // Día pasado y quedó "agendado" = nunca se recibió => no vino => AUSENTE.
+  const esAusentePasado = esPasado && t.estado === 'agendado' && !t.es_sobreturno;
+  const estadoVisual = esAusentePasado ? 'ausente' : t.estado;
+  const subtitulo = esAusentePasado ? 'Ausente' : (t.tipos_atencion?.nombre || (t.estado === 'agendado' ? 'Pendiente' : ''));
   const tieneSobre = !!(sobres && sobres.length);
-  const acciones = esPasado ? '' : accionesTurnoHTML(t, numero, fechaStr, tieneSobre);
+  // HOY: acciones completas. Pasado/futuro: solo vista rápida (ojo).
+  const acciones = esHoy ? accionesTurnoHTML(t, numero, fechaStr, tieneSobre) : accionesSoloVistaHTML(t);
   let chip = '';
   if (tieneSobre) {
     const s = sobres[0];
@@ -1830,7 +1847,7 @@ function tarjetaTurnoHTML(t, numero, fechaStr, sobres, esPasado, inicioMin, esHu
   }
   const claseSobre = (esHuerfano || t.es_sobreturno) ? ' es-sobreturno' : '';
   return `
-    <div class="turno-card estado-${t.estado}${claseSobre}"
+    <div class="turno-card estado-${estadoVisual}${claseSobre}"
          style="top:${top}px; height:${altura}px;"
          onclick="abrirModalTurno('${t.id}')"
          title="${nombre}">
@@ -1840,6 +1857,13 @@ function tarjetaTurnoHTML(t, numero, fechaStr, sobres, esPasado, inicioMin, esHu
       ${chip}
     </div>
   `;
+}
+
+// Solo el botón de vista rápida (para días pasados/futuros: no operativos).
+function accionesSoloVistaHTML(t) {
+  if (!t.paciente_id) return '';
+  const ojo = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>`;
+  return `<div class="turno-acciones"><button class="turno-accion-btn" title="Vista rápida del paciente" onclick="event.stopPropagation(); verFichaPaciente('${t.paciente_id}')">${ojo}</button></div>`;
 }
 
 // Devuelve la tira de íconos según estado del turno y rol del usuario.
