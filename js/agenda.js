@@ -2000,7 +2000,7 @@ function _agInyectarEstilos() {
   st.id = 'estilos-agendar-modal';
   st.textContent = `
     /* Ventana flotante "Dar turno" (no bloquea la agenda de atrás) */
-    .agw-frame { position:fixed; top:74px; right:20px; z-index:90; width:860px; max-width:94vw; max-height:calc(100vh - 96px); display:flex; flex-direction:column; background:#fff; border:1px solid var(--borde); border-radius:16px; box-shadow:0 24px 60px -18px rgba(20,20,40,.45); overflow:hidden; }
+    .agw-frame { position:fixed; top:74px; right:20px; z-index:90; width:580px; max-width:94vw; max-height:calc(100vh - 96px); display:flex; flex-direction:column; background:#fff; border:1px solid var(--borde); border-radius:16px; box-shadow:0 24px 60px -18px rgba(20,20,40,.45); overflow:hidden; }
     .agw-head { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:11px 16px; background:linear-gradient(120deg,#F3F0FE,#ECE8FB); border-bottom:1px solid var(--borde-tenue); cursor:move; user-select:none; }
     .agw-title { display:flex; align-items:center; gap:9px; font-size:15px; font-weight:700; color:var(--texto); }
     .agw-title svg { color:var(--primario); }
@@ -2008,12 +2008,12 @@ function _agInyectarEstilos() {
     .agw-hint { font-size:11px; color:var(--texto-secundario); }
     .agw-close { width:30px; height:30px; border:none; border-radius:8px; background:transparent; font-size:20px; line-height:1; color:var(--texto-secundario); cursor:pointer; }
     .agw-close:hover { background:rgba(0,0,0,.07); color:var(--texto); }
-    .agw-body { padding:16px; overflow-y:auto; }
-    .ag-body { display:grid; grid-template-columns: 244px 1fr; gap:16px; align-items:start; }
+    .agw-body { padding:14px; overflow-y:auto; }
+    .ag-body { display:grid; grid-template-columns: 200px 1fr; gap:14px; align-items:start; }
     .ag-rail { display:flex; flex-direction:column; gap:14px; }
     .ag-card { background:#fff; border:1px solid var(--borde-tenue); border-radius:14px; padding:12px; }
     .ag-minical-wrap { padding:10px 12px; }
-    .ag-cards { display:flex; flex-direction:column; gap:10px; max-height:430px; overflow-y:auto; padding-right:2px; }
+    .ag-cards { display:flex; flex-direction:column; gap:9px; max-height:calc(100vh - 430px); min-height:90px; overflow-y:auto; padding-right:2px; }
     .ag-cards-vacio { font-size:12.5px; color:var(--texto-secundario); padding:8px 4px; }
     .ag-prof-card { display:flex; align-items:center; gap:11px; background:#fff; border:1px solid var(--borde-tenue); border-radius:13px; padding:11px 12px; cursor:pointer; transition:border-color .12s, box-shadow .12s, background .12s; text-align:left; }
     .ag-prof-card:hover { border-color:var(--primario-medio); box-shadow:0 4px 14px -8px rgba(83,74,183,.5); }
@@ -2029,24 +2029,27 @@ function _agInyectarEstilos() {
     .ag-stat.sobres { background:#FCEAD6; color:#8a5a17; }
     .ag-prof-dot { width:9px; height:9px; border-radius:50%; flex:none; }
 
-    .ag-main { min-height:430px; }
-    .ag-main-empty { display:flex; flex-direction:column; align-items:center; justify-content:center; height:430px; text-align:center; color:var(--texto-secundario); gap:12px; }
+    .ag-main { min-height:420px; }
+    .ag-main-empty { display:flex; flex-direction:column; align-items:center; justify-content:center; height:420px; text-align:center; color:var(--texto-secundario); gap:12px; }
     .ag-main-empty svg { color:var(--primario); opacity:.45; }
 
     .ag-col-head { display:flex; align-items:center; gap:9px; margin-bottom:10px; }
     .ag-col-head .ag-prof-dot { width:11px; height:11px; }
     .ag-col-head-nombre { font-size:16px; font-weight:700; color:var(--texto); }
     .ag-col-head-fecha { font-size:12.5px; color:var(--texto-secundario); }
-    .ag-slots { display:flex; flex-direction:column; gap:7px; max-height:392px; overflow-y:auto; padding-right:4px; }
-    .ag-slot { display:flex; align-items:center; gap:11px; border-radius:11px; padding:10px 13px; border:1px solid var(--borde-tenue); }
-    .ag-slot-hora { font-size:13px; font-weight:700; color:var(--texto); width:48px; flex:none; }
+    .ag-slots { display:flex; flex-direction:column; gap:6px; max-height:calc(100vh - 250px); overflow-y:auto; padding-right:4px; }
+    .ag-slot { display:flex; align-items:center; gap:9px; border-radius:10px; padding:8px 11px; border:1px solid var(--borde-tenue); }
+    .ag-slot-hora { font-size:13px; font-weight:700; color:var(--texto); width:42px; flex:none; }
     .ag-slot-libre { border-style:dashed; border-color:var(--primario-medio); background:rgba(109,91,208,.04); cursor:pointer; transition:background .12s, border-color .12s; }
     .ag-slot-libre:hover { background:rgba(109,91,208,.13); border-style:solid; }
     .ag-slot-libre .ag-slot-txt { color:var(--primario); font-weight:600; font-size:13px; display:flex; align-items:center; gap:7px; }
     .ag-slot-tomado { background:#fff; }
-    .ag-slot-pac { flex:1; min-width:0; font-size:13.5px; font-weight:600; color:var(--texto); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .ag-slot-est { font-size:11px; font-weight:600; border-radius:20px; padding:2px 9px; background:var(--fondo); color:var(--texto-secundario); }
-    .ag-slot-acc { display:flex; gap:5px; }
+    .ag-slot-mid { flex:1; min-width:0; }
+    .ag-slot-pac { font-size:13px; font-weight:600; color:var(--texto); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .ag-slot-meta { display:flex; align-items:center; gap:6px; margin-top:3px; flex-wrap:wrap; }
+    .ag-slot-meta .ag-chip { margin-left:0; }
+    .ag-slot-est { font-size:10.5px; font-weight:600; border-radius:20px; padding:1px 8px; background:var(--fondo); color:var(--texto-secundario); }
+    .ag-slot-acc { display:flex; gap:4px; flex:none; }
     .ag-slot-btn { width:28px; height:28px; border:none; border-radius:8px; background:transparent; cursor:pointer; display:flex; align-items:center; justify-content:center; color:var(--texto-secundario); transition:background .1s, color .1s; }
     .ag-slot-btn.sobre:hover { background:#FCEAD6; color:#8a5a17; }
     .ag-slot-btn.cancel:hover { background:var(--peligro-claro); color:var(--peligro); }
@@ -2378,9 +2381,9 @@ function agendarRenderColumna() {
       }
       if (f.tipo === 'bloq') {
         return `
-          <div class="ag-slot" style="background:#f1f1f4; color:#888;">
-            <span class="ag-slot-hora">${hora}</span>
-            <span class="ag-slot-pac" style="font-weight:500; color:#888;">No disponible</span>
+          <div class="ag-slot" style="background:#f1f1f4;">
+            <span class="ag-slot-hora" style="color:#999;">${hora}</span>
+            <div class="ag-slot-mid"><div class="ag-slot-pac" style="font-weight:500; color:#888;">No disponible</div></div>
           </div>`;
       }
       // tomado
@@ -2395,8 +2398,10 @@ function agendarRenderColumna() {
       return `
         <div class="ag-slot ag-slot-tomado">
           <span class="ag-slot-hora">${hora}</span>
-          <span class="ag-slot-pac">${pac}${chip}</span>
-          <span class="ag-slot-est">${estadoTxt}</span>
+          <div class="ag-slot-mid">
+            <div class="ag-slot-pac">${pac}</div>
+            <div class="ag-slot-meta"><span class="ag-slot-est">${estadoTxt}</span>${chip}</div>
+          </div>
           <span class="ag-slot-acc">
             <button class="ag-slot-btn sobre" title="${yaTieneSobre ? 'Ya hay un sobreturno' : 'Dar sobreturno'}" ${yaTieneSobre ? 'disabled' : ''} onclick="agendarClickHueco(${f.min}, true)">${_agIco(_AGI.rayo, 15)}</button>
             <button class="ag-slot-btn cancel" title="${puedeCancelar ? 'Cancelar turno' : 'Solo se cancelan turnos agendados'}" ${puedeCancelar ? '' : 'disabled'} onclick="agendarCancelarTurno('${t.id}')">${_agIco(_AGI.x, 15)}</button>
