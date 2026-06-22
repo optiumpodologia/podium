@@ -361,6 +361,12 @@ function inyectarEstilosAgenda() {
     .agenda-grid-col.es-pasado { filter: grayscale(0.3); opacity: 0.94; pointer-events: auto; }
     /* El estado ya se entiende por el color/etiqueta; no hace falta tachar el nombre. */
     .turno-card.estado-ausente, .turno-card.estado-cancelado { text-decoration: none; }
+    /* Compactar el contenido para que nombre + detalle + chip de sobreturno
+       entren en tarjetas cortas sin desbordarse (alto = duración del turno). */
+    .turno-card { padding: 5px 9px; }
+    .turno-card-nombre { line-height: 1.2; }
+    .turno-card-detalle { line-height: 1.2; font-size: 10.5px; }
+    .turno-sobre-chip { font-size: 9px; padding: 1px 6px; bottom: 2px; right: 2px; max-width: calc(100% - 10px); }
   `;
   document.head.appendChild(st);
 }
@@ -772,7 +778,7 @@ async function dibujarAgenda() {
 
       // Separar turnos normales de sobreturnos (estos van como chip, no como tarjeta)
       const normales = susTurnos.filter(t => !t.es_sobreturno);
-      const sobres = susTurnos.filter(t => t.es_sobreturno);
+      const sobres = susTurnos.filter(t => t.es_sobreturno && t.estado !== 'cancelado');
       sobres.forEach(s => sobresPanel.push({ turno: s, numero }));
       const sobrePorMin = {};
       sobres.forEach(s => { const m = turnoMinInicio(s); (sobrePorMin[m] = sobrePorMin[m] || []).push(s); });
@@ -1931,6 +1937,7 @@ async function verSobreturnos(profId, fechaHoraISO) {
     .eq('profesional_id', profId)
     .eq('fecha_hora', fechaHoraISO)
     .eq('es_sobreturno', true)
+    .neq('estado', 'cancelado')
     .order('creado_en');
 
   const f = new Date(fechaHoraISO);
