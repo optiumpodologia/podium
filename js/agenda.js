@@ -21,6 +21,7 @@
 // ============================================================
 
 let agendaFechaActual = new Date();
+let _agendaHoyConstruido = null; // 'YYYY-MM-DD' del día real en que se montó la agenda (para refrescar si pasa la medianoche)
 let _agendaCols = [];          // estado del día: [{columna, profesional, registroId} | null]
 let _agendaArrastreCol = null; // columna origen durante un drag
 let _ttPacientes = [];         // cache de pacientes para el typeahead del alta de turno
@@ -39,6 +40,7 @@ async function renderAgenda(container) {
   if (_msgPollId) { clearInterval(_msgPollId); _msgPollId = null; }  // no acumular polls al re-renderizar
   inyectarEstilosAgenda();
   agendaFechaActual = new Date();
+  _agendaHoyConstruido = agendaFechaStr(new Date());
   const esProf = usuarioActual.rol === 'profesional';
 
   const cardMiniCal = `
@@ -109,6 +111,26 @@ async function renderAgenda(container) {
   dibujarMiniCalendario();
   cargarNotasAgenda();
   initMensajes();
+}
+
+// ============================================================
+// REENTRADA a la agenda persistente
+// Se llama cuando se vuelve a la sección y el DOM ya estaba montado.
+// No re-fetchea nada salvo que sea estrictamente necesario:
+//   - Reanuda el poll de mensajes si se hubiera cortado.
+//   - Si pasó la medianoche desde que se montó (el "hoy" cambió) y el usuario
+//     estaba parado en ese viejo hoy, salta al nuevo día. Si estaba mirando
+//     otra fecha a propósito, se respeta y no se toca.
+// ============================================================
+function reentrarAgenda() {
+  if (!_msgPollId) initMensajes();
+
+  const hoyStr = agendaFechaStr(new Date());
+  if (_agendaHoyConstruido && _agendaHoyConstruido !== hoyStr) {
+    const estabaEnViejoHoy = agendaFechaStr(agendaFechaActual) === _agendaHoyConstruido;
+    _agendaHoyConstruido = hoyStr;
+    if (estabaEnViejoHoy) agendaIrHoy();
+  }
 }
 
 // ============================================================
