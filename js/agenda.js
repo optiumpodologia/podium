@@ -359,6 +359,8 @@ function inyectarEstilosAgenda() {
     /* Día pasado: conserva los colores de estado (con un leve apagado para que
        se note que es viejo) y permite el clic (vista rápida). */
     .agenda-grid-col.es-pasado { filter: grayscale(0.3); opacity: 0.94; pointer-events: auto; }
+    /* El estado ya se entiende por el color/etiqueta; no hace falta tachar el nombre. */
+    .turno-card.estado-ausente, .turno-card.estado-cancelado { text-decoration: none; }
   `;
   document.head.appendChild(st);
 }
@@ -910,7 +912,7 @@ async function dibujarAgenda() {
   }
 
   // Paneles laterales (profesionales del día + resumen) — usan datos ya cargados.
-  renderPanelDia(columnas, turnos);
+  renderPanelDia(columnas, turnos, esPasado);
 }
 
 // ============================================================
@@ -928,7 +930,7 @@ function svgMini(paths) {
   return `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="display:block">${paths}</svg>`;
 }
 
-function renderPanelDia(columnas, turnos) {
+function renderPanelDia(columnas, turnos, esPasado) {
   // --- Profesionales del día (panel izquierdo) ---
   const cont = document.getElementById('agenda-profes-dia');
   if (cont) {
@@ -953,11 +955,12 @@ function renderPanelDia(columnas, turnos) {
   const res = document.getElementById('agenda-resumen-dia');
   if (res) {
     const ts = turnos || [];
-    const en = (...estados) => ts.filter(t => estados.includes(t.estado)).length;
+    // Un turno pasado que quedó "agendado" nunca se recibió => AUSENTE (no vino).
+    const esAusente = (t) => t.estado === 'ausente' || (esPasado && t.estado === 'agendado' && !t.es_sobreturno);
     const total = ts.filter(t => t.estado !== 'cancelado').length;
-    const pendientes = en('agendado', 'llego', 'en_atencion');
-    const atendidos = en('finalizado', 'cobrado');
-    const ausencias = en('ausente');
+    const pendientes = ts.filter(t => ['agendado', 'llego', 'en_atencion'].includes(t.estado) && !esAusente(t)).length;
+    const atendidos = ts.filter(t => ['finalizado', 'cobrado'].includes(t.estado)).length;
+    const ausencias = ts.filter(t => esAusente(t)).length;
     const sobreturnos = ts.filter(t => t.es_sobreturno && t.estado !== 'cancelado').length;
     const tile = (icono, clase, num, label, full) => `
       <div class="tile-stat${full ? ' tile-full' : ''}">
@@ -1824,12 +1827,12 @@ function ttNuevoPacienteDesdeTurno(profId, columna, fechaStr, startMin, esSobret
 // hacen las acciones rápidas (con stopPropagation para no abrir el modal).
 function tarjetaTurnoHTML(t, numero, fechaStr, sobres, esPasado, esHoy, inicioMin, esHuerfano) {
   const top = (turnoMinInicio(t) - inicioMin) * ESCALA_AGENDA;
-  const altura = Math.max(44, t.duracion_minutos * ESCALA_AGENDA);
+  const altura = Math.max(52, t.duracion_minutos * ESCALA_AGENDA);
   const nombre = t.pacientes ? `${t.pacientes.apellido}, ${t.pacientes.nombre.split(' ')[0]}` : '-';
   // Día pasado y quedó "agendado" = nunca se recibió => no vino => AUSENTE.
   const esAusentePasado = esPasado && t.estado === 'agendado' && !t.es_sobreturno;
   const estadoVisual = esAusentePasado ? 'ausente' : t.estado;
-  const subtitulo = esAusentePasado ? 'Ausente' : (t.tipos_atencion?.nombre || (t.estado === 'agendado' ? 'Pendiente' : ''));
+  const subtitulo = estadoVisual === 'ausente' ? 'Ausente' : (t.tipos_atencion?.nombre || (t.estado === 'agendado' ? 'Pendiente' : ''));
   const tieneSobre = !!(sobres && sobres.length);
   // HOY: acciones completas. Pasado/futuro: solo vista rápida (ojo).
   const acciones = esHoy ? accionesTurnoHTML(t, numero, fechaStr, tieneSobre) : accionesSoloVistaHTML(t);
