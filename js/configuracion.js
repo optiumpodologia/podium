@@ -1,3 +1,25 @@
+// Variables que se reemplazan al EMITIR el documento (paso siguiente).
+const PLANTILLA_VARS = [
+  { k: 'paciente', d: 'Nombre y apellido del paciente' },
+  { k: 'dni', d: 'DNI del paciente' },
+  { k: 'fecha', d: 'Fecha de hoy' },
+  { k: 'profesional', d: 'Profesional que atiende' },
+  { k: 'negocio', d: 'Nombre del negocio' },
+  { k: 'motivo', d: 'Motivo / diagnóstico de la consulta' }
+];
+
+// Íconos chiquitos para la sección de plantillas.
+const _icoDoc = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h8"/><path d="M8 9h2"/></svg>';
+const _icoDocMini = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>';
+const _icoLapiz = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
+const _icoTachoMini = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+
+function cfgEsc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 async function renderConfiguracion(container) {
   if (!puedeVerModulo(usuarioActual, 'configuracion')) {
     container.innerHTML = '<div class="vacio">Acceso restringido</div>';
@@ -86,6 +108,26 @@ async function renderConfiguracion(container) {
       </div>
 
     </div>
+
+    <!-- ================= MODELOS DE DOCUMENTOS ================= -->
+    <div class="card" style="margin-top:18px;">
+      <div class="cfg-head"><span class="cfg-head-ico">${_icoDoc}</span> Modelos de documentos</div>
+      <div class="cfg-ayuda" style="margin-bottom:14px;">Textos predefinidos que se completan con los datos del paciente al emitir. Más adelante se generan en PDF para imprimir o enviar.</div>
+
+      <div class="cfg-bloque-titulo cfg-bloque-flex">
+        <span>Certificados / Justificativos</span>
+        <button class="btn cfg-mini" onclick="abrirModalPlantilla('certificado')">+ Agregar</button>
+      </div>
+      <div id="plantillas-certificado-lista" style="margin-bottom:8px;">Cargando...</div>
+
+      <div class="cfg-sep"></div>
+
+      <div class="cfg-bloque-titulo cfg-bloque-flex">
+        <span>Consentimientos informados</span>
+        <button class="btn cfg-mini" onclick="abrirModalPlantilla('consentimiento')">+ Agregar</button>
+      </div>
+      <div id="plantillas-consentimiento-lista">Cargando...</div>
+    </div>
   `;
 
   // ----- Guardar datos del negocio -----
@@ -152,6 +194,126 @@ async function renderConfiguracion(container) {
 
   await cargarDiasLaborales();
   await cargarFeriados();
+  await cargarPlantillas();
+}
+
+// ============================================================
+// MODELOS DE DOCUMENTOS (tabla plantillas_documento, por negocio)
+//   Certificados/justificativos y consentimientos. Texto con variables
+//   que se reemplazan al emitir (paso siguiente: generar el PDF).
+// ============================================================
+async function cargarPlantillas() {
+  const { data } = await sb.from('plantillas_documento')
+    .select('*').eq('negocio_id', usuarioActual.negocio_id)
+    .order('orden').order('creado_en');
+  const todas = data || [];
+  renderListaPlantillas('certificado', todas.filter(p => p.tipo === 'certificado'));
+  renderListaPlantillas('consentimiento', todas.filter(p => p.tipo === 'consentimiento'));
+}
+
+function renderListaPlantillas(tipo, lista) {
+  const cont = document.getElementById('plantillas-' + tipo + '-lista');
+  if (!cont) return;
+  if (!lista.length) {
+    cont.innerHTML = '<div class="vacio" style="padding:1rem;">Sin modelos cargados</div>';
+    return;
+  }
+  cont.innerHTML = lista.map(p => {
+    const resumen = (p.contenido || '').replace(/\s+/g, ' ').trim().slice(0, 70);
+    return `
+      <div class="cfg-feriado">
+        <div class="cfg-feriado-ico">${_icoDocMini}</div>
+        <div class="cfg-feriado-info">
+          <div class="cfg-feriado-nombre">${cfgEsc(p.nombre)}</div>
+          <div class="cfg-feriado-sub">${cfgEsc(resumen)}${(p.contenido || '').length > 70 ? '…' : ''}</div>
+        </div>
+        <button class="cfg-feriado-del" onclick="abrirModalPlantilla('${tipo}','${p.id}')" title="Editar">${_icoLapiz}</button>
+        <button class="cfg-feriado-del" onclick="eliminarPlantilla('${p.id}')" title="Eliminar">${_icoTachoMini}</button>
+      </div>`;
+  }).join('');
+}
+
+async function abrirModalPlantilla(tipo, id) {
+  let p = { nombre: '', contenido: '', tipo };
+  if (id) {
+    const { data } = await sb.from('plantillas_documento').select('*').eq('id', id).maybeSingle();
+    if (data) p = data;
+  }
+  const etiqueta = p.tipo === 'consentimiento' ? 'consentimiento' : 'certificado';
+  const chips = PLANTILLA_VARS.map(v =>
+    `<button type="button" class="btn cfg-mini" onclick="insertarVariablePlantilla('${v.k}')" title="${v.d}">{${v.k}}</button>`
+  ).join(' ');
+
+  abrirModal(`
+    <div class="modal-header">
+      <div class="modal-titulo">${id ? 'Editar' : 'Nuevo'} modelo de ${etiqueta}</div>
+      <button class="modal-cerrar" onclick="cerrarModal()">×</button>
+    </div>
+    <form id="form-plantilla">
+      <input type="hidden" name="id" value="${id || ''}">
+      <input type="hidden" name="tipo" value="${cfgEsc(p.tipo)}">
+      <div class="modal-body">
+        <div class="input-group">
+          <label>Nombre del modelo *</label>
+          <input type="text" name="nombre" value="${cfgEsc(p.nombre)}" placeholder="Ej: Uña encarnada" required>
+        </div>
+        <div class="input-group">
+          <label>Texto del documento *</label>
+          <textarea name="contenido" id="plantilla-contenido" rows="9" required placeholder="Escribí el texto. Insertá variables con los botones de abajo.">${cfgEsc(p.contenido)}</textarea>
+          <small class="cfg-ayuda">Variables (se reemplazan con los datos al emitir):</small>
+          <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:6px;">${chips}</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn" onclick="cerrarModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary-sm">${id ? 'Guardar' : 'Crear'}</button>
+      </div>
+    </form>
+  `);
+
+  document.getElementById('form-plantilla').addEventListener('submit', guardarPlantilla);
+}
+
+function insertarVariablePlantilla(k) {
+  const ta = document.getElementById('plantilla-contenido');
+  if (!ta) return;
+  const ins = '{' + k + '}';
+  const s = ta.selectionStart != null ? ta.selectionStart : ta.value.length;
+  const e = ta.selectionEnd != null ? ta.selectionEnd : ta.value.length;
+  ta.value = ta.value.slice(0, s) + ins + ta.value.slice(e);
+  ta.focus();
+  const pos = s + ins.length;
+  ta.setSelectionRange(pos, pos);
+}
+
+async function guardarPlantilla(e) {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const d = Object.fromEntries(fd.entries());
+  const payload = {
+    negocio_id: usuarioActual.negocio_id,
+    tipo: d.tipo,
+    nombre: (d.nombre || '').trim(),
+    contenido: d.contenido || ''
+  };
+  let error;
+  if (d.id) {
+    ({ error } = await sb.from('plantillas_documento').update(payload).eq('id', d.id));
+  } else {
+    ({ error } = await sb.from('plantillas_documento').insert(payload));
+  }
+  if (error) { mostrarMensaje('Error: ' + error.message, 'error'); return; }
+  mostrarMensaje('Modelo guardado', 'exito');
+  cerrarModal();
+  await cargarPlantillas();
+}
+
+async function eliminarPlantilla(id) {
+  if (!confirm('¿Eliminar este modelo?')) return;
+  const { error } = await sb.from('plantillas_documento').delete().eq('id', id);
+  if (error) { mostrarMensaje('Error: ' + error.message, 'error'); return; }
+  mostrarMensaje('Modelo eliminado', 'exito');
+  await cargarPlantillas();
 }
 
 async function cargarDiasLaborales() {
