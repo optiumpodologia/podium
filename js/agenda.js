@@ -961,8 +961,15 @@ function renderPanelDia(columnas, turnos, esPasado) {
   const res = document.getElementById('agenda-resumen-dia');
   if (res) {
     const ts = turnos || [];
-    // Un turno pasado que quedó "agendado" nunca se recibió => AUSENTE (no vino).
-    const esAusente = (t) => t.estado === 'ausente' || (esPasado && t.estado === 'agendado' && !t.es_sobreturno);
+    const ahora = Date.now();
+    // "Ausente" = nunca se recibió y su horario ya terminó (o marcado ausente).
+    const finPasado = (t) => {
+      if (!t.fecha_hora) return false;
+      const ini = new Date(t.fecha_hora).getTime();
+      if (isNaN(ini)) return false;
+      return ini + (t.duracion_minutos || 30) * 60000 < ahora;
+    };
+    const esAusente = (t) => t.estado === 'ausente' || (t.estado === 'agendado' && !t.es_sobreturno && finPasado(t));
     const total = ts.filter(t => t.estado !== 'cancelado').length;
     const pendientes = ts.filter(t => ['agendado', 'llego', 'en_atencion'].includes(t.estado) && !esAusente(t)).length;
     const atendidos = ts.filter(t => ['finalizado', 'cobrado'].includes(t.estado)).length;
@@ -1835,8 +1842,9 @@ function tarjetaTurnoHTML(t, numero, fechaStr, sobres, esPasado, esHoy, inicioMi
   const top = (turnoMinInicio(t) - inicioMin) * ESCALA_AGENDA;
   const altura = Math.max(52, t.duracion_minutos * ESCALA_AGENDA);
   const nombre = t.pacientes ? `${t.pacientes.apellido}, ${t.pacientes.nombre.split(' ')[0]}` : '-';
-  // Día pasado y quedó "agendado" = nunca se recibió => no vino => AUSENTE.
-  const esAusentePasado = esPasado && t.estado === 'agendado' && !t.es_sobreturno;
+  // Nunca se recibió y su horario ya terminó => no vino => AUSENTE (hoy o días pasados).
+  const _finTurno = t.fecha_hora ? new Date(t.fecha_hora).getTime() + (t.duracion_minutos || 30) * 60000 : 0;
+  const esAusentePasado = t.estado === 'agendado' && !t.es_sobreturno && _finTurno && _finTurno < Date.now();
   const estadoVisual = esAusentePasado ? 'ausente' : t.estado;
   const subtitulo = estadoVisual === 'ausente' ? 'Ausente' : (t.tipos_atencion?.nombre || (t.estado === 'agendado' ? 'Pendiente' : ''));
   const tieneSobre = !!(sobres && sobres.length);
@@ -2106,7 +2114,7 @@ function _agInyectarEstilos() {
     .ag-prof-foto { width:42px; height:42px; flex:none; border-radius:50%; object-fit:cover; }
     .ag-prof-foto-ini { background:linear-gradient(135deg,#C9BEF6,#9E8DE8); color:#fff; display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:700; }
     .ag-prof-info { min-width:0; flex:1; }
-    .ag-prof-nombre { font-size:14px; font-weight:700; color:var(--texto); white-space:nowrap; }
+    .ag-prof-nombre { font-size:13px; font-weight:700; color:var(--texto); white-space:normal; line-height:1.2; overflow-wrap:anywhere; }
     .ag-prof-stats { display:flex; gap:6px; margin-top:5px; flex-wrap:wrap; }
     .ag-stat { display:inline-flex; align-items:center; justify-content:center; min-width:24px; font-size:11.5px; font-weight:700; border-radius:7px; padding:2px 7px; }
     .ag-stat.libres { background:var(--exito-claro); color:var(--exito); }
