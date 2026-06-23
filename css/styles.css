@@ -1728,26 +1728,65 @@ input, select, textarea {
 .ficha-doc-btn svg { flex: none; }
 
 /* ----- Modal generador de documentos ----- */
-.doc-body { display: grid; grid-template-columns: 240px 1fr; gap: 18px; padding: 18px 20px; }
-.doc-form { display: flex; flex-direction: column; gap: 6px; }
-.doc-lbl { font-size: 12.5px; font-weight: 600; color: var(--texto-secundario); margin-top: 6px; }
+.doc-head { align-items: flex-start; }
+.doc-head-l { display: flex; gap: 12px; align-items: flex-start; }
+.doc-head-ico {
+  width: 38px; height: 38px; flex: none;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--primario-claro); color: var(--primario); border-radius: 11px;
+}
+.doc-head-tit { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; color: var(--texto); }
+.doc-head-sub { font-size: 12.5px; color: var(--texto-secundario); margin-top: 2px; }
+
+.doc-body { display: grid; grid-template-columns: 320px 1fr; gap: 0; padding: 0; }
+.doc-form { padding: 18px 20px; border-right: 1px solid var(--borde-tenue); }
+.doc-sec-lbl {
+  font-size: 12.5px; font-weight: 700; color: var(--primario);
+  border-left: 3px solid var(--primario); border-radius: 0;
+  padding-left: 8px; margin-bottom: 16px;
+}
+.doc-field { margin-bottom: 14px; }
+.doc-field > label, .doc-lbl {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12.5px; font-weight: 600; color: var(--texto-secundario); margin-bottom: 6px;
+}
+.doc-field > label svg, .doc-lbl svg { color: var(--primario); flex: none; }
 .doc-opt { font-weight: 400; color: var(--texto-tenue); }
 .doc-input {
-  width: 100%; padding: 8px 10px;
+  width: 100%; padding: 9px 11px;
   border: 1px solid var(--borde); border-radius: 9px;
   font: inherit; font-size: 13.5px; background: #fff;
 }
-.doc-prev-wrap { display: flex; flex-direction: column; min-width: 0; }
-.doc-prev-lbl { font-size: 12.5px; font-weight: 600; color: var(--texto-secundario); margin-bottom: 6px; }
+.doc-prof-ro { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--texto-secundario); margin: -4px 0 16px; }
+.doc-prof-ro svg { color: var(--texto-secundario); flex: none; }
+.doc-prof-ro strong { color: var(--texto); font-weight: 600; }
+
+.doc-infobox { display: flex; gap: 10px; background: var(--primario-claro); border-radius: 11px; padding: 12px 13px; margin-bottom: 14px; }
+.doc-infobox svg { color: var(--primario); flex: none; margin-top: 1px; }
+.doc-infobox-tit { font-size: 12.5px; font-weight: 700; color: var(--primario); margin-bottom: 3px; }
+.doc-infobox-txt { font-size: 12px; color: var(--texto-secundario); line-height: 1.5; }
+
+.doc-incluye { border: 1px solid var(--borde-tenue); border-radius: 11px; padding: 13px; }
+.doc-incluye-tit { display: flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 700; color: var(--texto); margin-bottom: 9px; }
+.doc-incluye-tit svg { color: var(--texto-secundario); flex: none; }
+.doc-incluye-item { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--texto-secundario); padding: 3px 0; }
+.doc-incluye-item svg { color: var(--exito); flex: none; }
+
+.doc-prev-wrap { padding: 18px 20px; display: flex; flex-direction: column; min-width: 0; }
+.doc-prev-lbl { display: flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 600; color: var(--texto-secundario); margin-bottom: 10px; }
+.doc-prev-lbl svg { color: var(--primario); flex: none; }
 .doc-preview {
-  flex: 1; margin: 0; padding: 14px 16px;
-  min-height: 280px; max-height: 50vh; overflow: auto;
-  background: var(--fondo);
-  border: 1px solid var(--borde-tenue); border-radius: 10px;
-  font-family: Georgia, 'Times New Roman', serif;
-  font-size: 13px; line-height: 1.55; color: var(--texto);
-  white-space: pre-wrap;
+  flex: 1; margin: 0; padding: 22px 24px;
+  min-height: 300px; max-height: 54vh; overflow: auto;
+  background: #fff; border: 1px solid var(--borde-tenue); border-radius: 12px;
 }
+.doc-prev-titulo { text-align: center; font-family: Georgia, 'Times New Roman', serif; font-size: 15px; font-weight: 700; color: var(--primario); line-height: 1.3; }
+.doc-prev-rule { height: 2px; background: var(--primario-claro); border-radius: 2px; margin: 12px 0 16px; }
+.doc-prev-cuerpo { font-family: Georgia, 'Times New Roman', serif; font-size: 12.5px; line-height: 1.6; color: var(--texto); white-space: pre-wrap; }
+
+.doc-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.doc-foot-l, .doc-foot-r { display: flex; gap: 10px; }
+.doc-foot .btn svg { flex: none; vertical-align: -2px; margin-right: 5px; }
 
 /* ===================================================================
  * CONFIGURACIÓN — rediseño en dos columnas + identidad del negocio
