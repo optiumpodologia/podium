@@ -1122,6 +1122,24 @@ function _docPreview() {
   if (cont) cont.innerHTML = _docPreviewHTML(_docLlenar(pl.contenido));
 }
 
+// Capa propia para el modal de documentos: se apila ENCIMA del modal de la
+// ficha (vista rápida / atención) sin reemplazarlo. Al cerrar, la ficha de
+// atrás queda intacta (no se pierde el cronómetro ni lo cargado en memoria).
+function _docAbrirOverlay(html) {
+  let layer = document.getElementById('doc-modal-layer');
+  if (!layer) {
+    layer = document.createElement('div');
+    layer.id = 'doc-modal-layer';
+    document.body.appendChild(layer);
+  }
+  layer.innerHTML = `<div class="modal-overlay doc-overlay"><div class="modal doc-modal">${html}</div></div>`;
+}
+
+function _docCerrar() {
+  const layer = document.getElementById('doc-modal-layer');
+  if (layer) layer.remove();
+}
+
 function _docModal() {
   const d = window._doc;
   const esConsent = d.tipo === 'consentimiento';
@@ -1158,8 +1176,7 @@ function _docModal() {
           ${info.items.map(it => `<div class="doc-incluye-item">${dic(I.check, 15)} ${it}</div>`).join('')}
         </div>`;
 
-  abrirModal(`
-    <style>.modal{max-width:900px;}</style>
+  _docAbrirOverlay(`
     <div class="modal-header doc-head">
       <div class="doc-head-l">
         <span class="doc-head-ico">${dic(I.head, 20)}</span>
@@ -1168,7 +1185,7 @@ function _docModal() {
           <div class="doc-head-sub">Completá los datos y revisá el documento antes de generarlo</div>
         </div>
       </div>
-      <button class="modal-cerrar" onclick="cerrarModal()">×</button>
+      <button class="modal-cerrar" onclick="_docCerrar()">×</button>
     </div>
     <div class="modal-body doc-body">
       <div class="doc-form">
@@ -1199,7 +1216,7 @@ function _docModal() {
         <button class="btn" onclick="_docEnviarMail()">${dic(I.mail, 15)} Enviar por mail</button>
       </div>
       <div class="doc-foot-r">
-        <button class="btn" onclick="cerrarModal()">Cancelar</button>
+        <button class="btn" onclick="_docCerrar()">Cancelar</button>
         <button class="btn btn-primary-sm" onclick="_docImprimir()">${dic(I.print, 15)} Imprimir / Guardar PDF</button>
       </div>
     </div>

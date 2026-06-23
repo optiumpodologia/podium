@@ -1728,6 +1728,8 @@ input, select, textarea {
 .ficha-doc-btn svg { flex: none; }
 
 /* ----- Modal generador de documentos ----- */
+.doc-overlay { z-index: 200; }
+.doc-modal { max-width: 900px; }
 .doc-head { align-items: flex-start; }
 .doc-head-l { display: flex; gap: 12px; align-items: flex-start; }
 .doc-head-ico {
