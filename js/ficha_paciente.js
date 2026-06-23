@@ -1048,6 +1048,7 @@ async function generarDocumento(pacienteId, tipo) {
     tipo, etiqueta, plantillas, pac, cfg,
     plantillaId: plantillas[0].id,
     motivo: '',
+    horas: '',
     profSel: profNombre
   };
 
@@ -1069,9 +1070,10 @@ function _docLlenar(contenido) {
     fecha: new Date().toLocaleDateString('es-AR'),
     profesional: d.profSel || '',
     negocio: d.cfg?.nombre_consultorio || '',
-    motivo: d.motivo || ''
+    motivo: d.motivo || '',
+    horas: d.horas || ''
   };
-  return contenido.replace(/\{(paciente|dni|fecha|profesional|negocio|motivo)\}/g,
+  return contenido.replace(/\{(paciente|dni|fecha|profesional|negocio|motivo|horas)\}/g,
     (_, k) => repl[k] ?? '');
 }
 
@@ -1120,8 +1122,15 @@ function _docPreview() {
   if (selP) d.plantillaId = selP.value;
   const inMot = document.getElementById('doc-motivo');
   if (inMot) d.motivo = inMot.value;
+  const inHs = document.getElementById('doc-horas');
+  if (inHs) d.horas = inHs.value;
 
   const pl = d.plantillas.find(p => String(p.id) === String(d.plantillaId)) || d.plantillas[0];
+
+  // El campo "Horas de reposo" sólo se muestra si el modelo usa {horas}.
+  const wrapHs = document.getElementById('doc-horas-wrap');
+  if (wrapHs) wrapHs.style.display = pl.contenido.includes('{horas}') ? '' : 'none';
+
   const cont = document.getElementById('doc-preview');
   if (cont) cont.innerHTML = _docPreviewHTML(_docLlenar(pl.contenido));
 }
@@ -1161,7 +1170,8 @@ function _docModal() {
     ojo:   '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>',
     baja:  '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>',
     mail:  '<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>',
-    print: '<polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/>'
+    print: '<polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/>',
+    reloj: '<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>'
   };
 
   const tipoSel = `
@@ -1199,6 +1209,10 @@ function _docModal() {
         <div class="doc-field">
           <label>${dic(I.mot, 15)} Motivo / diagnóstico <span class="doc-opt">(opcional)</span></label>
           <input id="doc-motivo" class="doc-input" oninput="_docPreview()" placeholder="Ej: onicocriptosis">
+        </div>
+        <div class="doc-field" id="doc-horas-wrap" style="display:none;">
+          <label>${dic(I.reloj, 15)} Horas de reposo</label>
+          <input id="doc-horas" class="doc-input" type="number" min="0" oninput="_docPreview()" placeholder="Ej: 48">
         </div>
         <div class="doc-infobox">
           ${dic(I.shield, 18)}

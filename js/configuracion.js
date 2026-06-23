@@ -5,7 +5,8 @@ const PLANTILLA_VARS = [
   { k: 'fecha', d: 'Fecha de hoy' },
   { k: 'profesional', d: 'Profesional que atiende' },
   { k: 'negocio', d: 'Nombre del negocio' },
-  { k: 'motivo', d: 'Motivo / diagnóstico de la consulta' }
+  { k: 'motivo', d: 'Motivo / diagnóstico de la consulta' },
+  { k: 'horas', d: 'Horas de reposo (se completa al emitir)' }
 ];
 
 // Íconos chiquitos para la sección de plantillas.
@@ -53,6 +54,28 @@ Fecha: {fecha}
 Se certifica que el/la Sr./Sra. {paciente}, DNI {dni}, concurrió en el día de la fecha a este consultorio, donde recibió atención podológica.
 
 Motivo de la consulta: {motivo}
+
+Se extiende el presente a pedido del interesado, a los fines que estime corresponder.
+
+
+.............................................
+{profesional}
+Firma y sello del profesional
+
+{negocio}`
+};
+
+// Segundo certificado predefinido: reposo, con horas editables al emitir ({horas}).
+const CERTIFICADO_REPOSO_SUGERIDO = {
+  nombre: 'Certificado de reposo',
+  contenido:
+`CERTIFICADO DE REPOSO
+
+Fecha: {fecha}
+
+Se certifica que {paciente}, DNI {dni}, fue atendido/a en este consultorio y debe permanecer en reposo, sin realizar actividad, por el término de {horas} horas a partir de la fecha.
+
+Motivo: {motivo}
 
 Se extiende el presente a pedido del interesado, a los fines que estime corresponder.
 
@@ -295,8 +318,10 @@ async function cargarPlantillas() {
   const faltan = [];
   if (!todas.some(p => p.tipo === 'consentimiento'))
     faltan.push({ negocio_id: usuarioActual.negocio_id, tipo: 'consentimiento', nombre: CONSENTIMIENTO_SUGERIDO.nombre, contenido: CONSENTIMIENTO_SUGERIDO.contenido });
-  if (!todas.some(p => p.tipo === 'certificado'))
+  if (!todas.some(p => p.tipo === 'certificado')) {
     faltan.push({ negocio_id: usuarioActual.negocio_id, tipo: 'certificado', nombre: CERTIFICADO_SUGERIDO.nombre, contenido: CERTIFICADO_SUGERIDO.contenido });
+    faltan.push({ negocio_id: usuarioActual.negocio_id, tipo: 'certificado', nombre: CERTIFICADO_REPOSO_SUGERIDO.nombre, contenido: CERTIFICADO_REPOSO_SUGERIDO.contenido });
+  }
   if (faltan.length) {
     await sb.from('plantillas_documento').insert(faltan);
     ({ data } = await sb.from('plantillas_documento')
