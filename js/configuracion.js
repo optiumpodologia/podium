@@ -164,10 +164,7 @@ async function renderConfiguracion(container) {
 
         <div class="cfg-bloque-titulo cfg-bloque-flex">
           <span>Certificados / Justificativos</span>
-          <span style="display:flex; gap:6px;">
-            <button class="btn cfg-mini" onclick="abrirModalPlantilla('certificado', null, true)">Modelo sugerido</button>
-            <button class="btn cfg-mini" onclick="abrirModalPlantilla('certificado')">+ Agregar</button>
-          </span>
+          <button class="btn cfg-mini" onclick="abrirModalPlantilla('certificado')">+ Agregar</button>
         </div>
         <div id="plantillas-certificado-lista" style="margin-bottom:8px;">Cargando...</div>
 
@@ -175,10 +172,7 @@ async function renderConfiguracion(container) {
 
         <div class="cfg-bloque-titulo cfg-bloque-flex">
           <span>Consentimientos informados</span>
-          <span style="display:flex; gap:6px;">
-            <button class="btn cfg-mini" onclick="abrirModalPlantilla('consentimiento', null, true)">Modelo sugerido</button>
-            <button class="btn cfg-mini" onclick="abrirModalPlantilla('consentimiento')">+ Agregar</button>
-          </span>
+          <button class="btn cfg-mini" onclick="abrirModalPlantilla('consentimiento')">+ Agregar</button>
         </div>
         <div id="plantillas-consentimiento-lista">Cargando...</div>
       </div>
@@ -259,10 +253,27 @@ async function renderConfiguracion(container) {
 //   que se reemplazan al emitir (paso siguiente: generar el PDF).
 // ============================================================
 async function cargarPlantillas() {
-  const { data } = await sb.from('plantillas_documento')
+  let { data } = await sb.from('plantillas_documento')
     .select('*').eq('negocio_id', usuarioActual.negocio_id)
     .order('orden').order('creado_en');
-  const todas = data || [];
+  let todas = data || [];
+
+  // Precarga automática de modelos sugeridos (ya editables) si el negocio
+  // todavía no tiene ninguno de ese tipo. No hay botón "Modelo sugerido":
+  // vienen cargados solos y se editan/borran como cualquier otro modelo.
+  const faltan = [];
+  if (!todas.some(p => p.tipo === 'consentimiento'))
+    faltan.push({ negocio_id: usuarioActual.negocio_id, tipo: 'consentimiento', nombre: CONSENTIMIENTO_SUGERIDO.nombre, contenido: CONSENTIMIENTO_SUGERIDO.contenido });
+  if (!todas.some(p => p.tipo === 'certificado'))
+    faltan.push({ negocio_id: usuarioActual.negocio_id, tipo: 'certificado', nombre: CERTIFICADO_SUGERIDO.nombre, contenido: CERTIFICADO_SUGERIDO.contenido });
+  if (faltan.length) {
+    await sb.from('plantillas_documento').insert(faltan);
+    ({ data } = await sb.from('plantillas_documento')
+      .select('*').eq('negocio_id', usuarioActual.negocio_id)
+      .order('orden').order('creado_en'));
+    todas = data || [];
+  }
+
   renderListaPlantillas('certificado', todas.filter(p => p.tipo === 'certificado'));
   renderListaPlantillas('consentimiento', todas.filter(p => p.tipo === 'consentimiento'));
 }
