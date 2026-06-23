@@ -1699,7 +1699,7 @@ input, select, textarea {
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 64px; padding: 6px 18px;
   background: var(--primario-claro); border-radius: 14px;
-  font-size: 32px; font-weight: 800; line-height: 1.1;
+  font-size: 32px; font-weight: 600; line-height: 1.1;
   color: var(--primario); letter-spacing: -0.02em;
 }
 .talle-pies-img { width: 150px; height: auto; display: block; }
