@@ -1006,6 +1006,8 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
 // Toma una plantilla (plantillas_documento), reemplaza las variables
 // con los datos del paciente/negocio y abre una ventana de impresión
 // con membrete (logo + nombre del negocio). Sin librerías.
+//   - Profesional: se autocompleta con el que atendió al paciente.
+//   - Tipo: se elige entre los modelos guardados en Configuración.
 // ============================================================
 async function generarDocumento(pacienteId, tipo) {
   const etiqueta = tipo === 'consentimiento' ? 'consentimiento' : 'certificado';
@@ -1025,22 +1027,31 @@ async function generarDocumento(pacienteId, tipo) {
   const { data: cfg } = await sb.from('configuracion')
     .select('nombre_consultorio, logo_url').eq('negocio_id', usuarioActual.negocio_id).maybeSingle();
 
-  const esProf = usuarioActual.rol === 'profesional';
-  let profes = [];
-  if (!esProf) {
-    const { data } = await sb.from('profesionales')
-      .select('id, nombre').eq('negocio_id', usuarioActual.negocio_id).order('nombre');
-    profes = data || [];
+  // Profesional que lo atendió (automático): último turno atendido del paciente.
+  // Si no hay, cae al profesional logueado o al de cualquier turno más reciente.
+  let profNombre = '';
+  const { data: ult } = await sb.from('turnos')
+    .select('fecha_hora, profesionales(nombre)')
+    .eq('paciente_id', pacienteId)
+    .in('estado', ['en_atencion', 'finalizado', 'cobrado'])
+    .order('fecha_hora', { ascending: false }).limit(1).maybeSingle();
+  if (ult?.profesionales?.nombre) profNombre = ult.profesionales.nombre;
+  else if (usuarioActual.rol === 'profesional') profNombre = usuarioActual.nombre || '';
+  if (!profNombre) {
+    const { data: anyT } = await sb.from('turnos')
+      .select('profesionales(nombre)').eq('paciente_id', pacienteId)
+      .order('fecha_hora', { ascending: false }).limit(1).maybeSingle();
+    profNombre = anyT?.profesionales?.nombre || '';
   }
 
   window._doc = {
-    tipo, etiqueta, plantillas, pac, cfg, profes,
+    tipo, etiqueta, plantillas, pac, cfg,
     plantillaId: plantillas[0].id,
     motivo: '',
-    profSel: esProf ? (usuarioActual.nombre || '') : (profes[0]?.nombre || '')
+    profSel: profNombre
   };
 
-  _docModal(esProf);
+  _docModal();
 }
 
 function _docEsc(s) {
@@ -1064,6 +1075,40 @@ function _docLlenar(contenido) {
     (_, k) => repl[k] ?? '');
 }
 
+// Texto informativo y checklist, según el tipo de documento.
+function _docInfo(tipo) {
+  if (tipo === 'consentimiento') return {
+    imp: 'El consentimiento informado documenta que el paciente fue informado sobre el procedimiento, sus riesgos y beneficios, y autoriza la atención podológica.',
+    titulo: '¿Qué incluye este consentimiento?',
+    items: ['Información del procedimiento', 'Riesgos y beneficios', 'Responsabilidades del paciente', 'Autorización de tratamiento', 'Firma del paciente y responsable (si aplica)']
+  };
+  return {
+    imp: 'El certificado deja constancia de que el paciente concurrió y recibió atención podológica en la fecha indicada. Sirve también como justificativo de asistencia.',
+    titulo: '¿Qué incluye este certificado?',
+    items: ['Datos del paciente', 'Fecha de atención', 'Motivo de la consulta', 'Firma y sello del profesional']
+  };
+}
+
+// Construye la vista previa: las líneas iniciales en MAYÚSCULAS se muestran
+// como título (violeta, centrado); el resto como cuerpo.
+function _docPreviewHTML(texto) {
+  const lines = texto.split('\n');
+  const titulo = [];
+  let i = 0;
+  while (i < lines.length) {
+    const t = lines[i].trim();
+    if (t === '') break;
+    if (/[a-záéíóúñü]/.test(t)) break;
+    titulo.push(t); i++;
+  }
+  while (i < lines.length && lines[i].trim() === '') i++;
+  const cuerpo = lines.slice(i).join('\n');
+  const tHTML = titulo.length
+    ? `<div class="doc-prev-titulo">${titulo.map(t => _docEsc(t)).join('<br>')}</div><div class="doc-prev-rule"></div>`
+    : '';
+  return `${tHTML}<div class="doc-prev-cuerpo">${_docEsc(cuerpo)}</div>`;
+}
+
 // Sincroniza el estado con el DOM y refresca la vista previa.
 function _docPreview() {
   const d = window._doc;
@@ -1071,58 +1116,100 @@ function _docPreview() {
   if (selP) d.plantillaId = selP.value;
   const inMot = document.getElementById('doc-motivo');
   if (inMot) d.motivo = inMot.value;
-  const inProf = document.getElementById('doc-prof');
-  if (inProf) d.profSel = inProf.value;
 
   const pl = d.plantillas.find(p => String(p.id) === String(d.plantillaId)) || d.plantillas[0];
   const cont = document.getElementById('doc-preview');
-  if (cont) cont.textContent = _docLlenar(pl.contenido);
+  if (cont) cont.innerHTML = _docPreviewHTML(_docLlenar(pl.contenido));
 }
 
-function _docModal(esProf) {
+function _docModal() {
   const d = window._doc;
-  const titulo = d.tipo === 'consentimiento' ? 'Generar consentimiento' : 'Generar certificado';
+  const esConsent = d.tipo === 'consentimiento';
+  const titulo = esConsent ? 'Generar consentimiento' : 'Generar certificado';
+  const info = _docInfo(d.tipo);
 
-  const selPlantilla = d.plantillas.length > 1 ? `
-        <label class="doc-lbl">Modelo</label>
-        <select id="doc-plantilla" class="doc-input" onchange="_docPreview()">
-          ${d.plantillas.map(p => `<option value="${p.id}">${_docEsc(p.nombre)}</option>`).join('')}
-        </select>` : '';
+  const dic = (p, s = 16) => `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+  const I = {
+    head:  '<rect width="8" height="4" x="8" y="2" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M10.4 12.6a2 2 0 0 1 3 3L12 17l-2 .5.5-2z"/>',
+    prof:  '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.2 3.6-6.5 8-6.5s8 2.3 8 6.5"/>',
+    mot:   '<path d="M4 4v6a6 6 0 0 0 12 0V4"/><path d="M2 4h4M14 4h4"/><circle cx="20" cy="16" r="2"/><path d="M10 16v3a3 3 0 0 0 6 0v-1"/>',
+    shield:'<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>',
+    doc:   '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>',
+    check: '<polyline points="20 6 9 17 4 12"/>',
+    ojo:   '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>',
+    baja:  '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>',
+    mail:  '<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>',
+    print: '<polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/>'
+  };
 
-  const campoProf = esProf
-    ? `<input id="doc-prof" class="doc-input" value="${_docEsc(d.profSel)}" oninput="_docPreview()" placeholder="Profesional">`
-    : `<select id="doc-prof" class="doc-input" onchange="_docPreview()">
-          ${d.profes.map(p => `<option value="${_docEsc(p.nombre)}">${_docEsc(p.nombre)}</option>`).join('')}
-        </select>`;
+  const tipoSel = `
+        <div class="doc-field">
+          <label>${dic(I.doc, 15)} Tipo de ${d.etiqueta}</label>
+          <select id="doc-plantilla" class="doc-input" onchange="_docPreview()">
+            ${d.plantillas.map(p => `<option value="${p.id}">${_docEsc(p.nombre)}</option>`).join('')}
+          </select>
+        </div>`;
+
+  const profRO = `<div class="doc-prof-ro">${dic(I.prof, 13)} Profesional: <strong>${_docEsc(d.profSel || '— sin asignar —')}</strong></div>`;
+
+  const incluye = `
+        <div class="doc-incluye">
+          <div class="doc-incluye-tit">${dic(I.doc, 15)} ${info.titulo}</div>
+          ${info.items.map(it => `<div class="doc-incluye-item">${dic(I.check, 15)} ${it}</div>`).join('')}
+        </div>`;
 
   abrirModal(`
-    <style>.modal{max-width:680px;}</style>
-    <div class="modal-header">
-      <div class="modal-titulo">${titulo}</div>
+    <style>.modal{max-width:900px;}</style>
+    <div class="modal-header doc-head">
+      <div class="doc-head-l">
+        <span class="doc-head-ico">${dic(I.head, 20)}</span>
+        <div>
+          <div class="doc-head-tit">${titulo}</div>
+          <div class="doc-head-sub">Completá los datos y revisá el documento antes de generarlo</div>
+        </div>
+      </div>
       <button class="modal-cerrar" onclick="cerrarModal()">×</button>
     </div>
     <div class="modal-body doc-body">
       <div class="doc-form">
-        ${selPlantilla}
-        <label class="doc-lbl">Profesional</label>
-        ${campoProf}
-        <label class="doc-lbl">Motivo / diagnóstico <span class="doc-opt">(opcional)</span></label>
-        <input id="doc-motivo" class="doc-input" oninput="_docPreview()" placeholder="Se completa en {motivo}…">
+        <div class="doc-sec-lbl">Datos para el ${d.etiqueta}</div>
+        ${tipoSel}
+        ${profRO}
+        <div class="doc-field">
+          <label>${dic(I.mot, 15)} Motivo / diagnóstico <span class="doc-opt">(opcional)</span></label>
+          <input id="doc-motivo" class="doc-input" oninput="_docPreview()" placeholder="Ej: onicocriptosis">
+        </div>
+        <div class="doc-infobox">
+          ${dic(I.shield, 18)}
+          <div>
+            <div class="doc-infobox-tit">Información importante</div>
+            <div class="doc-infobox-txt">${info.imp}</div>
+          </div>
+        </div>
+        ${incluye}
       </div>
       <div class="doc-prev-wrap">
-        <div class="doc-prev-lbl">Vista previa</div>
-        <pre id="doc-preview" class="doc-preview"></pre>
+        <div class="doc-prev-lbl">${dic(I.ojo, 16)} Vista previa del documento</div>
+        <div id="doc-preview" class="doc-preview"></div>
       </div>
     </div>
-    <div class="modal-footer" style="justify-content:flex-end; gap:10px;">
-      <button class="btn" onclick="cerrarModal()">Cancelar</button>
-      <button class="btn btn-primary-sm" onclick="_docImprimir()">Imprimir / Guardar PDF</button>
+    <div class="modal-footer doc-foot">
+      <div class="doc-foot-l">
+        <button class="btn" onclick="_docVistaPrevia()">${dic(I.baja, 15)} Vista previa PDF</button>
+        <button class="btn" onclick="_docEnviarMail()">${dic(I.mail, 15)} Enviar por mail</button>
+      </div>
+      <div class="doc-foot-r">
+        <button class="btn" onclick="cerrarModal()">Cancelar</button>
+        <button class="btn btn-primary-sm" onclick="_docImprimir()">${dic(I.print, 15)} Imprimir / Guardar PDF</button>
+      </div>
     </div>
   `);
   _docPreview();
 }
 
-function _docImprimir() {
+// Abre el documento en una ventana nueva con membrete. Si autoImprimir,
+// dispara el diálogo de impresión (= guardar PDF); si no, sólo lo muestra.
+function _docAbrirVentana(autoImprimir) {
   _docPreview();
   const d = window._doc;
   const pl = d.plantillas.find(p => String(p.id) === String(d.plantillaId)) || d.plantillas[0];
@@ -1131,7 +1218,9 @@ function _docImprimir() {
     ? `<img src="${d.cfg.logo_url}" alt="" style="max-height:64px;max-width:220px;object-fit:contain">` : '';
 
   const w = window.open('', '_blank');
-  if (!w) { mostrarMensaje('Habilitá las ventanas emergentes para imprimir', 'advertencia'); return; }
+  if (!w) { mostrarMensaje('Habilitá las ventanas emergentes para continuar', 'advertencia'); return; }
+  const scriptImpr = autoImprimir
+    ? `<script>window.addEventListener('load',function(){setTimeout(function(){window.print()},200)});<\/script>` : '';
   w.document.write(`<html><head><meta charset="utf-8"><title>${_docEsc(pl.nombre)}</title><style>
     @page { margin: 2cm; }
     body { font-family: Georgia,'Times New Roman',serif; color:#1a1a1a; line-height:1.6; font-size:13.5px; }
@@ -1141,7 +1230,15 @@ function _docImprimir() {
   </style></head><body>
     <div class="doc-mem">${logo}<div class="doc-mem-nom">${_docEsc(d.cfg?.nombre_consultorio || '')}</div></div>
     <div class="doc-cuerpo">${_docEsc(texto)}</div>
-    <script>window.addEventListener('load',function(){setTimeout(function(){window.print()},200)});<\/script>
+    ${scriptImpr}
   </body></html>`);
   w.document.close(); w.focus();
+}
+
+function _docImprimir() { _docAbrirVentana(true); }
+function _docVistaPrevia() { _docAbrirVentana(false); }
+
+// Placeholder: el envío por mail se cablea más adelante.
+function _docEnviarMail() {
+  mostrarMensaje('El envío por mail va a estar disponible próximamente.', 'info');
 }
