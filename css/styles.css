@@ -1704,18 +1704,20 @@ input, select, textarea {
 }
 .talle-pies-img { width: 150px; height: auto; display: block; }
 
-/* ----- Botones sutiles "Consentimiento" / "Certificado" ----- */
-.ficha-docs { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
-.fa-docs { display: flex; gap: 8px; margin: 0 0 14px; }
-.fa-docs .ficha-doc-btn { width: auto; padding: 6px 12px; }
+/* ----- Botones de documentos "Consentimiento" / "Certificado" (en el header) ----- */
+.ficha-head-docs {
+  margin-left: auto; margin-right: 6px; align-self: center;
+  display: flex; align-items: center; gap: 8px;
+}
 .ficha-doc-btn {
-  display: flex; align-items: center; gap: 7px;
-  width: 100%; padding: 8px 10px;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 11px;
   background: transparent;
   border: 1px solid var(--borde-tenue);
   border-radius: 9px;
   color: var(--texto-secundario);
-  font: inherit; font-size: 13px; cursor: pointer;
+  font: inherit; font-size: 12.5px; font-weight: 500; cursor: pointer;
+  white-space: nowrap;
   transition: background 0.12s, color 0.12s, border-color 0.12s;
 }
 .ficha-doc-btn:hover {
@@ -1723,6 +1725,7 @@ input, select, textarea {
   color: var(--primario);
   border-color: var(--primario-claro);
 }
+.ficha-doc-btn svg { flex: none; }
 
 /* ----- Modal generador de documentos ----- */
 .doc-body { display: grid; grid-template-columns: 240px 1fr; gap: 18px; padding: 18px 20px; }
