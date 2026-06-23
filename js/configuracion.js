@@ -64,6 +64,37 @@ Firma y sello del profesional
 {negocio}`
 };
 
+// Esqueletos para "+ Agregar": traen la estructura y las variables {} ya
+// ubicadas, para que sea más fácil empezar. El usuario edita el texto.
+const PLANTILLA_SCAFFOLD = {
+  consentimiento:
+`CONSENTIMIENTO INFORMADO
+
+Fecha: {fecha}
+
+Por la presente, {paciente}, DNI {dni}, autoriza el siguiente procedimiento podológico:
+[Escribí acá el detalle del procedimiento y lo que el paciente autoriza. Motivo: {motivo}]
+
+
+Firma del paciente: ............................................
+Aclaración: ............................................
+
+{negocio} · {profesional}`,
+  certificado:
+`CERTIFICADO
+
+Fecha: {fecha}
+
+Se certifica que {paciente}, DNI {dni}, [escribí acá el texto del certificado]. Motivo: {motivo}.
+
+
+.............................................
+{profesional}
+Firma y sello del profesional
+
+{negocio}`
+};
+
 function cfgEsc(s) {
   return String(s == null ? '' : s)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -301,7 +332,7 @@ function renderListaPlantillas(tipo, lista) {
 }
 
 async function abrirModalPlantilla(tipo, id, sugerido) {
-  let p = { nombre: '', contenido: '', tipo };
+  let p = { nombre: '', contenido: PLANTILLA_SCAFFOLD[tipo] || '', tipo };
   if (id) {
     const { data } = await sb.from('plantillas_documento').select('*').eq('id', id).maybeSingle();
     if (data) p = data;

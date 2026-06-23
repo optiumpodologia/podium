@@ -1089,9 +1089,8 @@ function _docInfo(tipo) {
   };
 }
 
-// Construye la vista previa: las líneas iniciales en MAYÚSCULAS se muestran
-// como título (violeta, centrado); el resto como cuerpo.
-function _docPreviewHTML(texto) {
+// Separa el texto en título (líneas iniciales en MAYÚSCULAS) y cuerpo.
+function _docPartes(texto) {
   const lines = texto.split('\n');
   const titulo = [];
   let i = 0;
@@ -1102,7 +1101,12 @@ function _docPreviewHTML(texto) {
     titulo.push(t); i++;
   }
   while (i < lines.length && lines[i].trim() === '') i++;
-  const cuerpo = lines.slice(i).join('\n');
+  return { titulo, cuerpo: lines.slice(i).join('\n') };
+}
+
+// Construye la vista previa: el título en violeta centrado; el resto cuerpo.
+function _docPreviewHTML(texto) {
+  const { titulo, cuerpo } = _docPartes(texto);
   const tHTML = titulo.length
     ? `<div class="doc-prev-titulo">${titulo.map(t => _docEsc(t)).join('<br>')}</div><div class="doc-prev-rule"></div>`
     : '';
@@ -1212,21 +1216,21 @@ function _docModal() {
     </div>
     <div class="modal-footer doc-foot">
       <div class="doc-foot-l">
-        <button class="btn" onclick="_docVistaPrevia()">${dic(I.baja, 15)} Vista previa PDF</button>
+        <button class="btn" onclick="_docDescargar()">${dic(I.baja, 15)} Descargar PDF</button>
         <button class="btn" onclick="_docEnviarMail()">${dic(I.mail, 15)} Enviar por mail</button>
       </div>
       <div class="doc-foot-r">
         <button class="btn" onclick="_docCerrar()">Cancelar</button>
-        <button class="btn btn-primary-sm" onclick="_docImprimir()">${dic(I.print, 15)} Imprimir / Guardar PDF</button>
+        <button class="btn btn-primary-sm" onclick="_docImprimir()">${dic(I.print, 15)} Imprimir</button>
       </div>
     </div>
   `);
   _docPreview();
 }
 
-// Abre el documento en una ventana nueva con membrete. Si autoImprimir,
-// dispara el diálogo de impresión (= guardar PDF); si no, sólo lo muestra.
-function _docAbrirVentana(autoImprimir) {
+// Imprimir: abre el documento con membrete en una ventana nueva y dispara
+// el diálogo de impresión (sin descargar archivo).
+function _docImprimir() {
   _docPreview();
   const d = window._doc;
   const pl = d.plantillas.find(p => String(p.id) === String(d.plantillaId)) || d.plantillas[0];
@@ -1235,9 +1239,7 @@ function _docAbrirVentana(autoImprimir) {
     ? `<img src="${d.cfg.logo_url}" alt="" style="max-height:64px;max-width:220px;object-fit:contain">` : '';
 
   const w = window.open('', '_blank');
-  if (!w) { mostrarMensaje('Habilitá las ventanas emergentes para continuar', 'advertencia'); return; }
-  const scriptImpr = autoImprimir
-    ? `<script>window.addEventListener('load',function(){setTimeout(function(){window.print()},200)});<\/script>` : '';
+  if (!w) { mostrarMensaje('Habilitá las ventanas emergentes para imprimir', 'advertencia'); return; }
   w.document.write(`<html><head><meta charset="utf-8"><title>${_docEsc(pl.nombre)}</title><style>
     @page { margin: 2cm; }
     body { font-family: Georgia,'Times New Roman',serif; color:#1a1a1a; line-height:1.6; font-size:13.5px; }
@@ -1247,13 +1249,91 @@ function _docAbrirVentana(autoImprimir) {
   </style></head><body>
     <div class="doc-mem">${logo}<div class="doc-mem-nom">${_docEsc(d.cfg?.nombre_consultorio || '')}</div></div>
     <div class="doc-cuerpo">${_docEsc(texto)}</div>
-    ${scriptImpr}
+    <script>window.addEventListener('load',function(){setTimeout(function(){window.print()},200)});<\/script>
   </body></html>`);
   w.document.close(); w.focus();
 }
 
-function _docImprimir() { _docAbrirVentana(true); }
-function _docVistaPrevia() { _docAbrirVentana(false); }
+// Carga jsPDF desde CDN al vuelo (no requiere subir archivos ni tocar app.html).
+function _docCargarJsPDF() {
+  return new Promise((resolve, reject) => {
+    if (window.jspdf?.jsPDF) return resolve(window.jspdf.jsPDF);
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+    s.onload = () => window.jspdf?.jsPDF ? resolve(window.jspdf.jsPDF) : reject(new Error('jsPDF'));
+    s.onerror = () => reject(new Error('jsPDF'));
+    document.head.appendChild(s);
+  });
+}
+
+// Trae el logo como data URL (para insertarlo en el PDF). Si falla CORS, null.
+async function _docLogoDataURL(url) {
+  try {
+    const r = await fetch(url, { mode: 'cors' });
+    const b = await r.blob();
+    return await new Promise(res => {
+      const fr = new FileReader();
+      fr.onload = () => res(fr.result);
+      fr.onerror = () => res(null);
+      fr.readAsDataURL(b);
+    });
+  } catch { return null; }
+}
+
+// Descargar PDF: genera un archivo .pdf con membrete + texto y lo baja.
+async function _docDescargar() {
+  _docPreview();
+  const d = window._doc;
+  const pl = d.plantillas.find(p => String(p.id) === String(d.plantillaId)) || d.plantillas[0];
+  const texto = _docLlenar(pl.contenido);
+
+  let jsPDF;
+  try { jsPDF = await _docCargarJsPDF(); }
+  catch { mostrarMensaje('No se pudo cargar el generador de PDF. Probá con Imprimir → Guardar como PDF.', 'error'); return; }
+
+  const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+  const W = doc.internal.pageSize.getWidth();
+  const H = doc.internal.pageSize.getHeight();
+  const M = 56;
+  let y = M;
+
+  // Membrete: logo (si se puede) + nombre del negocio.
+  const nombreNeg = d.cfg?.nombre_consultorio || '';
+  let logoData = d.cfg?.logo_url ? await _docLogoDataURL(d.cfg.logo_url) : null;
+  if (logoData) {
+    try {
+      const p = doc.getImageProperties(logoData);
+      const h = 40, w = Math.min(220, p.width * h / p.height);
+      doc.addImage(logoData, p.fileType || 'PNG', M, y, w, h);
+      doc.setFont('times', 'bold'); doc.setFontSize(15); doc.setTextColor(83, 74, 183);
+      doc.text(nombreNeg, M + w + 14, y + h / 2 + 5);
+      y += h + 12;
+    } catch { logoData = null; }
+  }
+  if (!logoData) {
+    doc.setFont('times', 'bold'); doc.setFontSize(15); doc.setTextColor(83, 74, 183);
+    doc.text(nombreNeg, M, y + 12); y += 26;
+  }
+  doc.setDrawColor(83, 74, 183); doc.setLineWidth(1.4); doc.line(M, y, W - M, y); y += 26;
+
+  const { titulo, cuerpo } = _docPartes(texto);
+  if (titulo.length) {
+    doc.setFont('times', 'bold'); doc.setFontSize(13); doc.setTextColor(83, 74, 183);
+    titulo.forEach(t => { doc.text(t, W / 2, y, { align: 'center' }); y += 18; });
+    y += 10;
+  }
+
+  doc.setFont('times', 'normal'); doc.setFontSize(11.5); doc.setTextColor(26, 26, 26);
+  const lineas = doc.splitTextToSize(cuerpo, W - M * 2);
+  const lh = 16;
+  lineas.forEach(ln => {
+    if (y > H - M) { doc.addPage(); y = M; }
+    doc.text(ln, M, y); y += lh;
+  });
+
+  const nombreArch = (pl.nombre || d.etiqueta).replace(/[^\wáéíóúñü\s-]/gi, '').trim().replace(/\s+/g, '_');
+  doc.save(`${nombreArch || 'documento'}.pdf`);
+}
 
 // Placeholder: el envío por mail se cablea más adelante.
 function _docEnviarMail() {
