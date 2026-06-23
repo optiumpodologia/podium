@@ -162,7 +162,7 @@ async function abrirModalTurno(turnoId) {
     `;
   } else if (turno.estado === 'finalizado' && esProfesional) {
     accionesEstado = `
-      <button class="btn" onclick="abrirFichaAtencion('${turno.id}')">Ver/editar ficha</button>
+      <button class="btn" onclick="abrirFichaAtencion('${turno.id}', true)">Ver ficha</button>
     `;
   }
 

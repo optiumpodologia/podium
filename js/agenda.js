@@ -1908,6 +1908,7 @@ function accionesTurnoHTML(t, numero, fechaStr, yaTieneSobre) {
     ficha:  sv('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6"/><path d="M9 17h6"/>'),
     check:  sv('<polyline points="20 6 9 17 4 12"/>'),
     mas:    sv('<line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/>'),
+    rayo:   sv('<path d="M13 2 3 14h7l-1 8 10-12h-7z"/>'),
     tacho:  sv('<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>'),
     volver: sv('<path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/>'),
     cobro:  sv('<line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>')
@@ -1922,11 +1923,11 @@ function accionesTurnoHTML(t, numero, fechaStr, yaTieneSobre) {
   if (esGestor) {
     if (t.estado === 'agendado') {
       out.push(btn(ICO.check, 'Recibir paciente', `cambiarEstadoTurno('${t.id}','llego')`));
-      if (puedeSobre) out.push(btn(ICO.mas, 'Dar sobreturno', `abrirModalNuevoTurnoCasillero('${t.profesional_id}', ${numero}, '${fechaStr}', ${turnoMinInicio(t)}, null, true)`, 'violeta'));
+      if (puedeSobre) out.push(btn(ICO.rayo, 'Dar sobreturno', `abrirModalNuevoTurnoCasillero('${t.profesional_id}', ${numero}, '${fechaStr}', ${turnoMinInicio(t)}, null, true)`, 'violeta'));
       out.push(btn(ICO.tacho, 'Eliminar turno', `eliminarTurno('${t.id}')`, 'peligro'));
     } else if (t.estado === 'llego') {
       out.push(btn(ICO.volver, 'Cancelar recepción', `cambiarEstadoTurno('${t.id}','agendado')`));
-      if (puedeSobre) out.push(btn(ICO.mas, 'Dar sobreturno', `abrirModalNuevoTurnoCasillero('${t.profesional_id}', ${numero}, '${fechaStr}', ${turnoMinInicio(t)}, null, true)`, 'violeta'));
+      if (puedeSobre) out.push(btn(ICO.rayo, 'Dar sobreturno', `abrirModalNuevoTurnoCasillero('${t.profesional_id}', ${numero}, '${fechaStr}', ${turnoMinInicio(t)}, null, true)`, 'violeta'));
     } else if (t.estado === 'finalizado') {
       out.push(btn(ICO.cobro, 'Cobrar', `(typeof abrirCobro==='function' ? abrirCobro('${t.id}') : mostrarMensaje('El cobro se activa en el próximo paso','advertencia'))`, 'exito'));
     }
@@ -1938,7 +1939,7 @@ function accionesTurnoHTML(t, numero, fechaStr, yaTieneSobre) {
     } else if (t.estado === 'en_atencion') {
       out.push(btn(ICO.ficha, 'Seguir ficha', `abrirFichaAtencion('${t.id}')`));
     } else if (t.estado === 'finalizado') {
-      out.push(btn(ICO.ficha, 'Ver ficha', `abrirFichaAtencion('${t.id}')`));
+      out.push(btn(ICO.ficha, 'Ver ficha', `abrirFichaAtencion('${t.id}', true)`));
     } else if (t.estado === 'cobrado') {
       out.push(btn(ICO.ficha, 'Ver ficha', `abrirFichaAtencion('${t.id}', true)`));
     }
@@ -2153,10 +2154,9 @@ function _agInyectarEstilos() {
     .ag-slot-pac { flex:1; min-width:0; font-size:13px; font-weight:600; color:var(--texto); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .ag-slot-acc { display:flex; gap:4px; flex:none; margin-left:auto; }
     .ag-slot-btn { width:28px; height:28px; border:none; border-radius:8px; background:transparent; cursor:pointer; display:flex; align-items:center; justify-content:center; color:var(--texto-secundario); transition:background .1s, color .1s; }
-    .ag-slot-btn.sobre { color:var(--advertencia); }
-    .ag-slot-btn.sobre:hover { background:var(--advertencia-claro); color:var(--advertencia); }
-    .ag-slot-btn.sobre.activo { background:var(--advertencia-claro); color:var(--advertencia); box-shadow:inset 0 0 0 1.5px var(--advertencia); }
-    .ag-slot-btn.sobre.activo:hover { background:#F8DCBE; }
+    .ag-slot-btn.sobre:hover { background:#ececf2; color:var(--texto); }
+    .ag-slot-btn.sobre.activo { background:#eef0f4; color:var(--texto); box-shadow:inset 0 0 0 1.5px #c9c9d4; }
+    .ag-slot-btn.sobre.activo:hover { background:#e3e3ea; }
     .ag-slot-btn.cancel:hover { background:var(--peligro-claro); color:var(--peligro); }
     .ag-slot-btn.ver:hover { background:var(--primario-claro); color:var(--primario); }
     .ag-slot-btn.bloq:hover { background:#ececf2; color:#555; }
