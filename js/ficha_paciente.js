@@ -197,6 +197,30 @@ async function fichaPacienteHTML(pacienteId, opts = {}) {
       <div class="ficha-card-val${val ? '' : ' sin-dato'}">${val || 'Sin cargar'}</div>
     </div>`;
 
+  // --- Card "Talle de calzado": referencia visual del talle (sólo talle argentino) ---
+  // Lee anamnesis.calzado (texto libre). Si está vacío, la card no se muestra.
+  const talleTxt = (anam?.calzado || '').trim();
+  const huellaSVG = (flip) => `<svg class="talle-pie${flip ? ' flip' : ''}" viewBox="0 0 56 108" fill="none" aria-hidden="true">
+        <path d="M13 34c-3 7-4 16-1 24 4 9 4 16 3 24-1 7 1 14 9 15 9 1 14-5 16-13 2-9 5-17 8-25 4-10 5-21-2-28-8-8-26-7-33 3z" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/>
+        <ellipse cx="17" cy="20" rx="5" ry="6.5" stroke="currentColor" stroke-width="2.2"/>
+        <ellipse cx="28" cy="13" rx="4.2" ry="5.5" stroke="currentColor" stroke-width="2.2"/>
+        <ellipse cx="37" cy="14" rx="3.6" ry="4.8" stroke="currentColor" stroke-width="2.2"/>
+        <ellipse cx="44" cy="18" rx="3.1" ry="4.2" stroke="currentColor" stroke-width="2.2"/>
+        <ellipse cx="49" cy="25" rx="2.7" ry="3.6" stroke="currentColor" stroke-width="2.2"/>
+      </svg>`;
+  const huellaIco = '<path d="M4 16v-2.38C4 11.5 2.97 10.5 3 8c.03-2.72 1.49-6 4.5-6C9.37 2 10 3.8 10 5.5c0 3.11-2 5.66-2 8.68V16a2 2 0 1 1-4 0Z"/><path d="M20 20v-2.38c0-2.12 1.03-3.12 1-5.62-.03-2.72-1.49-6-4.5-6C14.63 6 14 7.8 14 9.5c0 3.11 2 5.66 2 8.68V20a2 2 0 1 0 4 0Z"/><path d="M16 17h4"/><path d="M4 13h4"/>';
+  const talleCard = talleTxt ? `
+        <div class="talle-card">
+          <div class="talle-head"><span class="talle-head-ico">${ic(huellaIco, 15)}</span> Talle de calzado</div>
+          <div class="talle-body">
+            <div class="talle-pies">${huellaSVG(false)}${huellaSVG(true)}</div>
+            <div class="talle-valor">
+              <span class="talle-valor-lbl">Talle</span>
+              <span class="talle-valor-num">${talleTxt}</span>
+            </div>
+          </div>
+        </div>` : '';
+
   const fechaNacLinda = paciente.fecha_nacimiento
     ? new Date(paciente.fecha_nacimiento + 'T00:00').toLocaleDateString('es-AR')
     : '';
@@ -258,6 +282,8 @@ async function fichaPacienteHTML(pacienteId, opts = {}) {
             ? `<textarea id="nota-input" class="ficha-nota-area" rows="3" placeholder="+ Agregar nota..." onblur="guardarNota('${paciente.id}')">${paciente.notas || ''}</textarea>`
             : `<div class="ficha-nota-texto${paciente.notas ? '' : ' sin-dato'}">${paciente.notas || 'Sin notas'}</div>`}
         </div>
+
+        ${talleCard}
       </aside>
 
       <div class="ficha-main">

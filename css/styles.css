@@ -1681,6 +1681,38 @@ input, select, textarea {
   font-size: 12px; color: var(--peligro); text-decoration: underline; padding: 0;
 }
 
+/* ----- Card "Talle de calzado" (referencia visual en la ficha) ----- */
+.talle-card {
+  width: 100%;
+  margin-top: 16px;
+  padding: 12px 14px 14px;
+  border: 1px solid var(--borde-tenue);
+  border-radius: 14px;
+  background: linear-gradient(135deg, #F7F5FE, #EFEBFB);
+  text-align: left;
+}
+.talle-head {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 12.5px; font-weight: 600; color: var(--texto-secundario);
+  margin-bottom: 6px;
+}
+.talle-head-ico { color: var(--primario); display: inline-flex; }
+.talle-body { display: flex; align-items: center; gap: 12px; }
+.talle-pies { display: flex; gap: 4px; flex: none; }
+.talle-pie { width: 38px; height: auto; color: var(--primario); opacity: 0.55; }
+.talle-pie.flip { transform: scaleX(-1); }
+.talle-valor {
+  margin-left: auto; flex: none;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 6px 14px; min-width: 64px;
+  background: #fff; border: 1px solid var(--borde-tenue); border-radius: 12px;
+}
+.talle-valor-lbl { font-size: 11px; color: var(--texto-secundario); }
+.talle-valor-num {
+  font-size: 28px; font-weight: 700; line-height: 1.1;
+  color: var(--primario); letter-spacing: -0.02em;
+}
+
 /* ===================================================================
  * CONFIGURACIÓN — rediseño en dos columnas + identidad del negocio
  * =================================================================== */
