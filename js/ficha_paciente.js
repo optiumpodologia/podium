@@ -205,17 +205,10 @@ async function fichaPacienteHTML(pacienteId, opts = {}) {
   // Lee anamnesis.calzado (texto libre). Si está vacío, la card no se muestra.
   // Los pies son la imagen embebida PIES_TALLE_IMG (data URI, definida arriba).
   const talleTxt = (anam?.calzado || '').trim();
-  const zapatoIco = '<path d="M3 13.4c0-.8.65-1.4 1.45-1.32l3.05.3c.5.05.97-.2 1.2-.64l1.6-2.95c.3-.56.97-.78 1.55-.5l1.3.62c.36.18.6.55.6.95 0 .75.5 1.4 1.22 1.6l4.7 1.28c1.3.35 2.18 1.5 2.18 2.85v.31c0 .6-.5 1.1-1.1 1.1H4.1c-.6 0-1.1-.5-1.1-1.1z"/><path d="M3 17.4h18"/>';
   const talleCard = talleTxt ? `
         <div class="talle-card">
-          <div class="talle-head"><span class="talle-head-ico">${ic(zapatoIco, 17)}</span> Talle de calzado</div>
-          <div class="talle-body">
-            <img class="talle-pies-img" src="${PIES_TALLE_IMG}" alt="Plantas de los pies">
-            <div class="talle-valor">
-              <span class="talle-valor-lbl">Talle</span>
-              <span class="talle-valor-num">${talleTxt}</span>
-            </div>
-          </div>
+          <div class="talle-valor-num">${talleTxt}</div>
+          <img class="talle-pies-img" src="${PIES_TALLE_IMG}" alt="Plantas de los pies">
         </div>` : '';
 
   const fechaNacLinda = paciente.fecha_nacimiento

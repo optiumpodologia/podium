@@ -1685,38 +1685,24 @@ input, select, textarea {
 .talle-card {
   width: 100%;
   margin-top: 16px;
-  padding: 14px 16px 16px;
+  padding: 16px;
   border: 1px solid var(--borde-tenue);
   border-radius: 16px;
   background: #fff;
   box-shadow: 0 4px 18px -12px rgba(83, 74, 183, 0.35);
-  text-align: left;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
 }
-.talle-head {
-  display: flex; align-items: center; gap: 9px;
-  font-size: 14px; font-weight: 700; color: var(--texto);
-  margin-bottom: 10px;
-}
-.talle-head-ico {
-  width: 30px; height: 30px; flex: none;
-  display: flex; align-items: center; justify-content: center;
-  background: var(--primario-claro); color: var(--primario);
-  border-radius: 9px;
-}
-.talle-body { display: flex; align-items: center; gap: 8px; }
-.talle-pies-img { width: 116px; height: auto; flex: none; display: block; }
-.talle-valor {
-  margin-left: auto; flex: none;
-  display: flex; flex-direction: column; align-items: center; gap: 4px;
-}
-.talle-valor-lbl { font-size: 13px; color: var(--texto-secundario); }
 .talle-valor-num {
-  display: flex; align-items: center; justify-content: center;
-  min-width: 58px; padding: 4px 12px;
-  background: var(--primario-claro); border-radius: 12px;
-  font-size: 30px; font-weight: 800; line-height: 1.1;
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 64px; padding: 6px 18px;
+  background: var(--primario-claro); border-radius: 14px;
+  font-size: 32px; font-weight: 800; line-height: 1.1;
   color: var(--primario); letter-spacing: -0.02em;
 }
+.talle-pies-img { width: 150px; height: auto; display: block; }
 
 /* ===================================================================
  * CONFIGURACIÓN — rediseño en dos columnas + identidad del negocio
