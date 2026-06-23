@@ -14,6 +14,56 @@ const _icoDocMini = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none"
 const _icoLapiz = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
 const _icoTachoMini = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
 
+// Consentimiento informado sugerido (el negocio lo carga y puede editarlo).
+const CONSENTIMIENTO_SUGERIDO = {
+  nombre: 'Consentimiento general - Asume responsabilidad',
+  contenido:
+`CONSENTIMIENTO INFORMADO
+ASUME RESPONSABILIDAD - SE NOTIFICA
+
+Fecha: {fecha}
+
+Por la presente se le comunica al Sr./Sra. {paciente}, DNI {dni}, que padece: {motivo}.
+
+Procediendo en este acto a autorizar la acción podológica.
+
+El paciente toma la responsabilidad de concurrir de inmediato a su médico de confianza para evaluar el caso y prescribir la medicación correspondiente. Queda de esta forma notificado, eximiendo de toda responsabilidad al profesional actuante ({profesional}) por la falta de concurrencia al médico.
+
+
+Firma del paciente: ............................................
+Aclaración: ............................................
+
+* Firma del padre, tutor o encargado: ............................................
+Aclaración: ............................................
+
+* Si el paciente fuera menor de edad o inhabilitado.
+
+{negocio}`
+};
+
+// Certificado de atención sugerido (predefinido y editable; sirve también
+// como justificativo de asistencia). El negocio lo carga y puede editarlo.
+const CERTIFICADO_SUGERIDO = {
+  nombre: 'Certificado de atención',
+  contenido:
+`CERTIFICADO DE ATENCIÓN
+
+Fecha: {fecha}
+
+Se certifica que el/la Sr./Sra. {paciente}, DNI {dni}, concurrió en el día de la fecha a este consultorio, donde recibió atención podológica.
+
+Motivo de la consulta: {motivo}
+
+Se extiende el presente a pedido del interesado, a los fines que estime corresponder.
+
+
+.............................................
+{profesional}
+Firma y sello del profesional
+
+{negocio}`
+};
+
 function cfgEsc(s) {
   return String(s == null ? '' : s)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -107,26 +157,32 @@ async function renderConfiguracion(container) {
         <div id="feriados-lista">Cargando...</div>
       </div>
 
-    </div>
+      <!-- ================= MODELOS DE DOCUMENTOS (media tarjeta) ================= -->
+      <div class="card">
+        <div class="cfg-head"><span class="cfg-head-ico">${_icoDoc}</span> Modelos de documentos</div>
+        <div class="cfg-ayuda" style="margin-bottom:14px;">Textos predefinidos que se completan con los datos del paciente al emitir. Más adelante se generan en PDF para imprimir o enviar.</div>
 
-    <!-- ================= MODELOS DE DOCUMENTOS ================= -->
-    <div class="card" style="margin-top:18px;">
-      <div class="cfg-head"><span class="cfg-head-ico">${_icoDoc}</span> Modelos de documentos</div>
-      <div class="cfg-ayuda" style="margin-bottom:14px;">Textos predefinidos que se completan con los datos del paciente al emitir. Más adelante se generan en PDF para imprimir o enviar.</div>
+        <div class="cfg-bloque-titulo cfg-bloque-flex">
+          <span>Certificados / Justificativos</span>
+          <span style="display:flex; gap:6px;">
+            <button class="btn cfg-mini" onclick="abrirModalPlantilla('certificado', null, true)">Modelo sugerido</button>
+            <button class="btn cfg-mini" onclick="abrirModalPlantilla('certificado')">+ Agregar</button>
+          </span>
+        </div>
+        <div id="plantillas-certificado-lista" style="margin-bottom:8px;">Cargando...</div>
 
-      <div class="cfg-bloque-titulo cfg-bloque-flex">
-        <span>Certificados / Justificativos</span>
-        <button class="btn cfg-mini" onclick="abrirModalPlantilla('certificado')">+ Agregar</button>
+        <div class="cfg-sep"></div>
+
+        <div class="cfg-bloque-titulo cfg-bloque-flex">
+          <span>Consentimientos informados</span>
+          <span style="display:flex; gap:6px;">
+            <button class="btn cfg-mini" onclick="abrirModalPlantilla('consentimiento', null, true)">Modelo sugerido</button>
+            <button class="btn cfg-mini" onclick="abrirModalPlantilla('consentimiento')">+ Agregar</button>
+          </span>
+        </div>
+        <div id="plantillas-consentimiento-lista">Cargando...</div>
       </div>
-      <div id="plantillas-certificado-lista" style="margin-bottom:8px;">Cargando...</div>
 
-      <div class="cfg-sep"></div>
-
-      <div class="cfg-bloque-titulo cfg-bloque-flex">
-        <span>Consentimientos informados</span>
-        <button class="btn cfg-mini" onclick="abrirModalPlantilla('consentimiento')">+ Agregar</button>
-      </div>
-      <div id="plantillas-consentimiento-lista">Cargando...</div>
     </div>
   `;
 
@@ -233,11 +289,15 @@ function renderListaPlantillas(tipo, lista) {
   }).join('');
 }
 
-async function abrirModalPlantilla(tipo, id) {
+async function abrirModalPlantilla(tipo, id, sugerido) {
   let p = { nombre: '', contenido: '', tipo };
   if (id) {
     const { data } = await sb.from('plantillas_documento').select('*').eq('id', id).maybeSingle();
     if (data) p = data;
+  } else if (sugerido && tipo === 'consentimiento') {
+    p = { tipo, nombre: CONSENTIMIENTO_SUGERIDO.nombre, contenido: CONSENTIMIENTO_SUGERIDO.contenido };
+  } else if (sugerido && tipo === 'certificado') {
+    p = { tipo, nombre: CERTIFICADO_SUGERIDO.nombre, contenido: CERTIFICADO_SUGERIDO.contenido };
   }
   const etiqueta = p.tipo === 'consentimiento' ? 'consentimiento' : 'certificado';
   const chips = PLANTILLA_VARS.map(v =>
