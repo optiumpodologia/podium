@@ -283,7 +283,7 @@ async function cambiarEstadoTurno(turnoId, nuevoEstado) {
 }
 
 async function eliminarTurno(turnoId) {
-  if (!confirm('¿Eliminar este turno?')) return;
+  if (!await confirmarModal({ titulo: 'Eliminar turno', texto: '¿Eliminar este turno?', textoSi: 'Eliminar', peligro: true })) return;
   const { error } = await sb.from('turnos').delete().eq('id', turnoId);
   if (error) {
     mostrarMensaje('Error: ' + error.message, 'error');

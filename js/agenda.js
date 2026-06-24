@@ -2909,7 +2909,7 @@ async function agendarConfirmar(min, esSobre) {
 }
 
 async function agendarCancelarTurno(turnoId) {
-  if (!confirm('¿Cancelar este turno?')) return;
+  if (!await confirmarModal({ titulo: 'Cancelar turno', texto: '¿Cancelar este turno?', textoSi: 'Cancelar turno', textoNo: 'Volver', peligro: true })) return;
   const { error } = await sb.from('turnos').update({ estado: 'cancelado' }).eq('id', turnoId);
   if (error) { mostrarMensaje('Error: ' + error.message, 'error'); return; }
   mostrarMensaje('Turno cancelado', 'exito');

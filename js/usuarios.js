@@ -220,7 +220,7 @@ function toggleNegocioSelect() {
 
 async function toggleUsuarioActivo(id, activar) {
   const accion = activar ? 'activar' : 'desactivar';
-  if (!confirm(`¿Seguro que querés ${accion} este usuario?`)) return;
+  if (!await confirmarModal({ titulo: 'Confirmar', texto: `¿Seguro que querés ${accion} este usuario?`, textoSi: 'Confirmar' })) return;
 
   const { error } = await sb.from('usuarios').update({ activo: activar }).eq('id', id);
   if (error) {

@@ -124,7 +124,7 @@ async function abrirModalTipoAtencion(id) {
 }
 
 async function eliminarTipoAtencion(id) {
-  if (!confirm('¿Eliminar este tipo de atención?')) return;
+  if (!await confirmarModal({ titulo: 'Eliminar tipo de atención', texto: '¿Eliminar este tipo de atención?', textoSi: 'Eliminar', peligro: true })) return;
   const { error } = await sb.from('tipos_atencion').delete().eq('id', id);
   if (error) {
     mostrarMensaje('No se puede eliminar: tiene fichas asociadas', 'error');

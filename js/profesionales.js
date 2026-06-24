@@ -240,7 +240,7 @@ async function abrirModalRecepcion() {
 
 async function toggleRecepcionActiva(id, activar) {
   const accion = activar ? 'activar' : 'desactivar';
-  if (!confirm(`¿Seguro que querés ${accion} esta recepción?`)) return;
+  if (!await confirmarModal({ titulo: 'Confirmar', texto: `¿Seguro que querés ${accion} esta recepción?`, textoSi: 'Confirmar' })) return;
 
   const { error } = await sb.from('usuarios').update({ activo: activar }).eq('id', id);
   if (error) { mostrarMensaje('Error: ' + error.message, 'error'); return; }
@@ -404,7 +404,7 @@ async function subirFotoProfesional(profId, file) {
 }
 
 async function quitarFotoProfesional(profId) {
-  if (!confirm('¿Quitar la foto del profesional?')) return;
+  if (!await confirmarModal({ titulo: 'Quitar foto', texto: '¿Quitar la foto del profesional?', textoSi: 'Quitar', peligro: true })) return;
   const { error } = await sb.from('profesionales').update({ foto_url: null }).eq('id', profId);
   if (error) { mostrarMensaje('Error: ' + error.message, 'error'); return; }
   mostrarMensaje('Foto quitada', 'exito');
@@ -872,7 +872,7 @@ function toggleFullProfesional(checked) {
 }
 
 async function eliminarProfesional(id) {
-  if (!confirm('¿Eliminar este profesional? (Lo saca de la agenda. Si tiene login propio, esa cuenta queda viva: la desactivás desde Mi equipo o se borra manual.)')) return;
+  if (!await confirmarModal({ titulo: 'Eliminar profesional', texto: '¿Eliminar este profesional? Lo saca de la agenda. Si tiene login propio, esa cuenta queda viva: la desactivás desde Mi equipo o se borra manual.', textoSi: 'Eliminar', peligro: true })) return;
   const { error } = await sb.from('profesionales').delete().eq('id', id);
   if (error) {
     mostrarMensaje('No se puede eliminar: tiene turnos asociados', 'error');
@@ -1037,7 +1037,7 @@ function agregarFranjaLaboral() {
 async function eliminarFranjaLaboral(id) {
   const franja = _horariosLaborales.find(f => f.id === id);
   if (!franja) return;
-  if (!confirm('¿Eliminar esta franja?\n\nSi el profesional deja de trabajar ese día, se liberan los días futuros sin turnos (los que tienen turnos se mantienen).')) return;
+  if (!await confirmarModal({ titulo: 'Eliminar franja', texto: '¿Eliminar esta franja?\n\nSi el profesional deja de trabajar ese día, se liberan los días futuros sin turnos (los que tienen turnos se mantienen).', textoSi: 'Eliminar', peligro: true })) return;
 
   // 1) Borrar la franja
   const { error } = await sb.from('dias_laborales_profesional').delete().eq('id', id);
@@ -1250,7 +1250,7 @@ function toggleNoViene(checked) {
 }
 
 async function eliminarDiaEspecial(id) {
-  if (!confirm('¿Eliminar este día especial?')) return;
+  if (!await confirmarModal({ titulo: 'Eliminar día especial', texto: '¿Eliminar este día especial?', textoSi: 'Eliminar', peligro: true })) return;
 
   // Datos del día especial ANTES de borrarlo (para limpiar el tablero después).
   const esp = (_horariosEspeciales || []).find(e => String(e.id) === String(id)) || null;

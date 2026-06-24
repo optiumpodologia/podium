@@ -436,7 +436,7 @@ async function guardarPlantilla(e) {
 }
 
 async function eliminarPlantilla(id) {
-  if (!confirm('¿Eliminar este modelo?')) return;
+  if (!await confirmarModal({ titulo: 'Eliminar modelo', texto: '¿Eliminar este modelo?', textoSi: 'Eliminar', peligro: true })) return;
   const { error } = await sb.from('plantillas_documento').delete().eq('id', id);
   if (error) { mostrarMensaje('Error: ' + error.message, 'error'); return; }
   mostrarMensaje('Modelo eliminado', 'exito');
@@ -553,7 +553,7 @@ function abrirModalFeriado() {
 }
 
 async function eliminarFeriado(id) {
-  if (!confirm('¿Eliminar este feriado?')) return;
+  if (!await confirmarModal({ titulo: 'Eliminar feriado', texto: '¿Eliminar este feriado?', textoSi: 'Eliminar', peligro: true })) return;
   await sb.from('feriados').delete().eq('id', id);
   mostrarMensaje('Feriado eliminado', 'exito');
   await cargarFeriados();

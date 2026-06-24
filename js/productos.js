@@ -146,7 +146,7 @@ async function abrirModalProducto(id) {
 }
 
 async function eliminarProducto(id) {
-  if (!confirm('¿Eliminar este producto?')) return;
+  if (!await confirmarModal({ titulo: 'Eliminar producto', texto: '¿Eliminar este producto?', textoSi: 'Eliminar', peligro: true })) return;
   const { error } = await sb.from('productos').delete().eq('id', id);
   if (error) {
     mostrarMensaje('No se puede eliminar: tiene ventas asociadas', 'error');

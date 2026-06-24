@@ -398,7 +398,7 @@ async function abrirModalPaciente(id) {
 }
 
 async function eliminarPaciente(id) {
-  if (!confirm('¿Eliminar este paciente? Esta acción no se puede deshacer.')) return;
+  if (!await confirmarModal({ titulo: 'Eliminar paciente', texto: '¿Eliminar este paciente? Esta acción no se puede deshacer.', textoSi: 'Eliminar', peligro: true })) return;
   const { error } = await sb.from('pacientes').delete().eq('id', id);
   if (error) {
     mostrarMensaje('No se puede eliminar: tiene turnos asociados', 'error');
