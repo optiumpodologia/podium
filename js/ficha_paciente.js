@@ -1021,7 +1021,7 @@ async function generarDocumento(pacienteId, tipo) {
   }
 
   const { data: pac } = await sb.from('pacientes')
-    .select('nombre, apellido, dni').eq('id', pacienteId).single();
+    .select('nombre, apellido, dni, email').eq('id', pacienteId).single();
   if (!pac) { mostrarMensaje('Paciente no encontrado', 'error'); return; }
 
   const { data: cfg } = await sb.from('configuracion')
@@ -1049,7 +1049,8 @@ async function generarDocumento(pacienteId, tipo) {
     plantillaId: plantillas[0].id,
     motivo: '',
     horas: '',
-    profSel: profNombre
+    profSel: profNombre,
+    emailPac: pac.email || ''
   };
 
   _docModal();
@@ -1214,6 +1215,10 @@ function _docModal() {
           <label>${dic(I.reloj, 15)} Horas de reposo</label>
           <input id="doc-horas" class="doc-input" type="number" min="0" oninput="_docPreview()" placeholder="Ej: 48">
         </div>
+        <div class="doc-field" id="doc-mail-wrap" style="display:none;">
+          <label>${dic(I.mail, 15)} Email del paciente</label>
+          <input id="doc-mail-manual" class="doc-input" type="email" placeholder="correo@ejemplo.com">
+        </div>
         <div class="doc-infobox">
           ${dic(I.shield, 18)}
           <div>
@@ -1231,7 +1236,7 @@ function _docModal() {
     <div class="modal-footer doc-foot">
       <div class="doc-foot-l">
         <button class="btn" onclick="_docDescargar()">${dic(I.baja, 15)} Descargar PDF</button>
-        <button class="btn" onclick="_docEnviarMail()">${dic(I.mail, 15)} Enviar por mail</button>
+        <button class="btn" id="doc-btn-mail" onclick="_docEnviarMail()">${dic(I.mail, 15)} Enviar por mail</button>
       </div>
       <div class="doc-foot-r">
         <button class="btn" onclick="_docCerrar()">Cancelar</button>
@@ -1294,16 +1299,14 @@ async function _docLogoDataURL(url) {
   } catch { return null; }
 }
 
-// Descargar PDF: genera un archivo .pdf con membrete + texto y lo baja.
-async function _docDescargar() {
-  _docPreview();
+// Arma el PDF (membrete + título + cuerpo) y devuelve el objeto jsPDF.
+// Lo usan tanto la descarga como el envío por mail (un solo lugar de verdad).
+async function _docArmarPDF() {
   const d = window._doc;
   const pl = d.plantillas.find(p => String(p.id) === String(d.plantillaId)) || d.plantillas[0];
   const texto = _docLlenar(pl.contenido);
 
-  let jsPDF;
-  try { jsPDF = await _docCargarJsPDF(); }
-  catch { mostrarMensaje('No se pudo cargar el generador de PDF. Probá con Imprimir → Guardar como PDF.', 'error'); return; }
+  const jsPDF = await _docCargarJsPDF();
 
   const doc = new jsPDF({ unit: 'pt', format: 'a4' });
   const W = doc.internal.pageSize.getWidth();
@@ -1346,10 +1349,93 @@ async function _docDescargar() {
   });
 
   const nombreArch = (pl.nombre || d.etiqueta).replace(/[^\wáéíóúñü\s-]/gi, '').trim().replace(/\s+/g, '_');
-  doc.save(`${nombreArch || 'documento'}.pdf`);
+  return { doc, nombreArch: nombreArch || 'documento' };
 }
 
-// Placeholder: el envío por mail se cablea más adelante.
-function _docEnviarMail() {
-  mostrarMensaje('El envío por mail va a estar disponible próximamente.', 'info');
+// Descargar PDF: genera un archivo .pdf con membrete + texto y lo baja.
+async function _docDescargar() {
+  _docPreview();
+  let armado;
+  try { armado = await _docArmarPDF(); }
+  catch { mostrarMensaje('No se pudo cargar el generador de PDF. Probá con Imprimir → Guardar como PDF.', 'error'); return; }
+  armado.doc.save(`${armado.nombreArch}.pdf`);
+}
+
+// Enviar por mail: genera el PDF, lo adjunta en base64 y lo manda con la
+// Edge Function 'enviar-email' (Resend). Si el paciente no tiene mail
+// cargado, pide uno a mano antes de enviar.
+async function _docEnviarMail() {
+  _docPreview();
+  const d = window._doc;
+
+  // Destinatario: el del paciente, o el que se escriba a mano si no tiene.
+  let destino = (d.emailPac || '').trim();
+  const inManual = document.getElementById('doc-mail-manual');
+  if (inManual) destino = inManual.value.trim();
+
+  if (!destino) { _docMostrarCampoMail(); return; }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(destino)) {
+    mostrarMensaje('El email no parece válido. Revisalo.', 'advertencia');
+    _docMostrarCampoMail(destino);
+    return;
+  }
+
+  const btn = document.getElementById('doc-btn-mail');
+  if (btn) { btn.disabled = true; btn.dataset.html = btn.innerHTML; btn.textContent = 'Enviando…'; }
+
+  try {
+    const { doc, nombreArch } = await _docArmarPDF();
+    // jsPDF → base64 puro (sin el prefijo data:...;base64,)
+    const b64 = doc.output('datauristring').split(',')[1];
+
+    const nombreNeg = d.cfg?.nombre_consultorio || 'tu podólogo/a';
+    const etiquetaCap = d.etiqueta.charAt(0).toUpperCase() + d.etiqueta.slice(1);
+    const nombrePac = (d.pac.nombre || '').trim() || 'Hola';
+
+    const html = `
+      <div style="font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;font-size:14px;line-height:1.6">
+        <p>Hola ${_docEsc(nombrePac)},</p>
+        <p>Te adjuntamos tu ${_docEsc(d.etiqueta)} de <strong>${_docEsc(nombreNeg)}</strong>.</p>
+        <p>Ante cualquier consulta, respondé este mail.</p>
+        <p style="margin-top:24px;color:#666">Saludos,<br>${_docEsc(nombreNeg)}</p>
+      </div>`;
+
+    const { data, error } = await sb.functions.invoke('enviar-email', {
+      body: {
+        to: destino,
+        asunto: `${etiquetaCap} - ${nombreNeg}`,
+        html,
+        nombre_remitente: nombreNeg,
+        adjuntos: [{ nombre: `${nombreArch}.pdf`, contenido_base64: b64 }]
+      }
+    });
+
+    if (error || !data?.ok) {
+      const msg = data?.error || error?.message || 'No se pudo enviar el mail.';
+      mostrarMensaje(msg, 'error');
+      return;
+    }
+
+    mostrarMensaje(`Documento enviado a ${destino}`, 'exito');
+  } catch (e) {
+    mostrarMensaje('No se pudo generar o enviar el documento. Probá de nuevo.', 'error');
+  } finally {
+    if (btn) { btn.disabled = false; if (btn.dataset.html) btn.innerHTML = btn.dataset.html; }
+  }
+}
+
+// Muestra (o rellena) un campo para escribir el mail a mano, cuando el
+// paciente no tiene email cargado o el cargado no es válido.
+function _docMostrarCampoMail(valor) {
+  const wrap = document.getElementById('doc-mail-wrap');
+  if (!wrap) return;
+  wrap.style.display = '';
+  const inp = document.getElementById('doc-mail-manual');
+  if (inp) {
+    if (valor != null) inp.value = valor;
+    inp.focus();
+  }
+  if (valor == null) {
+    mostrarMensaje('Este paciente no tiene email cargado. Escribilo abajo y volvé a tocar "Enviar por mail".', 'info');
+  }
 }
