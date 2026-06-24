@@ -69,6 +69,70 @@ function mostrarMensaje(texto, tipo = 'info') {
   }, 3500);
 }
 
+// Helper: mini-modal de confirmación (reemplaza al confirm() nativo).
+// Devuelve una promesa que resuelve true (confirmar) o false (cancelar).
+// Uso:  if (!await confirmarModal({ texto: '¿Eliminar?' })) return;
+// Opciones:
+//   titulo        encabezado (default: 'Confirmar')
+//   texto         cuerpo; admite \n para saltos de línea
+//   textoSi       label del botón de confirmar (default: 'Aceptar')
+//   textoNo       label del botón de cancelar  (default: 'Cancelar')
+//   peligro       true → botón de confirmar en rojo (acciones destructivas)
+function confirmarModal(opciones = {}) {
+  const {
+    titulo = 'Confirmar',
+    texto = '¿Confirmás esta acción?',
+    textoSi = 'Aceptar',
+    textoNo = 'Cancelar',
+    peligro = false
+  } = opciones;
+
+  return new Promise((resolve) => {
+    // Si ya hay uno abierto, lo sacamos (evita apilar)
+    const previo = document.getElementById('cm-layer');
+    if (previo) previo.remove();
+
+    const esc = (s) => String(s ?? '')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    const layer = document.createElement('div');
+    layer.id = 'cm-layer';
+    layer.innerHTML = `
+      <div class="cm-overlay">
+        <div class="cm-box" role="dialog" aria-modal="true">
+          <div class="cm-tit">${esc(titulo)}</div>
+          <div class="cm-txt">${esc(texto)}</div>
+          <div class="cm-acc">
+            <button type="button" class="btn cm-no">${esc(textoNo)}</button>
+            <button type="button" class="btn ${peligro ? 'cm-si-peligro' : 'btn-primary-sm'} cm-si">${esc(textoSi)}</button>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(layer);
+
+    const cerrar = (val) => {
+      document.removeEventListener('keydown', onKey);
+      layer.remove();
+      resolve(val);
+    };
+    const onKey = (e) => {
+      if (e.key === 'Escape') cerrar(false);
+      if (e.key === 'Enter') cerrar(true);
+    };
+    document.addEventListener('keydown', onKey);
+
+    layer.querySelector('.cm-no').onclick = () => cerrar(false);
+    layer.querySelector('.cm-si').onclick = () => cerrar(true);
+    // Click en el fondo oscuro = cancelar
+    layer.querySelector('.cm-overlay').onclick = (e) => {
+      if (e.target.classList.contains('cm-overlay')) cerrar(false);
+    };
+
+    // Foco en el botón de confirmar
+    setTimeout(() => layer.querySelector('.cm-si')?.focus(), 20);
+  });
+}
+
 // Helper: formatea moneda en pesos argentinos
 function formatearPrecio(n) {
   return new Intl.NumberFormat('es-AR', {

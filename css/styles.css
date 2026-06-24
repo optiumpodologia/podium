@@ -1954,3 +1954,61 @@ input, select, textarea {
 @media (max-width: 900px) {
   .cfg-grid { grid-template-columns: 1fr; }
 }
+
+/* ============================================================
+   MINI-MODAL DE CONFIRMACIÓN (confirmarModal)
+   Reemplaza al confirm() nativo. z-index alto para quedar
+   por encima de cualquier modal (incl. el generador de docs).
+   ============================================================ */
+.cm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(27, 27, 43, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 300;
+  padding: 1rem;
+  animation: cm-fade 0.12s ease-out;
+}
+@keyframes cm-fade { from { opacity: 0; } to { opacity: 1; } }
+
+.cm-box {
+  background: var(--fondo-card);
+  border-radius: var(--radio-lg);
+  border: 1px solid var(--borde);
+  box-shadow: 0 12px 40px rgba(27, 27, 43, 0.22);
+  width: 100%;
+  max-width: 420px;
+  padding: 1.5rem;
+  animation: cm-pop 0.14s ease-out;
+}
+@keyframes cm-pop {
+  from { transform: translateY(8px) scale(0.98); opacity: 0; }
+  to   { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+.cm-tit {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--texto);
+  margin-bottom: 0.5rem;
+}
+.cm-txt {
+  font-size: 0.92rem;
+  color: var(--texto-secundario);
+  line-height: 1.55;
+  white-space: pre-line;
+  margin-bottom: 1.4rem;
+}
+.cm-acc {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}
+.cm-si-peligro {
+  background: var(--peligro);
+  border-color: var(--peligro);
+  color: #fff;
+}
+.cm-si-peligro:hover { background: #b23232; border-color: #b23232; }

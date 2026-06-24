@@ -1046,11 +1046,13 @@ async function generarDocumento(pacienteId, tipo) {
 
   window._doc = {
     tipo, etiqueta, plantillas, pac, cfg,
+    pacienteId,
     plantillaId: plantillas[0].id,
     motivo: '',
     horas: '',
     profSel: profNombre,
-    emailPac: pac.email || ''
+    emailPac: pac.email || '',
+    yaEnviado: false
   };
 
   _docModal();
@@ -1215,9 +1217,9 @@ function _docModal() {
           <label>${dic(I.reloj, 15)} Horas de reposo</label>
           <input id="doc-horas" class="doc-input" type="number" min="0" oninput="_docPreview()" placeholder="Ej: 48">
         </div>
-        <div class="doc-field" id="doc-mail-wrap" style="display:none;">
-          <label>${dic(I.mail, 15)} Email del paciente</label>
-          <input id="doc-mail-manual" class="doc-input" type="email" placeholder="correo@ejemplo.com">
+        <div class="doc-field" id="doc-mail-wrap" style="display:${d.emailPac ? 'none' : ''};">
+          <label>${dic(I.mail, 15)} Email del paciente ${d.emailPac ? '' : '<span class="doc-opt">(sin cargar — completá para enviar)</span>'}</label>
+          <input id="doc-mail-manual" class="doc-input" type="email" placeholder="correo@ejemplo.com" value="${_docEsc(d.emailPac || '')}">
         </div>
         <div class="doc-infobox">
           ${dic(I.shield, 18)}
@@ -1361,23 +1363,63 @@ async function _docDescargar() {
   armado.doc.save(`${armado.nombreArch}.pdf`);
 }
 
-// Enviar por mail: genera el PDF, lo adjunta en base64 y lo manda con la
-// Edge Function 'enviar-email' (Resend). Si el paciente no tiene mail
-// cargado, pide uno a mano antes de enviar.
-async function _docEnviarMail() {
+// Enviar por mail. Tres caminos:
+//  1) Paciente con email en la ficha → manda directo a ese.
+//  2) Paciente sin email → muestra la casilla para cargarlo; al enviar se
+//     guarda en la ficha (estaba vacía, no hay nada que pisar).
+//  3) "Enviar a otro email" → fuerza la casilla aunque tenga email. Si el
+//     mail escrito difiere del de la ficha, pregunta si reemplazarlo.
+// forzarManual: lo pasa el botón "Enviar a otro email".
+async function _docEnviarMail(forzarManual) {
   _docPreview();
   const d = window._doc;
 
-  // Destinatario: el del paciente, o el que se escriba a mano si no tiene.
-  let destino = (d.emailPac || '').trim();
-  const inManual = document.getElementById('doc-mail-manual');
-  if (inManual) destino = inManual.value.trim();
+  const tieneFicha = !!(d.emailPac || '').trim();
+  const wrapVisible = document.getElementById('doc-mail-wrap')?.style.display !== 'none'
+    && document.getElementById('doc-mail-wrap');
 
-  if (!destino) { _docMostrarCampoMail(); return; }
+  // ¿De dónde sale el destinatario?
+  // - Si la casilla está visible (sin email en ficha, o "otro email"), usamos lo escrito.
+  // - Si no, usamos el de la ficha.
+  let destino, usandoManual = false;
+  if (forzarManual || !tieneFicha || wrapVisible) {
+    // Vaciar solo al abrir la casilla por primera vez vía "Enviar a otro email"
+    // (si ya estaba visible, respetamos lo que el usuario escribió).
+    const abrirVacio = forzarManual && tieneFicha && !wrapVisible;
+    _docMostrarCampoMail(abrirVacio ? '' : undefined);
+    const inManual = document.getElementById('doc-mail-manual');
+    destino = (inManual?.value || '').trim();
+    usandoManual = true;
+    // Si recién mostramos la casilla y está vacía, esperamos a que escriba.
+    if (!destino) {
+      if (!tieneFicha || abrirVacio) {
+        mostrarMensaje('Escribí el email y volvé a tocar "Enviar por mail".', 'info');
+      }
+      return;
+    }
+  } else {
+    destino = (d.emailPac || '').trim();
+  }
+
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(destino)) {
     mostrarMensaje('El email no parece válido. Revisalo.', 'advertencia');
     _docMostrarCampoMail(destino);
     return;
+  }
+
+  // ¿Hay que ofrecer guardar en la ficha?
+  //  - Ficha vacía: guardamos sin preguntar.
+  //  - Ficha con otro mail distinto: preguntamos.
+  let guardarEnFicha = false;
+  if (!tieneFicha) {
+    guardarEnFicha = true;
+  } else if (usandoManual && destino !== d.emailPac.trim()) {
+    guardarEnFicha = await confirmarModal({
+      titulo: 'Email distinto al de la ficha',
+      texto: `La ficha tiene ${d.emailPac.trim()}.\n¿Querés reemplazarlo por ${destino} de forma permanente?\n\nSi elegís "Solo por esta vez", se envía a ese mail pero la ficha no cambia.`,
+      textoSi: 'Reemplazar en la ficha',
+      textoNo: 'Solo por esta vez'
+    });
   }
 
   const btn = document.getElementById('doc-btn-mail');
@@ -1416,7 +1458,25 @@ async function _docEnviarMail() {
       return;
     }
 
+    // Guardar en la ficha si corresponde (en segundo plano, sin frenar el éxito).
+    if (guardarEnFicha && d.pacienteId) {
+      sb.from('pacientes').update({ email: destino }).eq('id', d.pacienteId)
+        .then(({ error: e2 }) => {
+          if (!e2) { d.emailPac = destino; mostrarMensaje('Email guardado en la ficha del paciente.', 'exito'); }
+        });
+    }
+
     mostrarMensaje(`Documento enviado a ${destino}`, 'exito');
+
+    // Post-envío: el botón pasa a "Volver a enviar" y aparece "Enviar a otro email".
+    d.yaEnviado = true;
+    _docMarcarEnviado();
+    // Si veníamos de "otro email" y NO se reemplazó, ocultamos la casilla
+    // para que el próximo envío vuelva a usar el de la ficha por defecto.
+    if (tieneFicha && !guardarEnFicha) {
+      const wrap = document.getElementById('doc-mail-wrap');
+      if (wrap) wrap.style.display = 'none';
+    }
   } catch (e) {
     mostrarMensaje('No se pudo generar o enviar el documento. Probá de nuevo.', 'error');
   } finally {
@@ -1424,18 +1484,34 @@ async function _docEnviarMail() {
   }
 }
 
-// Muestra (o rellena) un campo para escribir el mail a mano, cuando el
-// paciente no tiene email cargado o el cargado no es válido.
+// Tras un envío exitoso: cambia el botón principal a "Volver a enviar por
+// mail" y agrega el botón "Enviar a otro email" (si no estaba ya).
+function _docMarcarEnviado() {
+  const dic = (p, s = 15) => `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+  const icoMail = '<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>';
+
+  const btn = document.getElementById('doc-btn-mail');
+  if (btn) btn.innerHTML = `${dic(icoMail)} Volver a enviar por mail`;
+
+  if (!document.getElementById('doc-btn-otro')) {
+    const b = document.createElement('button');
+    b.id = 'doc-btn-otro';
+    b.className = 'btn';
+    b.innerHTML = `${dic(icoMail)} Enviar a otro email`;
+    b.onclick = () => _docEnviarMail(true);
+    btn?.parentElement?.appendChild(b);
+  }
+}
+
+// Muestra (o rellena) la casilla para escribir el mail a mano.
+// valor === undefined → no toca el contenido. valor === '' → lo vacía.
 function _docMostrarCampoMail(valor) {
   const wrap = document.getElementById('doc-mail-wrap');
   if (!wrap) return;
   wrap.style.display = '';
   const inp = document.getElementById('doc-mail-manual');
   if (inp) {
-    if (valor != null) inp.value = valor;
+    if (valor !== undefined) inp.value = valor;
     inp.focus();
-  }
-  if (valor == null) {
-    mostrarMensaje('Este paciente no tiene email cargado. Escribilo abajo y volvé a tocar "Enviar por mail".', 'info');
   }
 }
