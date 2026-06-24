@@ -1087,6 +1087,7 @@ function _docSetTipo(tab, soloEstado) {
     d.plantillaId = plantillas.length ? plantillas[0].id : null;
     d.motivo = '';
     d.horas = '';
+    d.textoEditado = null;
   }
 
   if (!soloEstado) {
@@ -1154,16 +1155,43 @@ function _docPartes(texto) {
   return { titulo, cuerpo: lines.slice(i).join('\n') };
 }
 
-// Construye la vista previa: el título en violeta centrado; el resto cuerpo.
+// Construye la vista previa: el título en violeta centrado; el resto cuerpo
+// editable (el usuario puede retocar el texto a mano antes de generar).
 function _docPreviewHTML(texto) {
   const { titulo, cuerpo } = _docPartes(texto);
   const tHTML = titulo.length
     ? `<div class="doc-prev-titulo">${titulo.map(t => _docEsc(t)).join('<br>')}</div><div class="doc-prev-rule"></div>`
     : '';
-  return `${tHTML}<div class="doc-prev-cuerpo">${_docEsc(cuerpo)}</div>`;
+  return `${tHTML}<div class="doc-prev-cuerpo" id="doc-prev-cuerpo" contenteditable="true" spellcheck="false" oninput="_docPreviewEditado()">${_docEsc(cuerpo)}</div>`;
+}
+
+// El usuario editó la vista previa a mano: guardamos el texto resultante.
+// Reconstruimos el documento completo (título + cuerpo editado) para que
+// lo que se genere/envíe sea exactamente lo que se ve.
+function _docPreviewEditado() {
+  const d = window._doc;
+  const cuerpoEl = document.getElementById('doc-prev-cuerpo');
+  if (!cuerpoEl) return;
+  // El título no es editable: lo tomamos del modelo actual.
+  const pl = d.plantillas.find(p => String(p.id) === String(d.plantillaId)) || d.plantillas[0];
+  if (!pl) return;
+  const { titulo } = _docPartes(_docLlenar(pl.contenido));
+  const cuerpoEditado = cuerpoEl.innerText;
+  d.textoEditado = (titulo.length ? titulo.join('\n') + '\n\n' : '') + cuerpoEditado;
+}
+
+// Devuelve el texto a usar para generar/enviar/imprimir: el editado a mano
+// si existe, o el armado desde el modelo + variables si no.
+function _docTextoActual() {
+  const d = window._doc;
+  if (d.textoEditado != null) return d.textoEditado;
+  const pl = d.plantillas.find(p => String(p.id) === String(d.plantillaId)) || d.plantillas[0];
+  return pl ? _docLlenar(pl.contenido) : '';
 }
 
 // Sincroniza el estado con el DOM y refresca la vista previa.
+// Cualquier cambio de campo (modelo, motivo, horas) descarta la edición
+// manual (opción simple acordada): la preview vuelve a armarse del modelo.
 function _docPreview() {
   const d = window._doc;
   const selP = document.getElementById('doc-plantilla');
@@ -1172,6 +1200,8 @@ function _docPreview() {
   if (inMot) d.motivo = inMot.value;
   const inHs = document.getElementById('doc-horas');
   if (inHs) d.horas = inHs.value;
+
+  d.textoEditado = null;  // al tocar un campo, se descarta el retoque manual
 
   const pl = d.plantillas.find(p => String(p.id) === String(d.plantillaId)) || d.plantillas[0];
   if (!pl) return;
@@ -1225,6 +1255,8 @@ function _docModal() {
               onclick="_docSetTipo('${s.tab}')">${dic(s.ico, 15)} ${s.label}${sinModelos ? ' <span class="doc-tab-vacia">(sin modelos)</span>' : ''}</button>`;
   }).join('');
 
+  const icoProf = '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.2 3.6-6.5 8-6.5s8 2.3 8 6.5"/>';
+
   _docAbrirOverlay(`
     <div class="modal-header doc-head">
       <div class="doc-head-l">
@@ -1233,6 +1265,9 @@ function _docModal() {
           <div class="doc-head-tit">Documentos</div>
           <div class="doc-head-sub">Completá los datos y revisá el documento antes de generarlo</div>
         </div>
+      </div>
+      <div class="doc-head-prof" id="doc-head-prof">
+        ${dic(icoProf, 14)} <span>Profesional: <strong>${_docEsc(d.profSel || '— sin asignar —')}</strong></span>
       </div>
       <button class="modal-cerrar" onclick="_docCerrar()">×</button>
     </div>
@@ -1248,6 +1283,10 @@ function _docRenderCuerpo() {
   const d = window._doc;
   const cont = document.getElementById('doc-cuerpo');
   if (!cont) return;
+
+  // Profesional en la cabecera: visible solo al generar (no en historial).
+  const headProf = document.getElementById('doc-head-prof');
+  if (headProf) headProf.style.display = (d.tabActiva === 'historial') ? 'none' : '';
 
   const dic = (p, s = 16) => `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
   const I = {
@@ -1298,8 +1337,6 @@ function _docRenderCuerpo() {
           </select>
         </div>`;
 
-  const profRO = `<div class="doc-prof-ro">${dic(I.prof, 13)} Profesional: <strong>${_docEsc(d.profSel || '— sin asignar —')}</strong></div>`;
-
   const incluye = `
         <div class="doc-incluye">
           <div class="doc-incluye-tit">${dic(I.doc, 15)} ${info.titulo}</div>
@@ -1311,7 +1348,6 @@ function _docRenderCuerpo() {
       <div class="doc-form">
         <div class="doc-sec-lbl">Datos para el ${d.etiqueta}</div>
         ${tipoSel}
-        ${profRO}
         <div class="doc-field">
           <label>${dic(I.mot, 15)} Motivo / diagnóstico <span class="doc-opt">(opcional)</span></label>
           <input id="doc-motivo" class="doc-input" oninput="_docPreview()" placeholder="Ej: onicocriptosis">
@@ -1350,11 +1386,10 @@ function _docRenderCuerpo() {
 // Imprimir: abre el documento con membrete en una ventana nueva y dispara
 // el diálogo de impresión (sin descargar archivo).
 function _docImprimir() {
-  _docPreview();
   const d = window._doc;
   const pl = d.plantillas.find(p => String(p.id) === String(d.plantillaId)) || d.plantillas[0];
   if (!pl) { mostrarMensaje('No hay modelo para imprimir.', 'advertencia'); return; }
-  const texto = _docLlenar(pl.contenido);
+  const texto = _docTextoActual();
   const logo = d.cfg?.logo_url
     ? `<img src="${d.cfg.logo_url}" alt="" style="max-height:64px;max-width:220px;object-fit:contain">` : '';
 
@@ -1454,7 +1489,7 @@ async function _docArmarPDF() {
   const d = window._doc;
   const pl = d.plantillas.find(p => String(p.id) === String(d.plantillaId)) || d.plantillas[0];
   if (!pl) throw new Error('Sin modelo');
-  const texto = _docLlenar(pl.contenido);
+  const texto = _docTextoActual();
   const jsPDF = await _docCargarJsPDF();
   const doc = await _docPDFdesdeContenido(jsPDF, texto, d.cfg);
   const nombreArch = (pl.nombre || d.etiqueta).replace(/[^\wáéíóúñü\s-]/gi, '').trim().replace(/\s+/g, '_');
@@ -1476,7 +1511,7 @@ async function _docRegistrar(accion, emailDestino) {
     paciente_id: d.pacienteId,
     tipo: d.tipo,
     nombre: pl.nombre || d.etiqueta,
-    contenido: _docLlenar(pl.contenido),   // texto congelado tal como se emite
+    contenido: _docTextoActual(),   // texto congelado tal como se emite (incluye ediciones a mano)
     profesional_nombre: d.profSel || null,
     accion,
     email_destino: emailDestino || null
@@ -1583,7 +1618,6 @@ function _docHistReenviar(idx) {
 
 // Descargar PDF: genera un archivo .pdf con membrete + texto y lo baja.
 async function _docDescargar() {
-  _docPreview();
   let armado;
   try { armado = await _docArmarPDF(); }
   catch { mostrarMensaje('No se pudo cargar el generador de PDF. Probá con Imprimir → Guardar como PDF.', 'error'); return; }
@@ -1595,7 +1629,6 @@ async function _docDescargar() {
 // la ficha, editable) + check "actualizar email en la ficha" + botón Enviar.
 function _docEnviarMail() {
   const d = window._doc;
-  if (!d.reenvio) _docPreview();
 
   const dic = (p, s = 16) => `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
   const icoMail = '<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>';
@@ -1636,9 +1669,6 @@ function _docEnviarMail() {
   document.addEventListener('keydown', onKey);
 
   layer.querySelector('.dm-cancel').onclick = cerrar;
-  layer.querySelector('.cm-overlay').onclick = (e) => {
-    if (e.target.classList.contains('cm-overlay')) cerrar();
-  };
   layer.querySelector('.dm-enviar').onclick = () => _docEnviarMailConfirmar(cerrar);
 
   setTimeout(() => {
@@ -1691,8 +1721,7 @@ async function _docEnviarMailConfirmar(cerrar) {
       nombreArch = armado.nombreArch;
       etiquetaDoc = d.etiqueta;
       tipoDoc = d.tipo;
-      const pl = d.plantillas.find(p => String(p.id) === String(d.plantillaId)) || d.plantillas[0];
-      contenidoDoc = pl ? _docLlenar(pl.contenido) : '';
+      contenidoDoc = _docTextoActual();
     }
 
     const nombreNeg = d.cfg?.nombre_consultorio || 'tu podólogo/a';
