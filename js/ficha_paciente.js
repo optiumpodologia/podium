@@ -1275,6 +1275,87 @@ function _docModal() {
     <div id="doc-cuerpo"></div>
   `);
   _docRenderCuerpo();
+  _docFijarAltura();
+}
+
+// Mide la altura natural del formulario de cada solapa generable
+// (certificado y consentimiento) y fija el cuerpo del modal en la mayor.
+// Así la altura es la del contenido más alto, sin scroll y sin adivinar
+// un número. Se queda fija para todas las solapas.
+function _docFijarAltura() {
+  const d = window._doc;
+  const cuerpo = document.getElementById('doc-cuerpo');
+  if (!cuerpo) return;
+
+  // Medimos en un contenedor oculto fuera de pantalla, con el mismo ancho
+  // de la columna del formulario, la altura real de cada form.
+  const medidor = document.createElement('div');
+  medidor.style.cssText = 'position:absolute;left:-9999px;top:0;width:320px;visibility:hidden;';
+  document.body.appendChild(medidor);
+
+  let maxForm = 0;
+  ['certificado', 'consentimiento'].forEach(tipo => {
+    const pls = d.plantillasPorTipo[tipo] || [];
+    if (!pls.length) return;
+    medidor.innerHTML = _docFormHTML(tipo, pls[0]);
+    const f = medidor.querySelector('.doc-form');
+    if (f) maxForm = Math.max(maxForm, f.scrollHeight);
+  });
+  medidor.remove();
+
+  if (maxForm > 0) {
+    // El cuerpo = alto del form + el footer (botones). Damos un respiro.
+    const footer = cuerpo.querySelector('.doc-foot');
+    const hFooter = footer ? footer.offsetHeight : 56;
+    const alto = maxForm + hFooter + 4;
+    // Tope para no pasarnos del alto de la ventana.
+    const tope = Math.floor(window.innerHeight * 0.86);
+    cuerpo.style.height = Math.min(alto, tope) + 'px';
+  }
+}
+
+// Devuelve solo el HTML del formulario de una solapa (sin preview ni footer),
+// para poder medir su altura natural. Mismo markup que _docRenderCuerpo.
+function _docFormHTML(tipo, pl) {
+  const d = window._doc;
+  const etiqueta = tipo === 'consentimiento' ? 'consentimiento' : 'certificado';
+  const info = _docInfo(tipo);
+  const dic = (p, s = 16) => `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+  const I = {
+    mot:   '<path d="M4 4v6a6 6 0 0 0 12 0V4"/><path d="M2 4h4M14 4h4"/><circle cx="20" cy="16" r="2"/><path d="M10 16v3a3 3 0 0 0 6 0v-1"/>',
+    shield:'<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>',
+    doc:   '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>',
+    check: '<polyline points="20 6 9 17 4 12"/>',
+    reloj: '<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>'
+  };
+  const usaHoras = (pl.contenido || '').includes('{horas}');
+  return `
+    <div class="doc-form">
+      <div class="doc-sec-lbl">Datos para el ${etiqueta}</div>
+      <div class="doc-field">
+        <label>${dic(I.doc, 15)} Modelo de ${etiqueta}</label>
+        <select class="doc-input"><option>${_docEsc(pl.nombre)}</option></select>
+      </div>
+      <div class="doc-field">
+        <label>${dic(I.mot, 15)} Motivo / diagnóstico <span class="doc-opt">(opcional)</span></label>
+        <input class="doc-input" placeholder="Ej: onicocriptosis">
+      </div>
+      <div class="doc-field" style="display:${usaHoras ? '' : 'none'};">
+        <label>${dic(I.reloj, 15)} Horas de reposo</label>
+        <input class="doc-input" type="number">
+      </div>
+      <div class="doc-infobox">
+        ${dic(I.shield, 18)}
+        <div>
+          <div class="doc-infobox-tit">Información importante</div>
+          <div class="doc-infobox-txt">${info.imp}</div>
+        </div>
+      </div>
+      <div class="doc-incluye">
+        <div class="doc-incluye-tit">${dic(I.doc, 15)} ${info.titulo}</div>
+        ${info.items.map(it => `<div class="doc-incluye-item">${dic(I.check, 15)} ${it}</div>`).join('')}
+      </div>
+    </div>`;
 }
 
 // Renderiza el cuerpo del modal (form + preview + footer) según la solapa

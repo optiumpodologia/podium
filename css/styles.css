@@ -1740,8 +1740,9 @@ input, select, textarea {
 }
 .doc-head-prof svg { color: var(--primario); flex: none; }
 .doc-head-prof strong { color: var(--texto); font-weight: 600; }
-/* Cuerpo del modal con altura fija: no salta al cambiar de solapa. */
-#doc-cuerpo { height: 64vh; max-height: 620px; min-height: 440px; overflow: hidden; display: flex; flex-direction: column; }
+/* Cuerpo del modal: la altura la fija _docFijarAltura() midiendo el form
+   más alto (consentimiento). Acá solo un mínimo de respaldo. */
+#doc-cuerpo { min-height: 440px; overflow: hidden; display: flex; flex-direction: column; }
 #doc-cuerpo .doc-body { flex: 1; min-height: 0; overflow: hidden; }
 #doc-cuerpo .doc-foot { flex: none; }
 .doc-head-l { display: flex; gap: 12px; align-items: flex-start; }
