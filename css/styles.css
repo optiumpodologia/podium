@@ -2012,3 +2012,47 @@ input, select, textarea {
   color: #fff;
 }
 .cm-si-peligro:hover { background: #b23232; border-color: #b23232; }
+
+/* ============================================================
+   MINI-MODAL DE ENVÍO POR MAIL (generador de documentos)
+   Reutiliza .cm-overlay y .cm-box del mini-modal de confirmación.
+   ============================================================ */
+.dm-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--texto);
+  margin-bottom: 1.2rem;
+}
+.dm-head svg { color: var(--primario); flex-shrink: 0; }
+
+.dm-label {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--texto-secundario);
+  margin-bottom: 0.4rem;
+}
+
+#dm-email { width: 100%; }
+
+.dm-check {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin-top: 0.9rem;
+  margin-bottom: 1.4rem;
+  font-size: 0.88rem;
+  color: var(--texto);
+  cursor: pointer;
+  user-select: none;
+}
+.dm-check input[type="checkbox"] {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--primario);
+  cursor: pointer;
+  flex-shrink: 0;
+}

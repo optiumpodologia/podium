@@ -1051,8 +1051,7 @@ async function generarDocumento(pacienteId, tipo) {
     motivo: '',
     horas: '',
     profSel: profNombre,
-    emailPac: pac.email || '',
-    yaEnviado: false
+    emailPac: pac.email || ''
   };
 
   _docModal();
@@ -1217,10 +1216,6 @@ function _docModal() {
           <label>${dic(I.reloj, 15)} Horas de reposo</label>
           <input id="doc-horas" class="doc-input" type="number" min="0" oninput="_docPreview()" placeholder="Ej: 48">
         </div>
-        <div class="doc-field" id="doc-mail-wrap" style="display:${d.emailPac ? 'none' : ''};">
-          <label>${dic(I.mail, 15)} Email del paciente ${d.emailPac ? '' : '<span class="doc-opt">(sin cargar — completá para enviar)</span>'}</label>
-          <input id="doc-mail-manual" class="doc-input" type="email" placeholder="correo@ejemplo.com" value="${_docEsc(d.emailPac || '')}">
-        </div>
         <div class="doc-infobox">
           ${dic(I.shield, 18)}
           <div>
@@ -1363,71 +1358,78 @@ async function _docDescargar() {
   armado.doc.save(`${armado.nombreArch}.pdf`);
 }
 
-// Enviar por mail. Tres caminos:
-//  1) Paciente con email en la ficha → manda directo a ese.
-//  2) Paciente sin email → muestra la casilla para cargarlo; al enviar se
-//     guarda en la ficha (estaba vacía, no hay nada que pisar).
-//  3) "Enviar a otro email" → fuerza la casilla aunque tenga email. Si el
-//     mail escrito difiere del de la ficha, pregunta si reemplazarlo.
-// forzarManual: lo pasa el botón "Enviar a otro email".
-async function _docEnviarMail(forzarManual) {
+// Abre el mini-modal de envío por mail: campo de email (precargado con el de
+// la ficha, editable) + check "actualizar email en la ficha" + botón Enviar.
+function _docEnviarMail() {
   _docPreview();
   const d = window._doc;
 
-  const tieneFicha = !!(d.emailPac || '').trim();
-  const wrapVisible = document.getElementById('doc-mail-wrap')?.style.display !== 'none'
-    && document.getElementById('doc-mail-wrap');
+  const dic = (p, s = 16) => `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+  const icoMail = '<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>';
 
-  // ¿De dónde sale el destinatario?
-  // - Si la casilla está visible (sin email en ficha, o "otro email"), usamos lo escrito.
-  // - Si no, usamos el de la ficha.
-  let destino, usandoManual = false;
-  if (forzarManual || !tieneFicha || wrapVisible) {
-    // Vaciar solo al abrir la casilla por primera vez vía "Enviar a otro email"
-    // (si ya estaba visible, respetamos lo que el usuario escribió).
-    const abrirVacio = forzarManual && tieneFicha && !wrapVisible;
-    _docMostrarCampoMail(abrirVacio ? '' : undefined);
-    const inManual = document.getElementById('doc-mail-manual');
-    destino = (inManual?.value || '').trim();
-    usandoManual = true;
-    // Si recién mostramos la casilla y está vacía, esperamos a que escriba.
-    if (!destino) {
-      if (!tieneFicha || abrirVacio) {
-        mostrarMensaje('Escribí el email y volvé a tocar "Enviar por mail".', 'info');
-      }
-      return;
-    }
-  } else {
-    destino = (d.emailPac || '').trim();
-  }
+  const previo = document.getElementById('dm-layer');
+  if (previo) previo.remove();
+
+  const emailFicha = (d.emailPac || '').trim();
+  const layer = document.createElement('div');
+  layer.id = 'dm-layer';
+  layer.innerHTML = `
+    <div class="cm-overlay">
+      <div class="cm-box" role="dialog" aria-modal="true">
+        <div class="dm-head">${dic(icoMail, 18)}<span>Enviar ${_docEsc(d.etiqueta)} por mail</span></div>
+        <label class="dm-label">Email del paciente</label>
+        <input id="dm-email" class="doc-input" type="email" placeholder="correo@ejemplo.com" value="${_docEsc(emailFicha)}">
+        <label class="dm-check">
+          <input id="dm-guardar" type="checkbox" checked>
+          <span>Actualizar el email en la ficha del paciente</span>
+        </label>
+        <div class="cm-acc">
+          <button type="button" class="btn dm-cancel">Cancelar</button>
+          <button type="button" class="btn btn-primary-sm dm-enviar">${dic(icoMail)} Enviar</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(layer);
+
+  const cerrar = () => { document.removeEventListener('keydown', onKey); layer.remove(); };
+  const onKey = (e) => { if (e.key === 'Escape') cerrar(); };
+  document.addEventListener('keydown', onKey);
+
+  layer.querySelector('.dm-cancel').onclick = cerrar;
+  layer.querySelector('.cm-overlay').onclick = (e) => {
+    if (e.target.classList.contains('cm-overlay')) cerrar();
+  };
+  layer.querySelector('.dm-enviar').onclick = () => _docEnviarMailConfirmar(cerrar);
+
+  setTimeout(() => {
+    const inp = layer.querySelector('#dm-email');
+    inp?.focus();
+    if (emailFicha) inp?.setSelectionRange(emailFicha.length, emailFicha.length);
+  }, 20);
+}
+
+// Hace el envío real desde el modal: valida, manda el PDF y (si el check
+// está tildado y el mail cambió o estaba vacío) lo guarda en la ficha.
+async function _docEnviarMailConfirmar(cerrar) {
+  const d = window._doc;
+  const inp = document.getElementById('dm-email');
+  const chk = document.getElementById('dm-guardar');
+  const btn = document.querySelector('#dm-layer .dm-enviar');
+  const destino = (inp?.value || '').trim();
 
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(destino)) {
     mostrarMensaje('El email no parece válido. Revisalo.', 'advertencia');
-    _docMostrarCampoMail(destino);
+    inp?.focus();
     return;
   }
 
-  // ¿Hay que ofrecer guardar en la ficha?
-  //  - Ficha vacía: guardamos sin preguntar.
-  //  - Ficha con otro mail distinto: preguntamos.
-  let guardarEnFicha = false;
-  if (!tieneFicha) {
-    guardarEnFicha = true;
-  } else if (usandoManual && destino !== d.emailPac.trim()) {
-    guardarEnFicha = await confirmarModal({
-      titulo: 'Email distinto al de la ficha',
-      texto: `La ficha tiene ${d.emailPac.trim()}.\n¿Querés reemplazarlo por ${destino} de forma permanente?\n\nSi elegís "Solo por esta vez", se envía a ese mail pero la ficha no cambia.`,
-      textoSi: 'Reemplazar en la ficha',
-      textoNo: 'Solo por esta vez'
-    });
-  }
+  const emailFicha = (d.emailPac || '').trim();
+  const guardarEnFicha = !!chk?.checked && destino !== emailFicha;
 
-  const btn = document.getElementById('doc-btn-mail');
   if (btn) { btn.disabled = true; btn.dataset.html = btn.innerHTML; btn.textContent = 'Enviando…'; }
 
   try {
     const { doc, nombreArch } = await _docArmarPDF();
-    // jsPDF → base64 puro (sin el prefijo data:...;base64,)
     const b64 = doc.output('datauristring').split(',')[1];
 
     const nombreNeg = d.cfg?.nombre_consultorio || 'tu podólogo/a';
@@ -1453,65 +1455,52 @@ async function _docEnviarMail(forzarManual) {
     });
 
     if (error || !data?.ok) {
-      const msg = data?.error || error?.message || 'No se pudo enviar el mail.';
-      mostrarMensaje(msg, 'error');
+      mostrarMensaje(await _docMensajeError(error, data, destino), 'error');
+      if (btn) { btn.disabled = false; if (btn.dataset.html) btn.innerHTML = btn.dataset.html; }
       return;
     }
 
-    // Guardar en la ficha si corresponde (en segundo plano, sin frenar el éxito).
+    // Guardar en la ficha si corresponde (en segundo plano).
     if (guardarEnFicha && d.pacienteId) {
       sb.from('pacientes').update({ email: destino }).eq('id', d.pacienteId)
         .then(({ error: e2 }) => {
-          if (!e2) { d.emailPac = destino; mostrarMensaje('Email guardado en la ficha del paciente.', 'exito'); }
+          if (!e2) { d.emailPac = destino; mostrarMensaje('Email actualizado en la ficha.', 'exito'); }
         });
     }
 
     mostrarMensaje(`Documento enviado a ${destino}`, 'exito');
-
-    // Post-envío: el botón pasa a "Volver a enviar" y aparece "Enviar a otro email".
-    d.yaEnviado = true;
-    _docMarcarEnviado();
-    // Si veníamos de "otro email" y NO se reemplazó, ocultamos la casilla
-    // para que el próximo envío vuelva a usar el de la ficha por defecto.
-    if (tieneFicha && !guardarEnFicha) {
-      const wrap = document.getElementById('doc-mail-wrap');
-      if (wrap) wrap.style.display = 'none';
-    }
+    if (typeof cerrar === 'function') cerrar();
   } catch (e) {
     mostrarMensaje('No se pudo generar o enviar el documento. Probá de nuevo.', 'error');
-  } finally {
     if (btn) { btn.disabled = false; if (btn.dataset.html) btn.innerHTML = btn.dataset.html; }
   }
 }
 
-// Tras un envío exitoso: cambia el botón principal a "Volver a enviar por
-// mail" y agrega el botón "Enviar a otro email" (si no estaba ya).
-function _docMarcarEnviado() {
-  const dic = (p, s = 15) => `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
-  const icoMail = '<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>';
+// Traduce el error de envío a un mensaje claro para el usuario.
+// invoke() cuando hay status 4xx/5xx mete la respuesta en error.context;
+// de ahí sacamos el detalle real (mensaje de Resend) y lo humanizamos.
+async function _docMensajeError(error, data, destino) {
+  let detalle = data?.error || '';
 
-  const btn = document.getElementById('doc-btn-mail');
-  if (btn) btn.innerHTML = `${dic(icoMail)} Volver a enviar por mail`;
-
-  if (!document.getElementById('doc-btn-otro')) {
-    const b = document.createElement('button');
-    b.id = 'doc-btn-otro';
-    b.className = 'btn';
-    b.innerHTML = `${dic(icoMail)} Enviar a otro email`;
-    b.onclick = () => _docEnviarMail(true);
-    btn?.parentElement?.appendChild(b);
+  // El cuerpo real suele venir en error.context (una Response).
+  if (!detalle && error?.context && typeof error.context.json === 'function') {
+    try { const c = await error.context.json(); detalle = c?.error || c?.message || ''; } catch {}
   }
-}
+  if (!detalle) detalle = error?.message || '';
+  const low = detalle.toLowerCase();
 
-// Muestra (o rellena) la casilla para escribir el mail a mano.
-// valor === undefined → no toca el contenido. valor === '' → lo vacía.
-function _docMostrarCampoMail(valor) {
-  const wrap = document.getElementById('doc-mail-wrap');
-  if (!wrap) return;
-  wrap.style.display = '';
-  const inp = document.getElementById('doc-mail-manual');
-  if (inp) {
-    if (valor !== undefined) inp.value = valor;
-    inp.focus();
+  // Caso típico en pruebas: remitente onboarding@resend.dev solo permite
+  // mandar al mail de la cuenta de Resend.
+  if (low.includes('testing') || low.includes('verify a domain') || low.includes('own email')) {
+    return `Todavía no se puede enviar a ${destino}. Falta verificar el dominio en Resend (por ahora solo llega a tu propia casilla).`;
   }
+  if (low.includes('invalid') && low.includes('email')) {
+    return `El email ${destino} no fue aceptado. Revisá que esté bien escrito.`;
+  }
+  if (low.includes('rate') || low.includes('limit')) {
+    return 'Se alcanzó el límite de envíos por ahora. Probá de nuevo en un rato.';
+  }
+  return detalle
+    ? `No se pudo enviar: ${detalle}`
+    : 'No se pudo enviar el mail. Probá de nuevo.';
 }
