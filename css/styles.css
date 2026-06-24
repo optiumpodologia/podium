@@ -2111,3 +2111,74 @@ input, select, textarea {
 .doc-vacia svg { color: var(--texto-tenue); margin-bottom: 1rem; }
 .doc-vacia p { margin: 0.2rem 0; font-size: 14px; }
 .doc-vacia-sub { font-size: 12.5px; color: var(--texto-tenue); }
+
+/* ============================================================
+   SOLAPA HISTORIAL (documentos emitidos del paciente)
+   ============================================================ */
+.doc-hist {
+  padding: 1.25rem 1.5rem;
+  max-height: 460px;
+  overflow-y: auto;
+}
+.doc-hist-cargando,
+.doc-hist-vacio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 2.5rem 1rem;
+  color: var(--texto-secundario);
+  font-size: 13.5px;
+}
+.doc-hist-vacio svg { color: var(--texto-tenue); margin-bottom: 0.8rem; }
+.doc-hist-vacio p { margin: 0; }
+
+.doc-hist-lista { display: flex; flex-direction: column; gap: 8px; }
+
+.doc-hist-fila {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 13px;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  background: var(--fondo-card);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.doc-hist-fila:hover {
+  border-color: var(--primario-medio);
+  box-shadow: 0 2px 8px rgba(27,27,43,0.06);
+}
+.doc-hist-ico {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: 9px;
+  background: var(--primario-claro);
+  color: var(--primario);
+}
+.doc-hist-info { flex: 1; min-width: 0; }
+.doc-hist-nom {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--texto);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.doc-hist-meta {
+  font-size: 11.5px;
+  color: var(--texto-secundario);
+  margin-top: 2px;
+}
+.doc-hist-acc { display: flex; gap: 6px; flex-shrink: 0; }
+.doc-hist-btn {
+  padding: 7px 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}

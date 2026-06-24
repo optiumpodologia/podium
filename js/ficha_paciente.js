@@ -1063,7 +1063,7 @@ async function generarDocumento(pacienteId, tipoInicial) {
     motivo: '',
     horas: '',
     // Estado de la solapa activa (se rellena en _docSetTipo).
-    tipo: null, etiqueta: '', plantillas: [], plantillaId: null
+    tabActiva: tipo, tipo: null, etiqueta: '', plantillas: [], plantillaId: null
   };
 
   _docSetTipo(tipo, true);
@@ -1072,17 +1072,35 @@ async function generarDocumento(pacienteId, tipoInicial) {
 
 // Cambia la solapa activa (certificado / consentimiento). Actualiza el
 // estado y, si el modal ya está abierto, re-renderiza el cuerpo.
-function _docSetTipo(tipo, soloEstado) {
+// Cambia la solapa activa. Puede ser 'certificado', 'consentimiento' o
+// 'historial'. Las dos primeras además fijan el tipo de documento a generar.
+function _docSetTipo(tab, soloEstado) {
   const d = window._doc;
   if (!d) return;
-  const plantillas = d.plantillasPorTipo[tipo] || [];
-  d.tipo = tipo;
-  d.etiqueta = tipo === 'consentimiento' ? 'consentimiento' : 'certificado';
-  d.plantillas = plantillas;
-  d.plantillaId = plantillas.length ? plantillas[0].id : null;
-  d.motivo = '';
-  d.horas = '';
-  if (!soloEstado) _docRenderCuerpo();
+  d.tabActiva = tab;
+
+  if (tab === 'certificado' || tab === 'consentimiento') {
+    const plantillas = d.plantillasPorTipo[tab] || [];
+    d.tipo = tab;
+    d.etiqueta = tab === 'consentimiento' ? 'consentimiento' : 'certificado';
+    d.plantillas = plantillas;
+    d.plantillaId = plantillas.length ? plantillas[0].id : null;
+    d.motivo = '';
+    d.horas = '';
+  }
+
+  if (!soloEstado) {
+    _docActualizarTabs();
+    _docRenderCuerpo();
+  }
+}
+
+// Repinta cuál solapa está activa sin re-renderizar todo el modal.
+function _docActualizarTabs() {
+  const d = window._doc;
+  document.querySelectorAll('#doc-modal-layer .doc-tab').forEach(b => {
+    b.classList.toggle('doc-tab-on', b.dataset.tab === d.tabActiva);
+  });
 }
 
 function _docEsc(s) {
@@ -1190,19 +1208,21 @@ function _docModal() {
   const I = {
     head:  '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h8"/>',
     consent: '<rect width="8" height="4" x="8" y="2" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/>',
-    cert:  '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><circle cx="11" cy="15" r="2.4"/><path d="m9.5 16.8-.8 2.7 2.3-1.3 2.3 1.3-.8-2.7"/>'
+    cert:  '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><circle cx="11" cy="15" r="2.4"/><path d="m9.5 16.8-.8 2.7 2.3-1.3 2.3 1.3-.8-2.7"/>',
+    hist:  '<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>'
   };
 
-  // Solapas (3A: solo certificado y consentimiento; el historial llega en 3B).
+  // Solapas: certificado, consentimiento y el historial del paciente.
   const solapas = [
-    { tipo: 'certificado', label: 'Certificado', ico: I.cert },
-    { tipo: 'consentimiento', label: 'Consentimiento', ico: I.consent }
+    { tab: 'certificado', label: 'Certificado', ico: I.cert, esTipo: true },
+    { tab: 'consentimiento', label: 'Consentimiento', ico: I.consent, esTipo: true },
+    { tab: 'historial', label: 'Historial', ico: I.hist, esTipo: false }
   ];
   const tabsHTML = solapas.map(s => {
-    const activa = s.tipo === d.tipo ? ' doc-tab-on' : '';
-    const hayModelos = (d.plantillasPorTipo[s.tipo] || []).length > 0;
-    return `<button type="button" class="doc-tab${activa}" data-tipo="${s.tipo}"
-              onclick="_docSetTipo('${s.tipo}')">${dic(s.ico, 15)} ${s.label}${hayModelos ? '' : ' <span class="doc-tab-vacia">(sin modelos)</span>'}</button>`;
+    const activa = s.tab === d.tabActiva ? ' doc-tab-on' : '';
+    const sinModelos = s.esTipo && (d.plantillasPorTipo[s.tab] || []).length === 0;
+    return `<button type="button" class="doc-tab${activa}" data-tab="${s.tab}"
+              onclick="_docSetTipo('${s.tab}')">${dic(s.ico, 15)} ${s.label}${sinModelos ? ' <span class="doc-tab-vacia">(sin modelos)</span>' : ''}</button>`;
   }).join('');
 
   _docAbrirOverlay(`
@@ -1242,6 +1262,18 @@ function _docRenderCuerpo() {
     print: '<polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/>',
     reloj: '<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>'
   };
+
+  // Solapa Historial: lista de documentos emitidos al paciente.
+  if (d.tabActiva === 'historial') {
+    cont.innerHTML = `
+      <div class="doc-hist">
+        <div id="doc-hist-lista" class="doc-hist-lista">
+          <div class="doc-hist-cargando">Cargando historial…</div>
+        </div>
+      </div>`;
+    _docCargarHistorial();
+    return;
+  }
 
   // Solapa sin modelos: mensaje y nada más (no se puede generar).
   if (!d.plantillas.length) {
@@ -1340,6 +1372,7 @@ function _docImprimir() {
     <script>window.addEventListener('load',function(){setTimeout(function(){window.print()},200)});<\/script>
   </body></html>`);
   w.document.close(); w.focus();
+  _docRegistrar('impreso');
 }
 
 // Carga jsPDF desde CDN al vuelo (no requiere subir archivos ni tocar app.html).
@@ -1368,16 +1401,10 @@ async function _docLogoDataURL(url) {
   } catch { return null; }
 }
 
-// Arma el PDF (membrete + título + cuerpo) y devuelve el objeto jsPDF.
-// Lo usan tanto la descarga como el envío por mail (un solo lugar de verdad).
-async function _docArmarPDF() {
-  const d = window._doc;
-  const pl = d.plantillas.find(p => String(p.id) === String(d.plantillaId)) || d.plantillas[0];
-  if (!pl) throw new Error('Sin modelo');
-  const texto = _docLlenar(pl.contenido);
-
-  const jsPDF = await _docCargarJsPDF();
-
+// Dibuja un PDF (membrete + título + cuerpo) a partir de un texto YA
+// completado. Reutilizable: lo usa el armado normal y el historial.
+// Devuelve el objeto jsPDF (sin guardar).
+async function _docPDFdesdeContenido(jsPDF, texto, cfg) {
   const doc = new jsPDF({ unit: 'pt', format: 'a4' });
   const W = doc.internal.pageSize.getWidth();
   const H = doc.internal.pageSize.getHeight();
@@ -1385,8 +1412,8 @@ async function _docArmarPDF() {
   let y = M;
 
   // Membrete: logo (si se puede) + nombre del negocio.
-  const nombreNeg = d.cfg?.nombre_consultorio || '';
-  let logoData = d.cfg?.logo_url ? await _docLogoDataURL(d.cfg.logo_url) : null;
+  const nombreNeg = cfg?.nombre_consultorio || '';
+  let logoData = cfg?.logo_url ? await _docLogoDataURL(cfg.logo_url) : null;
   if (logoData) {
     try {
       const p = doc.getImageProperties(logoData);
@@ -1418,9 +1445,141 @@ async function _docArmarPDF() {
     doc.text(ln, M, y); y += lh;
   });
 
+  return doc;
+}
+
+// Arma el PDF del documento actual (solapa de generación) y devuelve el
+// objeto jsPDF + el nombre de archivo sugerido.
+async function _docArmarPDF() {
+  const d = window._doc;
+  const pl = d.plantillas.find(p => String(p.id) === String(d.plantillaId)) || d.plantillas[0];
+  if (!pl) throw new Error('Sin modelo');
+  const texto = _docLlenar(pl.contenido);
+  const jsPDF = await _docCargarJsPDF();
+  const doc = await _docPDFdesdeContenido(jsPDF, texto, d.cfg);
   const nombreArch = (pl.nombre || d.etiqueta).replace(/[^\wáéíóúñü\s-]/gi, '').trim().replace(/\s+/g, '_');
   return { doc, nombreArch: nombreArch || 'documento' };
 }
+
+// Registra el documento emitido en el historial (documentos_emitidos).
+// Guarda el TEXTO YA COMPLETADO (variables resueltas) para poder
+// regenerarlo idéntico —con la fecha de emisión— desde el historial.
+//   accion: 'enviado' | 'descargado' | 'impreso'
+//   emailDestino: mail al que se envió (solo para 'enviado')
+async function _docRegistrar(accion, emailDestino) {
+  const d = window._doc;
+  const pl = d.plantillas.find(p => String(p.id) === String(d.plantillaId)) || d.plantillas[0];
+  if (!pl) return;
+
+  const fila = {
+    negocio_id: usuarioActual.negocio_id,
+    paciente_id: d.pacienteId,
+    tipo: d.tipo,
+    nombre: pl.nombre || d.etiqueta,
+    contenido: _docLlenar(pl.contenido),   // texto congelado tal como se emite
+    profesional_nombre: d.profSel || null,
+    accion,
+    email_destino: emailDestino || null
+  };
+
+  // En segundo plano: si falla, no frena la acción principal.
+  sb.from('documentos_emitidos').insert(fila).then(({ error }) => {
+    if (error) console.warn('No se pudo registrar en historial:', error.message);
+    else if (window._doc && d.pacienteId === window._doc.pacienteId) {
+      // Si el historial está abierto, lo refrescamos.
+      if (d.tabActiva === 'historial') _docCargarHistorial();
+    }
+  });
+}
+
+// ---- Historial de documentos emitidos -------------------------------------
+
+// Carga las filas del historial del paciente y las pinta.
+async function _docCargarHistorial() {
+  const d = window._doc;
+  const cont = document.getElementById('doc-hist-lista');
+  if (!cont) return;
+
+  const { data, error } = await sb.from('documentos_emitidos')
+    .select('*').eq('paciente_id', d.pacienteId)
+    .order('creado_at', { ascending: false });
+
+  if (error) {
+    cont.innerHTML = `<div class="doc-hist-vacio">No se pudo cargar el historial.</div>`;
+    return;
+  }
+
+  // Guardamos las filas en memoria para las acciones (ver/reenviar).
+  d.historial = data || [];
+  _docRenderHistorial();
+}
+
+function _docRenderHistorial() {
+  const d = window._doc;
+  const cont = document.getElementById('doc-hist-lista');
+  if (!cont) return;
+
+  const dic = (p, s = 15) => `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+  const I = {
+    baja: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>',
+    mail: '<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>',
+    cert: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>',
+    consent: '<rect width="8" height="4" x="8" y="2" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/>'
+  };
+  const accionLbl = { enviado: 'Enviado por mail', descargado: 'Descargado', impreso: 'Impreso' };
+
+  const filas = d.historial || [];
+  if (!filas.length) {
+    cont.innerHTML = `<div class="doc-hist-vacio">${dic(I.cert, 30)}<p>Todavía no se emitió ningún documento para este paciente.</p></div>`;
+    return;
+  }
+
+  cont.innerHTML = filas.map((f, idx) => {
+    const fecha = new Date(f.creado_at).toLocaleString('es-AR', {
+      day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+    });
+    const ico = f.tipo === 'consentimiento' ? I.consent : I.cert;
+    const destino = f.accion === 'enviado' && f.email_destino
+      ? ` · ${_docEsc(f.email_destino)}` : '';
+    return `
+      <div class="doc-hist-fila">
+        <div class="doc-hist-ico">${dic(ico, 18)}</div>
+        <div class="doc-hist-info">
+          <div class="doc-hist-nom">${_docEsc(f.nombre || f.tipo)}</div>
+          <div class="doc-hist-meta">${fecha} · ${accionLbl[f.accion] || f.accion}${destino}${f.profesional_nombre ? ' · ' + _docEsc(f.profesional_nombre) : ''}</div>
+        </div>
+        <div class="doc-hist-acc">
+          <button type="button" class="btn doc-hist-btn" title="Descargar" onclick="_docHistDescargar(${idx})">${dic(I.baja, 15)}</button>
+          <button type="button" class="btn doc-hist-btn" title="Reenviar por mail" onclick="_docHistReenviar(${idx})">${dic(I.mail, 15)}</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// Regenera el PDF de un documento del historial (con su texto congelado) y lo baja.
+async function _docHistDescargar(idx) {
+  const d = window._doc;
+  const f = (d.historial || [])[idx];
+  if (!f) return;
+  let jsPDF;
+  try { jsPDF = await _docCargarJsPDF(); }
+  catch { mostrarMensaje('No se pudo cargar el generador de PDF.', 'error'); return; }
+  const doc = await _docPDFdesdeContenido(jsPDF, f.contenido, d.cfg);
+  const nombreArch = (f.nombre || f.tipo).replace(/[^\wáéíóúñü\s-]/gi, '').trim().replace(/\s+/g, '_') || 'documento';
+  doc.save(`${nombreArch}.pdf`);
+}
+
+// Reenvía por mail un documento del historial usando su texto congelado.
+function _docHistReenviar(idx) {
+  const d = window._doc;
+  const f = (d.historial || [])[idx];
+  if (!f) return;
+  // Guardamos el documento a reenviar y abrimos el modal de envío.
+  d.reenvio = f;
+  _docEnviarMail();
+}
+
+// ---- fin Historial --------------------------------------------------------
 
 // Descargar PDF: genera un archivo .pdf con membrete + texto y lo baja.
 async function _docDescargar() {
@@ -1429,13 +1588,14 @@ async function _docDescargar() {
   try { armado = await _docArmarPDF(); }
   catch { mostrarMensaje('No se pudo cargar el generador de PDF. Probá con Imprimir → Guardar como PDF.', 'error'); return; }
   armado.doc.save(`${armado.nombreArch}.pdf`);
+  _docRegistrar('descargado');
 }
 
 // Abre el mini-modal de envío por mail: campo de email (precargado con el de
 // la ficha, editable) + check "actualizar email en la ficha" + botón Enviar.
 function _docEnviarMail() {
-  _docPreview();
   const d = window._doc;
+  if (!d.reenvio) _docPreview();
 
   const dic = (p, s = 16) => `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
   const icoMail = '<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>';
@@ -1444,12 +1604,15 @@ function _docEnviarMail() {
   if (previo) previo.remove();
 
   const emailFicha = (d.emailPac || '').trim();
+  const etiquetaModal = d.reenvio
+    ? (d.reenvio.tipo === 'consentimiento' ? 'consentimiento' : 'certificado')
+    : d.etiqueta;
   const layer = document.createElement('div');
   layer.id = 'dm-layer';
   layer.innerHTML = `
     <div class="cm-overlay">
       <div class="cm-box" role="dialog" aria-modal="true">
-        <div class="dm-head">${dic(icoMail, 18)}<span>Enviar ${_docEsc(d.etiqueta)} por mail</span></div>
+        <div class="dm-head">${dic(icoMail, 18)}<span>Enviar ${_docEsc(etiquetaModal)} por mail</span></div>
         <label class="dm-label">Email del paciente</label>
         <input id="dm-email" class="doc-input" type="email" placeholder="correo@ejemplo.com" value="${_docEsc(emailFicha)}">
         <label class="dm-check">
@@ -1464,7 +1627,11 @@ function _docEnviarMail() {
     </div>`;
   document.body.appendChild(layer);
 
-  const cerrar = () => { document.removeEventListener('keydown', onKey); layer.remove(); };
+  const cerrar = () => {
+    document.removeEventListener('keydown', onKey);
+    layer.remove();
+    if (window._doc) window._doc.reenvio = null;
+  };
   const onKey = (e) => { if (e.key === 'Escape') cerrar(); };
   document.addEventListener('keydown', onKey);
 
@@ -1503,18 +1670,39 @@ async function _docEnviarMailConfirmar(cerrar) {
 
   if (btn) { btn.disabled = true; btn.dataset.html = btn.innerHTML; btn.textContent = 'Enviando…'; }
 
+  // ¿Es un reenvío desde el historial? Entonces usamos el texto congelado
+  // del documento original, no el de la solapa de generación actual.
+  const reenvio = d.reenvio || null;
+
   try {
-    const { doc, nombreArch } = await _docArmarPDF();
-    const b64 = doc.output('datauristring').split(',')[1];
+    let b64, nombreArch, etiquetaDoc, tipoDoc, contenidoDoc;
+
+    if (reenvio) {
+      const jsPDF = await _docCargarJsPDF();
+      const docPDF = await _docPDFdesdeContenido(jsPDF, reenvio.contenido, d.cfg);
+      b64 = docPDF.output('datauristring').split(',')[1];
+      nombreArch = (reenvio.nombre || reenvio.tipo).replace(/[^\wáéíóúñü\s-]/gi, '').trim().replace(/\s+/g, '_') || 'documento';
+      etiquetaDoc = reenvio.tipo === 'consentimiento' ? 'consentimiento' : 'certificado';
+      tipoDoc = reenvio.tipo;
+      contenidoDoc = reenvio.contenido;
+    } else {
+      const armado = await _docArmarPDF();
+      b64 = armado.doc.output('datauristring').split(',')[1];
+      nombreArch = armado.nombreArch;
+      etiquetaDoc = d.etiqueta;
+      tipoDoc = d.tipo;
+      const pl = d.plantillas.find(p => String(p.id) === String(d.plantillaId)) || d.plantillas[0];
+      contenidoDoc = pl ? _docLlenar(pl.contenido) : '';
+    }
 
     const nombreNeg = d.cfg?.nombre_consultorio || 'tu podólogo/a';
-    const etiquetaCap = d.etiqueta.charAt(0).toUpperCase() + d.etiqueta.slice(1);
+    const etiquetaCap = etiquetaDoc.charAt(0).toUpperCase() + etiquetaDoc.slice(1);
     const nombrePac = (d.pac.nombre || '').trim() || 'Hola';
 
     const html = `
       <div style="font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;font-size:14px;line-height:1.6">
         <p>Hola ${_docEsc(nombrePac)},</p>
-        <p>Te adjuntamos tu ${_docEsc(d.etiqueta)} de <strong>${_docEsc(nombreNeg)}</strong>.</p>
+        <p>Te adjuntamos tu ${_docEsc(etiquetaDoc)} de <strong>${_docEsc(nombreNeg)}</strong>.</p>
         <p>Ante cualquier consulta, respondé este mail.</p>
         <p style="margin-top:24px;color:#666">Saludos,<br>${_docEsc(nombreNeg)}</p>
       </div>`;
@@ -1535,18 +1723,42 @@ async function _docEnviarMailConfirmar(cerrar) {
       return;
     }
 
-    // Guardar en la ficha si corresponde (en segundo plano).
+    // Guardar el email en la ficha vía función SQL acotada (resuelve el 403:
+    // el profesional no tiene update directo sobre pacientes, pero sí puede
+    // actualizar SOLO el email por esta vía).
     if (guardarEnFicha && d.pacienteId) {
-      sb.from('pacientes').update({ email: destino }).eq('id', d.pacienteId)
+      sb.rpc('actualizar_email_paciente', { p_paciente_id: d.pacienteId, p_email: destino })
         .then(({ error: e2 }) => {
           if (!e2) { d.emailPac = destino; mostrarMensaje('Email actualizado en la ficha.', 'exito'); }
+          else console.warn('No se pudo guardar el email:', e2.message);
         });
     }
 
+    // Registrar el envío en el historial.
+    if (reenvio) {
+      // Reenvío: registramos una fila nueva con el texto congelado original.
+      sb.from('documentos_emitidos').insert({
+        negocio_id: usuarioActual.negocio_id,
+        paciente_id: d.pacienteId,
+        tipo: tipoDoc,
+        nombre: reenvio.nombre,
+        contenido: contenidoDoc,
+        profesional_nombre: reenvio.profesional_nombre || null,
+        accion: 'enviado',
+        email_destino: destino
+      }).then(({ error: e3 }) => {
+        if (!e3 && d.tabActiva === 'historial') _docCargarHistorial();
+      });
+    } else {
+      _docRegistrar('enviado', destino);
+    }
+
     mostrarMensaje(`Documento enviado a ${destino}`, 'exito');
+    d.reenvio = null;
     if (typeof cerrar === 'function') cerrar();
   } catch (e) {
     mostrarMensaje('No se pudo generar o enviar el documento. Probá de nuevo.', 'error');
+    d.reenvio = null;
     if (btn) { btn.disabled = false; if (btn.dataset.html) btn.innerHTML = btn.dataset.html; }
   }
 }
