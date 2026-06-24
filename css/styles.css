@@ -2056,3 +2056,58 @@ input, select, textarea {
   cursor: pointer;
   flex-shrink: 0;
 }
+
+/* ============================================================
+   SOLAPAS DEL MODAL DE DOCUMENTOS (Documentos: Certificado /
+   Consentimiento / Historial)
+   ============================================================ */
+.doc-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 0 1.5rem;
+  border-bottom: 1px solid var(--borde);
+  background: var(--fondo-sutil);
+}
+.doc-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 12px 16px;
+  border: none;
+  background: none;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--texto-secundario);
+  cursor: pointer;
+  border-bottom: 2.5px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.15s, border-color 0.15s;
+}
+.doc-tab svg { color: currentColor; opacity: 0.75; }
+.doc-tab:hover { color: var(--texto); }
+.doc-tab-on {
+  color: var(--primario);
+  border-bottom-color: var(--primario);
+}
+.doc-tab-on svg { opacity: 1; }
+.doc-tab-vacia {
+  font-weight: 500;
+  font-size: 11.5px;
+  color: var(--texto-tenue);
+}
+
+/* Solapa sin modelos cargados */
+.doc-vacia {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 3rem 2rem;
+  color: var(--texto-secundario);
+  min-height: 280px;
+}
+.doc-vacia svg { color: var(--texto-tenue); margin-bottom: 1rem; }
+.doc-vacia p { margin: 0.2rem 0; font-size: 14px; }
+.doc-vacia-sub { font-size: 12.5px; color: var(--texto-tenue); }

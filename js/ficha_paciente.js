@@ -10,12 +10,14 @@ const PIES_TALLE_IMG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAV4AAAFYCA
 // Consentimiento: portapapeles con tilde. Certificado: documento con sello.
 const _DOC_ICO_CONSENT = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><rect width="8" height="4" x="8" y="2" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></svg>';
 const _DOC_ICO_CERT = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 11h4"/><circle cx="11" cy="17" r="2.4"/><path d="m9.5 18.8-.8 2.7 2.3-1.3 2.3 1.3-.8-2.7"/></svg>';
+// Documentos (botón unificado): carpeta con documento.
+const _DOC_ICO_DOCS = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h8"/></svg>';
 
 // Bloque de botones de documentos para el header de las fichas.
+// Un solo botón "Documentos" que abre el modal con solapas.
 function _docBotonesHeader(pacienteId) {
   return `<div class="ficha-head-docs">
-        <button type="button" class="ficha-doc-btn" onclick="generarDocumento('${pacienteId}','consentimiento')">${_DOC_ICO_CONSENT}Consentimiento</button>
-        <button type="button" class="ficha-doc-btn" onclick="generarDocumento('${pacienteId}','certificado')">${_DOC_ICO_CERT}Certificado</button>
+        <button type="button" class="ficha-doc-btn" onclick="generarDocumento('${pacienteId}')">${_DOC_ICO_DOCS}Documentos</button>
       </div>`;
 }
 
@@ -1003,20 +1005,23 @@ async function abrirFichaAtencion(turnoId, soloLectura = false) {
 
 // ============================================================
 // GENERADOR DE DOCUMENTOS — Consentimientos y certificados
-// Toma una plantilla (plantillas_documento), reemplaza las variables
-// con los datos del paciente/negocio y abre una ventana de impresión
-// con membrete (logo + nombre del negocio). Sin librerías.
+// Un solo botón "Documentos" abre el modal con solapas. Carga las
+// plantillas de los dos tipos y permite cambiar de solapa en vivo.
 //   - Profesional: se autocompleta con el que atendió al paciente.
-//   - Tipo: se elige entre los modelos guardados en Configuración.
+//   - Cada solapa elige entre los modelos guardados en Configuración.
+// tipoInicial: opcional, con qué solapa abrir ('certificado' por defecto).
 // ============================================================
-async function generarDocumento(pacienteId, tipo) {
-  const etiqueta = tipo === 'consentimiento' ? 'consentimiento' : 'certificado';
+async function generarDocumento(pacienteId, tipoInicial) {
+  const { data: todas } = await sb.from('plantillas_documento')
+    .select('*').eq('negocio_id', usuarioActual.negocio_id).order('nombre');
 
-  const { data: plantillas } = await sb.from('plantillas_documento')
-    .select('*').eq('negocio_id', usuarioActual.negocio_id).eq('tipo', tipo).order('nombre');
+  const plantillasPorTipo = {
+    certificado: (todas || []).filter(p => p.tipo === 'certificado'),
+    consentimiento: (todas || []).filter(p => p.tipo === 'consentimiento')
+  };
 
-  if (!plantillas || !plantillas.length) {
-    mostrarMensaje(`No hay modelos de ${etiqueta}. Cargá uno en Configuración → Modelos de documentos.`, 'advertencia');
+  if (!plantillasPorTipo.certificado.length && !plantillasPorTipo.consentimiento.length) {
+    mostrarMensaje('No hay modelos de documentos. Cargá uno en Configuración → Modelos de documentos.', 'advertencia');
     return;
   }
 
@@ -1044,17 +1049,40 @@ async function generarDocumento(pacienteId, tipo) {
     profNombre = anyT?.profesionales?.nombre || '';
   }
 
+  // Solapa inicial: la pedida, o la primera que tenga modelos.
+  let tipo = tipoInicial;
+  if (!tipo || !plantillasPorTipo[tipo]?.length) {
+    tipo = plantillasPorTipo.certificado.length ? 'certificado' : 'consentimiento';
+  }
+
   window._doc = {
-    tipo, etiqueta, plantillas, pac, cfg,
-    pacienteId,
-    plantillaId: plantillas[0].id,
+    pacienteId, pac, cfg,
+    plantillasPorTipo,
+    profSel: profNombre,
+    emailPac: pac.email || '',
     motivo: '',
     horas: '',
-    profSel: profNombre,
-    emailPac: pac.email || ''
+    // Estado de la solapa activa (se rellena en _docSetTipo).
+    tipo: null, etiqueta: '', plantillas: [], plantillaId: null
   };
 
+  _docSetTipo(tipo, true);
   _docModal();
+}
+
+// Cambia la solapa activa (certificado / consentimiento). Actualiza el
+// estado y, si el modal ya está abierto, re-renderiza el cuerpo.
+function _docSetTipo(tipo, soloEstado) {
+  const d = window._doc;
+  if (!d) return;
+  const plantillas = d.plantillasPorTipo[tipo] || [];
+  d.tipo = tipo;
+  d.etiqueta = tipo === 'consentimiento' ? 'consentimiento' : 'certificado';
+  d.plantillas = plantillas;
+  d.plantillaId = plantillas.length ? plantillas[0].id : null;
+  d.motivo = '';
+  d.horas = '';
+  if (!soloEstado) _docRenderCuerpo();
 }
 
 function _docEsc(s) {
@@ -1128,6 +1156,7 @@ function _docPreview() {
   if (inHs) d.horas = inHs.value;
 
   const pl = d.plantillas.find(p => String(p.id) === String(d.plantillaId)) || d.plantillas[0];
+  if (!pl) return;
 
   // El campo "Horas de reposo" sólo se muestra si el modelo usa {horas}.
   const wrapHs = document.getElementById('doc-horas-wrap');
@@ -1157,13 +1186,51 @@ function _docCerrar() {
 
 function _docModal() {
   const d = window._doc;
-  const esConsent = d.tipo === 'consentimiento';
-  const titulo = esConsent ? 'Generar consentimiento' : 'Generar certificado';
-  const info = _docInfo(d.tipo);
+  const dic = (p, s = 16) => `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+  const I = {
+    head:  '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h8"/>',
+    consent: '<rect width="8" height="4" x="8" y="2" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/>',
+    cert:  '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><circle cx="11" cy="15" r="2.4"/><path d="m9.5 16.8-.8 2.7 2.3-1.3 2.3 1.3-.8-2.7"/>'
+  };
+
+  // Solapas (3A: solo certificado y consentimiento; el historial llega en 3B).
+  const solapas = [
+    { tipo: 'certificado', label: 'Certificado', ico: I.cert },
+    { tipo: 'consentimiento', label: 'Consentimiento', ico: I.consent }
+  ];
+  const tabsHTML = solapas.map(s => {
+    const activa = s.tipo === d.tipo ? ' doc-tab-on' : '';
+    const hayModelos = (d.plantillasPorTipo[s.tipo] || []).length > 0;
+    return `<button type="button" class="doc-tab${activa}" data-tipo="${s.tipo}"
+              onclick="_docSetTipo('${s.tipo}')">${dic(s.ico, 15)} ${s.label}${hayModelos ? '' : ' <span class="doc-tab-vacia">(sin modelos)</span>'}</button>`;
+  }).join('');
+
+  _docAbrirOverlay(`
+    <div class="modal-header doc-head">
+      <div class="doc-head-l">
+        <span class="doc-head-ico">${dic(I.head, 20)}</span>
+        <div>
+          <div class="doc-head-tit">Documentos</div>
+          <div class="doc-head-sub">Completá los datos y revisá el documento antes de generarlo</div>
+        </div>
+      </div>
+      <button class="modal-cerrar" onclick="_docCerrar()">×</button>
+    </div>
+    <div class="doc-tabs">${tabsHTML}</div>
+    <div id="doc-cuerpo"></div>
+  `);
+  _docRenderCuerpo();
+}
+
+// Renderiza el cuerpo del modal (form + preview + footer) según la solapa
+// activa. Se llama al abrir y cada vez que se cambia de solapa.
+function _docRenderCuerpo() {
+  const d = window._doc;
+  const cont = document.getElementById('doc-cuerpo');
+  if (!cont) return;
 
   const dic = (p, s = 16) => `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
   const I = {
-    head:  '<rect width="8" height="4" x="8" y="2" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M10.4 12.6a2 2 0 0 1 3 3L12 17l-2 .5.5-2z"/>',
     prof:  '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.2 3.6-6.5 8-6.5s8 2.3 8 6.5"/>',
     mot:   '<path d="M4 4v6a6 6 0 0 0 12 0V4"/><path d="M2 4h4M14 4h4"/><circle cx="20" cy="16" r="2"/><path d="M10 16v3a3 3 0 0 0 6 0v-1"/>',
     shield:'<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>',
@@ -1176,9 +1243,24 @@ function _docModal() {
     reloj: '<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>'
   };
 
+  // Solapa sin modelos: mensaje y nada más (no se puede generar).
+  if (!d.plantillas.length) {
+    cont.innerHTML = `
+      <div class="modal-body doc-body">
+        <div class="doc-vacia">
+          ${dic(I.doc, 30)}
+          <p>No hay modelos de ${d.etiqueta} cargados.</p>
+          <p class="doc-vacia-sub">Agregá uno en Configuración → Modelos de documentos.</p>
+        </div>
+      </div>`;
+    return;
+  }
+
+  const info = _docInfo(d.tipo);
+
   const tipoSel = `
         <div class="doc-field">
-          <label>${dic(I.doc, 15)} Tipo de ${d.etiqueta}</label>
+          <label>${dic(I.doc, 15)} Modelo de ${d.etiqueta}</label>
           <select id="doc-plantilla" class="doc-input" onchange="_docPreview()">
             ${d.plantillas.map(p => `<option value="${p.id}">${_docEsc(p.nombre)}</option>`).join('')}
           </select>
@@ -1192,17 +1274,7 @@ function _docModal() {
           ${info.items.map(it => `<div class="doc-incluye-item">${dic(I.check, 15)} ${it}</div>`).join('')}
         </div>`;
 
-  _docAbrirOverlay(`
-    <div class="modal-header doc-head">
-      <div class="doc-head-l">
-        <span class="doc-head-ico">${dic(I.head, 20)}</span>
-        <div>
-          <div class="doc-head-tit">${titulo}</div>
-          <div class="doc-head-sub">Completá los datos y revisá el documento antes de generarlo</div>
-        </div>
-      </div>
-      <button class="modal-cerrar" onclick="_docCerrar()">×</button>
-    </div>
+  cont.innerHTML = `
     <div class="modal-body doc-body">
       <div class="doc-form">
         <div class="doc-sec-lbl">Datos para el ${d.etiqueta}</div>
@@ -1239,8 +1311,7 @@ function _docModal() {
         <button class="btn" onclick="_docCerrar()">Cancelar</button>
         <button class="btn btn-primary-sm" onclick="_docImprimir()">${dic(I.print, 15)} Imprimir</button>
       </div>
-    </div>
-  `);
+    </div>`;
   _docPreview();
 }
 
@@ -1250,6 +1321,7 @@ function _docImprimir() {
   _docPreview();
   const d = window._doc;
   const pl = d.plantillas.find(p => String(p.id) === String(d.plantillaId)) || d.plantillas[0];
+  if (!pl) { mostrarMensaje('No hay modelo para imprimir.', 'advertencia'); return; }
   const texto = _docLlenar(pl.contenido);
   const logo = d.cfg?.logo_url
     ? `<img src="${d.cfg.logo_url}" alt="" style="max-height:64px;max-width:220px;object-fit:contain">` : '';
@@ -1301,6 +1373,7 @@ async function _docLogoDataURL(url) {
 async function _docArmarPDF() {
   const d = window._doc;
   const pl = d.plantillas.find(p => String(p.id) === String(d.plantillaId)) || d.plantillas[0];
+  if (!pl) throw new Error('Sin modelo');
   const texto = _docLlenar(pl.contenido);
 
   const jsPDF = await _docCargarJsPDF();
@@ -1404,7 +1477,9 @@ function _docEnviarMail() {
   setTimeout(() => {
     const inp = layer.querySelector('#dm-email');
     inp?.focus();
-    if (emailFicha) inp?.setSelectionRange(emailFicha.length, emailFicha.length);
+    // Posicionar el cursor al final. Los input type="email" no soportan
+    // setSelectionRange, así que lo hacemos con el truco de re-asignar value.
+    if (inp && emailFicha) { const v = inp.value; inp.value = ''; inp.value = v; }
   }, 20);
 }
 
