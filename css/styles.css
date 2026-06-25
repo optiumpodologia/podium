@@ -2241,3 +2241,106 @@ input, select, textarea {
 .cfg-switch input:checked + .cfg-slider::before {
   transform: translateX(20px);
 }
+
+/* ===== Hub de Configuración (grilla de tarjetas) ===== */
+.cfg-hub-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+}
+@media (max-width: 1100px) {
+  .cfg-hub-grid { grid-template-columns: repeat(2, 1fr); }
+}
+.cfg-card {
+  background: var(--fondo-card);
+  border: 1px solid var(--borde);
+  border-radius: 16px;
+  padding: 22px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+  transition: box-shadow .18s ease, transform .18s ease, border-color .18s ease;
+}
+.cfg-card:hover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+  border-color: var(--cfg-t);
+}
+.cfg-card:focus-visible {
+  outline: 2px solid var(--cfg-t);
+  outline-offset: 2px;
+}
+.cfg-card-ico {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  background: var(--cfg-tbg);
+  color: var(--cfg-t);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 6px;
+}
+.cfg-card-titulo {
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--texto);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.cfg-card-desc {
+  font-size: 13px;
+  color: var(--texto-secundario);
+  line-height: 1.45;
+  flex: 1;
+}
+.cfg-card-cta {
+  align-self: flex-start;
+  margin-top: 10px;
+  background: var(--cfg-t);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 8px;
+}
+.cfg-badge-prox {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--cfg-t);
+  background: var(--cfg-tbg);
+  padding: 3px 8px;
+  border-radius: 99px;
+}
+
+/* Tintes por tarjeta */
+.cfg-tint-violeta  { --cfg-t: #6D5BD0; --cfg-tbg: #EEEBFB; }
+.cfg-tint-verde    { --cfg-t: #1F9D6B; --cfg-tbg: #E3F6EC; }
+.cfg-tint-naranja  { --cfg-t: #E08537; --cfg-tbg: #FBEEE0; }
+.cfg-tint-celeste  { --cfg-t: #2293B0; --cfg-tbg: #E2F3F8; }
+.cfg-tint-rosa     { --cfg-t: #D6478B; --cfg-tbg: #FBE6F0; }
+.cfg-tint-amarillo { --cfg-t: #B8901F; --cfg-tbg: #F7F0D8; }
+
+/* Estado "Próximamente" dentro del modal */
+.cfg-proximamente {
+  text-align: center;
+  padding: 30px 10px;
+}
+.cfg-prox-ico {
+  color: var(--texto-tenue);
+  margin-bottom: 12px;
+  display: flex;
+  justify-content: center;
+}
+.cfg-prox-titulo {
+  font-weight: 700;
+  font-size: 18px;
+  margin-bottom: 6px;
+  color: var(--texto);
+}

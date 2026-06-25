@@ -15,6 +15,15 @@ const _icoDocMini = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none"
 const _icoLapiz = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
 const _icoTachoMini = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
 
+// Íconos de las tarjetas del hub de Configuración.
+const _cfgIcoConsultorio = '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/></svg>';
+const _cfgIcoAgenda = '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg>';
+const _cfgIcoDocumentos = '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h8"/></svg>';
+const _cfgIcoNotif = '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>';
+const _cfgIcoCaja = '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>';
+const _cfgIcoComisiones = '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>';
+const _icoLogo = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>';
+
 // Consentimiento informado sugerido (el negocio lo carga y puede editarlo).
 const CONSENTIMIENTO_SUGERIDO = {
   nombre: 'Consentimiento general - Asume responsabilidad',
@@ -125,7 +134,7 @@ function cfgEsc(s) {
 }
 
 // ============================================================
-// RECORDATORIOS AUTOMÁTICOS (sección sólo para rol negocio)
+// RECORDATORIOS AUTOMÁTICOS (datos)
 // ============================================================
 const RECORDATORIO_VARS = [
   { k: 'paciente',    d: 'Nombre del paciente' },
@@ -138,263 +147,348 @@ const RECORDATORIO_VARS = [
 const RECORDATORIO_MSG_DEFAULT =
   'Hola {paciente}, te recordamos tu turno en {negocio} para mañana {fecha} a las {hora} hs con {profesional}. Si no vas a poder asistir, avisanos así liberamos el espacio. ¡Te esperamos!';
 
-const _icoCampana = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>';
-
+// ============================================================
+// HUB DE CONFIGURACIÓN — grilla de tarjetas
+// ============================================================
 async function renderConfiguracion(container) {
   if (!puedeVerModulo(usuarioActual, 'configuracion')) {
     container.innerHTML = '<div class="vacio">Acceso restringido</div>';
     return;
   }
 
-  const { data: config } = await sb.from('configuracion')
-    .select('*').eq('negocio_id', usuarioActual.negocio_id).maybeSingle();
+  const esNegocio = usuarioActual.rol === 'negocio';
 
-  // Íconos chiquitos (estilo línea) usados en esta pantalla.
-  const icoNegocio = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/></svg>';
-  const icoAgenda = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg>';
-  const icoLogo = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>';
+  const tarjetas = [
+    { titulo: 'Información del consultorio', desc: 'Datos del negocio, logo, email de contacto y horarios.', tint: 'violeta', ico: _cfgIcoConsultorio, accion: 'abrirCfgConsultorio()', soloNegocio: false },
+    { titulo: 'Agenda y turnos', desc: 'Duración de turnos, días laborales y feriados.', tint: 'verde', ico: _cfgIcoAgenda, accion: 'abrirCfgAgenda()', soloNegocio: false },
+    { titulo: 'Modelos de documentos', desc: 'Certificados y consentimientos para emitir.', tint: 'naranja', ico: _cfgIcoDocumentos, accion: 'abrirCfgDocumentos()', soloNegocio: false },
+    { titulo: 'Notificaciones', desc: 'Recordatorios automáticos por email a los pacientes.', tint: 'celeste', ico: _cfgIcoNotif, accion: 'abrirCfgNotificaciones()', soloNegocio: true },
+    { titulo: 'Caja', desc: 'Medios de pago, moneda y opciones de caja.', tint: 'rosa', ico: _cfgIcoCaja, accion: "abrirCfgProximamente('Caja','Acá vas a poder configurar medios de pago, moneda y opciones de caja.')", soloNegocio: true, prox: true },
+    { titulo: 'Comisiones', desc: 'Comisiones por profesional y por servicio.', tint: 'amarillo', ico: _cfgIcoComisiones, accion: "abrirCfgProximamente('Comisiones','Acá vas a poder configurar las comisiones de cada profesional.')", soloNegocio: true, prox: true }
+  ].filter(t => !t.soloNegocio || esNegocio);
 
-  const logoActual = config?.logo_url
-    ? `<img src="${config.logo_url}" alt="Logo">`
-    : icoLogo;
-
-  // Tarjeta de recordatorios automáticos (sólo rol negocio).
-  let cardRecordatorios = '';
-  if (usuarioActual.rol === 'negocio') {
-    const horaSel = config?.recordatorios_hora ?? 10;
-    const horasOpts = Array.from({ length: 17 }, (_, i) => i + 6).map(h =>
-      `<option value="${h}" ${h === horaSel ? 'selected' : ''}>${String(h).padStart(2, '0')}:00 hs</option>`
-    ).join('');
-    const chipsRec = RECORDATORIO_VARS.map(v =>
-      `<button type="button" class="btn cfg-mini" onclick="insertarVariableRecordatorio('${v.k}')" title="${v.d}">{${v.k}}</button>`
-    ).join(' ');
-
-    cardRecordatorios = `
-      <div class="card">
-        <div class="cfg-head"><span class="cfg-head-ico">${_icoCampana}</span> Recordatorios automáticos por email</div>
-        <div class="cfg-ayuda" style="margin-bottom:14px;">Se envía un email al paciente el día anterior a su turno, a la hora que elijas. Sólo a pacientes que tengan email cargado.</div>
-
-        <form id="form-recordatorios">
-          <div class="cfg-bloque-flex" style="margin-bottom:16px;">
-            <div>
-              <div style="font-weight:600;">Enviar recordatorios automáticos</div>
-              <small class="cfg-ayuda">Si está apagado, no se manda ningún recordatorio.</small>
-            </div>
-            <label class="cfg-switch">
-              <input type="checkbox" name="recordatorios_activo" ${config?.recordatorios_activo ? 'checked' : ''}>
-              <span class="cfg-slider"></span>
-            </label>
-          </div>
-
-          <div class="form-row">
-            <div class="input-group">
-              <label>Hora de envío</label>
-              <select name="recordatorios_hora">${horasOpts}</select>
-              <small class="cfg-ayuda">Se manda el día anterior, a esta hora.</small>
-            </div>
-            <div class="input-group">
-              <label>Email de contacto del negocio</label>
-              <input type="email" name="email_contacto" value="${cfgEsc(config?.email_contacto || '')}" placeholder="contacto@tunegocio.com">
-              <small class="cfg-ayuda">Si el paciente responde el mail, le llega acá.</small>
-            </div>
-          </div>
-
-          <div class="input-group">
-            <label>Texto del mensaje</label>
-            <textarea name="recordatorios_mensaje" id="recordatorio-mensaje" rows="5">${cfgEsc(config?.recordatorios_mensaje || RECORDATORIO_MSG_DEFAULT)}</textarea>
-            <small class="cfg-ayuda">Variables (se reemplazan con los datos del turno):</small>
-            <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:6px;">${chipsRec}</div>
-          </div>
-
-          <button type="submit" class="btn btn-primary-sm cfg-guardar">Guardar recordatorios</button>
-        </form>
-
-        <div class="cfg-sep"></div>
-
-        <div class="cfg-bloque-flex">
-          <div>
-            <div style="font-weight:600;">Envío manual</div>
-            <small class="cfg-ayuda" id="uso-emails-texto">Cargando uso del mes...</small>
-          </div>
-          <button class="btn cfg-mini" onclick="enviarRecordatoriosAhora()">Enviar recordatorios ahora</button>
-        </div>
-        <small class="cfg-ayuda" style="display:block; margin-top:8px;">"Enviar ahora" manda los recordatorios de los turnos de mañana sin esperar a la hora configurada.</small>
-      </div>
-    `;
-  }
+  const cards = tarjetas.map(t => `
+    <div class="cfg-card cfg-tint-${t.tint}" onclick="${t.accion}" tabindex="0"
+         onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();${t.accion}}">
+      <div class="cfg-card-ico">${t.ico}</div>
+      <div class="cfg-card-titulo">${t.titulo}${t.prox ? ' <span class="cfg-badge-prox">Próximamente</span>' : ''}</div>
+      <div class="cfg-card-desc">${t.desc}</div>
+      <div class="cfg-card-cta">Configurar</div>
+    </div>
+  `).join('');
 
   container.innerHTML = `
     <div class="page-header">
       <div>
         <div class="page-title">Configuración</div>
-        <div class="page-subtitle">Ajustes generales del negocio</div>
+        <div class="page-subtitle">Personalizá y administrá tu negocio</div>
       </div>
     </div>
-
-    <div class="cfg-grid">
-
-      <!-- ================= IZQUIERDA: NEGOCIO ================= -->
-      <div class="card">
-        <div class="cfg-head"><span class="cfg-head-ico">${icoNegocio}</span> Negocio</div>
-
-        <form id="form-config">
-          <div class="input-group">
-            <label>Nombre e identidad del negocio</label>
-            <div class="cfg-identidad">
-              <div class="cfg-logo-preview" id="cfg-logo-preview">${logoActual}</div>
-              <input type="text" name="nombre_consultorio" placeholder="Nombre del negocio"
-                     value="${config?.nombre_consultorio || ''}">
-              <button type="button" class="btn" id="cfg-logo-btn">Cambiar logo</button>
-              <input type="file" id="cfg-logo-input" accept="image/*" style="display:none">
-            </div>
-            <small class="cfg-ayuda">El nombre y el logo aparecen arriba a la izquierda para todos los usuarios del negocio.</small>
-          </div>
-
-          <div class="cfg-sep"></div>
-
-          <div class="input-group">
-            <label>Duración de cada turno (minutos) *</label>
-            <input type="number" name="duracion_turno_minutos" value="${config?.duracion_turno_minutos || 45}" min="10" max="240" required>
-            <small class="cfg-ayuda">Todos los turnos nuevos van a tener esta duración.</small>
-          </div>
-
-          <div class="form-row">
-            <div class="input-group">
-              <label>Hora de apertura</label>
-              <input type="time" name="hora_apertura" value="${config?.hora_apertura?.slice(0,5) || '09:00'}">
-            </div>
-            <div class="input-group">
-              <label>Hora de cierre</label>
-              <input type="time" name="hora_cierre" value="${config?.hora_cierre?.slice(0,5) || '18:00'}">
-            </div>
-          </div>
-
-          <button type="submit" class="btn btn-primary-sm cfg-guardar">Guardar cambios</button>
-          <div class="cfg-ayuda" style="text-align:center; margin-top:8px;">Los cambios se aplican de forma inmediata.</div>
-        </form>
-      </div>
-
-      <!-- ================= DERECHA: DISPONIBILIDAD ================= -->
-      <div class="card">
-        <div class="cfg-head"><span class="cfg-head-ico">${icoAgenda}</span> Disponibilidad</div>
-
-        <div class="cfg-bloque-titulo">Días laborales</div>
-        <div class="cfg-ayuda" style="margin-bottom:12px;">Seleccioná los días en los que atendés habitualmente.</div>
-        <div id="dias-laborales-lista">Cargando...</div>
-
-        <div class="cfg-sep"></div>
-
-        <div class="cfg-bloque-titulo cfg-bloque-flex">
-          <span>Feriados</span>
-          <button class="btn cfg-mini" onclick="abrirModalFeriado()">+ Agregar</button>
-        </div>
-        <div class="cfg-ayuda" style="margin-bottom:12px;">Los feriados se bloquean automáticamente en la agenda.</div>
-        <div id="feriados-lista">Cargando...</div>
-      </div>
-
-      <!-- ================= MODELOS DE DOCUMENTOS (media tarjeta) ================= -->
-      <div class="card">
-        <div class="cfg-head"><span class="cfg-head-ico">${_icoDoc}</span> Modelos de documentos</div>
-        <div class="cfg-ayuda" style="margin-bottom:14px;">Textos predefinidos que se completan con los datos del paciente al emitir. Más adelante se generan en PDF para imprimir o enviar.</div>
-
-        <div class="cfg-bloque-titulo cfg-bloque-flex">
-          <span>Certificados / Justificativos</span>
-          <button class="btn cfg-mini" onclick="abrirModalPlantilla('certificado')">+ Agregar</button>
-        </div>
-        <div id="plantillas-certificado-lista" style="margin-bottom:8px;">Cargando...</div>
-
-        <div class="cfg-sep"></div>
-
-        <div class="cfg-bloque-titulo cfg-bloque-flex">
-          <span>Consentimientos informados</span>
-          <button class="btn cfg-mini" onclick="abrirModalPlantilla('consentimiento')">+ Agregar</button>
-        </div>
-        <div id="plantillas-consentimiento-lista">Cargando...</div>
-      </div>
-
-      ${cardRecordatorios}
-
-    </div>
+    <div class="cfg-hub-grid">${cards}</div>
   `;
+}
 
-  // ----- Guardar datos del negocio -----
-  document.getElementById('form-config').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const fd = new FormData(e.target);
-    const d = Object.fromEntries(fd.entries());
+// ============================================================
+// TARJETA: Información del consultorio
+// ============================================================
+async function abrirCfgConsultorio() {
+  const { data: config } = await sb.from('configuracion')
+    .select('*').eq('negocio_id', usuarioActual.negocio_id).maybeSingle();
 
-    const payload = {
-      negocio_id: usuarioActual.negocio_id,
-      nombre_consultorio: d.nombre_consultorio || null,
-      duracion_turno_minutos: parseInt(d.duracion_turno_minutos),
-      hora_apertura: d.hora_apertura,
-      hora_cierre: d.hora_cierre,
-      actualizado_en: new Date().toISOString()
-    };
+  const logoActual = config?.logo_url
+    ? `<img src="${config.logo_url}" alt="Logo">`
+    : _icoLogo;
 
-    const { error } = await sb.from('configuracion')
-      .upsert(payload, { onConflict: 'negocio_id' });
-    if (error) {
-      mostrarMensaje('Error: ' + error.message, 'error');
-      return;
-    }
-    // Reflejar el nombre arriba a la izquierda, en vivo (sin refrescar).
-    const txt = document.getElementById('sidebar-logo-text');
-    if (txt) txt.textContent = d.nombre_consultorio || 'Podología';
-    mostrarMensaje('Configuración guardada', 'exito');
-  });
+  abrirModal(`
+    <div class="modal-header">
+      <div class="modal-titulo">Información del consultorio</div>
+      <button class="modal-cerrar" onclick="cerrarModal()">×</button>
+    </div>
+    <form id="form-config">
+      <div class="modal-body">
+        <div class="input-group">
+          <label>Nombre e identidad del negocio</label>
+          <div class="cfg-identidad">
+            <div class="cfg-logo-preview" id="cfg-logo-preview">${logoActual}</div>
+            <input type="text" name="nombre_consultorio" placeholder="Nombre del negocio"
+                   value="${cfgEsc(config?.nombre_consultorio || '')}">
+            <button type="button" class="btn" id="cfg-logo-btn">Cambiar logo</button>
+            <input type="file" id="cfg-logo-input" accept="image/*" style="display:none">
+          </div>
+          <small class="cfg-ayuda">El nombre y el logo aparecen arriba a la izquierda para todos los usuarios del negocio.</small>
+        </div>
 
-  // ----- Subir / cambiar logo del negocio -----
+        <div class="input-group">
+          <label>Email de contacto del negocio</label>
+          <input type="email" name="email_contacto" value="${cfgEsc(config?.email_contacto || '')}" placeholder="contacto@tunegocio.com">
+          <small class="cfg-ayuda">Si un paciente responde un recordatorio, la respuesta llega a este email.</small>
+        </div>
+
+        <div class="form-row">
+          <div class="input-group">
+            <label>Hora de apertura</label>
+            <input type="time" name="hora_apertura" value="${config?.hora_apertura?.slice(0,5) || '09:00'}">
+          </div>
+          <div class="input-group">
+            <label>Hora de cierre</label>
+            <input type="time" name="hora_cierre" value="${config?.hora_cierre?.slice(0,5) || '18:00'}">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn" onclick="cerrarModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary-sm">Guardar cambios</button>
+      </div>
+    </form>
+  `);
+
+  document.getElementById('form-config').addEventListener('submit', guardarInfoConsultorio);
   document.getElementById('cfg-logo-btn').addEventListener('click', () => {
     document.getElementById('cfg-logo-input').click();
   });
+  document.getElementById('cfg-logo-input').addEventListener('change', subirLogo);
+}
 
-  document.getElementById('cfg-logo-input').addEventListener('change', async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    mostrarMensaje('Procesando logo...', 'info');
-    try {
-      const path = `${usuarioActual.negocio_id}/logo.jpg`;
-      const url = await logoSubir(file, path);
+async function guardarInfoConsultorio(e) {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const d = Object.fromEntries(fd.entries());
+  const payload = {
+    negocio_id: usuarioActual.negocio_id,
+    nombre_consultorio: d.nombre_consultorio || null,
+    email_contacto: (d.email_contacto || '').trim() || null,
+    hora_apertura: d.hora_apertura,
+    hora_cierre: d.hora_cierre,
+    actualizado_en: new Date().toISOString()
+  };
+  const { error } = await sb.from('configuracion').upsert(payload, { onConflict: 'negocio_id' });
+  if (error) { mostrarMensaje('Error: ' + error.message, 'error'); return; }
+  const txt = document.getElementById('sidebar-logo-text');
+  if (txt) txt.textContent = d.nombre_consultorio || 'Podología';
+  mostrarMensaje('Configuración guardada', 'exito');
+  cerrarModal();
+}
 
-      const { error } = await sb.from('configuracion')
-        .upsert({
-          negocio_id: usuarioActual.negocio_id,
-          logo_url: url,
-          actualizado_en: new Date().toISOString()
-        }, { onConflict: 'negocio_id' });
-      if (error) { mostrarMensaje('Error al guardar logo: ' + error.message, 'error'); return; }
+async function subirLogo(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  mostrarMensaje('Procesando logo...', 'info');
+  try {
+    const path = `${usuarioActual.negocio_id}/logo.jpg`;
+    const url = await logoSubir(file, path);
 
-      // Preview en la tarjeta.
-      document.getElementById('cfg-logo-preview').innerHTML = `<img src="${url}" alt="Logo">`;
-      // Logo arriba a la izquierda, en vivo.
-      const ic = document.getElementById('sidebar-logo-icon');
-      if (ic) ic.innerHTML = `<img src="${url}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block;">`;
+    const { error } = await sb.from('configuracion')
+      .upsert({
+        negocio_id: usuarioActual.negocio_id,
+        logo_url: url,
+        actualizado_en: new Date().toISOString()
+      }, { onConflict: 'negocio_id' });
+    if (error) { mostrarMensaje('Error al guardar logo: ' + error.message, 'error'); return; }
 
-      mostrarMensaje('Logo actualizado', 'exito');
-    } catch (err) {
-      mostrarMensaje('Error: ' + (err.message || err), 'error');
-    } finally {
-      e.target.value = '';
-    }
-  });
+    const prev = document.getElementById('cfg-logo-preview');
+    if (prev) prev.innerHTML = `<img src="${url}" alt="Logo">`;
+    const ic = document.getElementById('sidebar-logo-icon');
+    if (ic) ic.innerHTML = `<img src="${url}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block;">`;
 
-  await cargarDiasLaborales();
-  await cargarFeriados();
-  await cargarPlantillas();
-
-  // ----- Recordatorios (sólo rol negocio) -----
-  if (usuarioActual.rol === 'negocio') {
-    const formRec = document.getElementById('form-recordatorios');
-    if (formRec) formRec.addEventListener('submit', guardarRecordatorios);
-    await cargarUsoEmails();
+    mostrarMensaje('Logo actualizado', 'exito');
+  } catch (err) {
+    mostrarMensaje('Error: ' + (err.message || err), 'error');
+  } finally {
+    e.target.value = '';
   }
 }
 
 // ============================================================
+// TARJETA: Agenda y turnos
+// ============================================================
+async function abrirCfgAgenda() {
+  const { data: config } = await sb.from('configuracion')
+    .select('duracion_turno_minutos').eq('negocio_id', usuarioActual.negocio_id).maybeSingle();
+
+  abrirModal(`
+    <div class="modal-header">
+      <div class="modal-titulo">Agenda y turnos</div>
+      <button class="modal-cerrar" onclick="cerrarModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <form id="form-agenda">
+        <div class="input-group">
+          <label>Duración de cada turno (minutos) *</label>
+          <input type="number" name="duracion_turno_minutos" value="${config?.duracion_turno_minutos || 45}" min="10" max="240" required>
+          <small class="cfg-ayuda">Todos los turnos nuevos van a tener esta duración.</small>
+        </div>
+        <button type="submit" class="btn btn-primary-sm">Guardar duración</button>
+      </form>
+
+      <div class="cfg-sep"></div>
+
+      <div class="cfg-bloque-titulo">Días laborales</div>
+      <div class="cfg-ayuda" style="margin-bottom:12px;">Seleccioná los días en los que atendés habitualmente.</div>
+      <div id="dias-laborales-lista">Cargando...</div>
+
+      <div class="cfg-sep"></div>
+
+      <div class="cfg-bloque-titulo cfg-bloque-flex">
+        <span>Feriados</span>
+        <button class="btn cfg-mini" onclick="abrirModalFeriado()">+ Agregar</button>
+      </div>
+      <div class="cfg-ayuda" style="margin-bottom:12px;">Los feriados se bloquean automáticamente en la agenda.</div>
+      <div id="feriados-lista">Cargando...</div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn" onclick="cerrarModal()">Cerrar</button>
+    </div>
+  `);
+
+  document.getElementById('form-agenda').addEventListener('submit', guardarDuracionTurno);
+  await cargarDiasLaborales();
+  await cargarFeriados();
+}
+
+async function guardarDuracionTurno(e) {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const payload = {
+    negocio_id: usuarioActual.negocio_id,
+    duracion_turno_minutos: parseInt(fd.get('duracion_turno_minutos'), 10),
+    actualizado_en: new Date().toISOString()
+  };
+  const { error } = await sb.from('configuracion').upsert(payload, { onConflict: 'negocio_id' });
+  if (error) { mostrarMensaje('Error: ' + error.message, 'error'); return; }
+  mostrarMensaje('Duración guardada', 'exito');
+}
+
+// ============================================================
+// TARJETA: Modelos de documentos
+// ============================================================
+async function abrirCfgDocumentos() {
+  abrirModal(`
+    <div class="modal-header">
+      <div class="modal-titulo">Modelos de documentos</div>
+      <button class="modal-cerrar" onclick="cerrarModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="cfg-ayuda" style="margin-bottom:14px;">Textos predefinidos que se completan con los datos del paciente al emitir. Se generan en PDF para imprimir o enviar.</div>
+
+      <div class="cfg-bloque-titulo cfg-bloque-flex">
+        <span>Certificados / Justificativos</span>
+        <button class="btn cfg-mini" onclick="abrirModalPlantilla('certificado')">+ Agregar</button>
+      </div>
+      <div id="plantillas-certificado-lista" style="margin-bottom:8px;">Cargando...</div>
+
+      <div class="cfg-sep"></div>
+
+      <div class="cfg-bloque-titulo cfg-bloque-flex">
+        <span>Consentimientos informados</span>
+        <button class="btn cfg-mini" onclick="abrirModalPlantilla('consentimiento')">+ Agregar</button>
+      </div>
+      <div id="plantillas-consentimiento-lista">Cargando...</div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn" onclick="cerrarModal()">Cerrar</button>
+    </div>
+  `);
+  await cargarPlantillas();
+}
+
+// ============================================================
+// TARJETA: Notificaciones (recordatorios automáticos)
+// ============================================================
+async function abrirCfgNotificaciones() {
+  const { data: config } = await sb.from('configuracion')
+    .select('recordatorios_activo, recordatorios_hora, recordatorios_mensaje')
+    .eq('negocio_id', usuarioActual.negocio_id).maybeSingle();
+
+  const horaSel = config?.recordatorios_hora ?? 10;
+  const horasOpts = Array.from({ length: 17 }, (_, i) => i + 6).map(h =>
+    `<option value="${h}" ${h === horaSel ? 'selected' : ''}>${String(h).padStart(2, '0')}:00 hs</option>`
+  ).join('');
+  const chipsRec = RECORDATORIO_VARS.map(v =>
+    `<button type="button" class="btn cfg-mini" onclick="insertarVariableRecordatorio('${v.k}')" title="${v.d}">{${v.k}}</button>`
+  ).join(' ');
+
+  abrirModal(`
+    <div class="modal-header">
+      <div class="modal-titulo">Notificaciones</div>
+      <button class="modal-cerrar" onclick="cerrarModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="cfg-ayuda" style="margin-bottom:16px;">Recordatorio automático por email el día anterior al turno, a la hora que elijas. Sólo a pacientes que tengan email cargado.</div>
+
+      <form id="form-recordatorios">
+        <div class="cfg-bloque-flex" style="margin-bottom:16px;">
+          <div>
+            <div style="font-weight:600;">Enviar recordatorios automáticos</div>
+            <small class="cfg-ayuda">Si está apagado, no se manda ningún recordatorio.</small>
+          </div>
+          <label class="cfg-switch">
+            <input type="checkbox" name="recordatorios_activo" ${config?.recordatorios_activo ? 'checked' : ''}>
+            <span class="cfg-slider"></span>
+          </label>
+        </div>
+
+        <div class="input-group">
+          <label>Hora de envío</label>
+          <select name="recordatorios_hora">${horasOpts}</select>
+          <small class="cfg-ayuda">Se manda el día anterior, a esta hora.</small>
+        </div>
+
+        <div class="input-group">
+          <label>Texto del mensaje</label>
+          <textarea name="recordatorios_mensaje" id="recordatorio-mensaje" rows="5">${cfgEsc(config?.recordatorios_mensaje || RECORDATORIO_MSG_DEFAULT)}</textarea>
+          <small class="cfg-ayuda">Variables (se reemplazan con los datos del turno):</small>
+          <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:6px;">${chipsRec}</div>
+        </div>
+
+        <button type="submit" class="btn btn-primary-sm">Guardar</button>
+      </form>
+
+      <div class="cfg-sep"></div>
+
+      <div class="cfg-bloque-flex">
+        <div>
+          <div style="font-weight:600;">Envío manual</div>
+          <small class="cfg-ayuda" id="uso-emails-texto">Cargando uso del mes...</small>
+        </div>
+        <button class="btn cfg-mini" onclick="enviarRecordatoriosAhora()">Enviar recordatorios ahora</button>
+      </div>
+      <small class="cfg-ayuda" style="display:block; margin-top:8px;">"Enviar ahora" manda los recordatorios de los turnos de mañana sin esperar a la hora configurada.</small>
+      <small class="cfg-ayuda" style="display:block; margin-top:8px;">Las respuestas de los pacientes llegan al email de contacto configurado en "Información del consultorio".</small>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn" onclick="cerrarModal()">Cerrar</button>
+    </div>
+  `);
+
+  document.getElementById('form-recordatorios').addEventListener('submit', guardarRecordatorios);
+  await cargarUsoEmails();
+}
+
+// ============================================================
+// TARJETA: placeholder "Próximamente" (Caja / Comisiones)
+// ============================================================
+function abrirCfgProximamente(titulo, texto) {
+  const icoTuerca = '<svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>';
+  abrirModal(`
+    <div class="modal-header">
+      <div class="modal-titulo">${titulo}</div>
+      <button class="modal-cerrar" onclick="cerrarModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="cfg-proximamente">
+        <div class="cfg-prox-ico">${icoTuerca}</div>
+        <div class="cfg-prox-titulo">Próximamente</div>
+        <div class="cfg-ayuda" style="max-width:340px; margin:0 auto;">${texto}</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn" onclick="cerrarModal()">Cerrar</button>
+    </div>
+  `);
+}
+
+// ============================================================
 // MODELOS DE DOCUMENTOS (tabla plantillas_documento, por negocio)
-//   Certificados/justificativos y consentimientos. Texto con variables
-//   que se reemplazan al emitir (paso siguiente: generar el PDF).
 // ============================================================
 async function cargarPlantillas() {
   let { data } = await sb.from('plantillas_documento')
@@ -402,9 +496,6 @@ async function cargarPlantillas() {
     .order('orden').order('creado_en');
   let todas = data || [];
 
-  // Precarga automática de modelos sugeridos (ya editables) si el negocio
-  // todavía no tiene ninguno de ese tipo. No hay botón "Modelo sugerido":
-  // vienen cargados solos y se editan/borran como cualquier otro modelo.
   const faltan = [];
   if (!todas.some(p => p.tipo === 'consentimiento'))
     faltan.push({ negocio_id: usuarioActual.negocio_id, tipo: 'consentimiento', nombre: CONSENTIMIENTO_SUGERIDO.nombre, contenido: CONSENTIMIENTO_SUGERIDO.contenido });
@@ -464,7 +555,7 @@ async function abrirModalPlantilla(tipo, id, sugerido) {
   abrirModal(`
     <div class="modal-header">
       <div class="modal-titulo">${id ? 'Editar' : 'Nuevo'} modelo de ${etiqueta}</div>
-      <button class="modal-cerrar" onclick="cerrarModal()">×</button>
+      <button class="modal-cerrar" onclick="abrirCfgDocumentos()">×</button>
     </div>
     <form id="form-plantilla">
       <input type="hidden" name="id" value="${id || ''}">
@@ -482,7 +573,7 @@ async function abrirModalPlantilla(tipo, id, sugerido) {
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn" onclick="cerrarModal()">Cancelar</button>
+        <button type="button" class="btn" onclick="abrirCfgDocumentos()">Cancelar</button>
         <button type="submit" class="btn btn-primary-sm">${id ? 'Guardar' : 'Crear'}</button>
       </div>
     </form>
@@ -521,8 +612,7 @@ async function guardarPlantilla(e) {
   }
   if (error) { mostrarMensaje('Error: ' + error.message, 'error'); return; }
   mostrarMensaje('Modelo guardado', 'exito');
-  cerrarModal();
-  await cargarPlantillas();
+  await abrirCfgDocumentos();
 }
 
 async function eliminarPlantilla(id) {
@@ -533,11 +623,15 @@ async function eliminarPlantilla(id) {
   await cargarPlantillas();
 }
 
+// ============================================================
+// DÍAS LABORALES
+// ============================================================
 async function cargarDiasLaborales() {
   const { data } = await sb.from('dias_laborales').select('*').order('dia_semana');
   const nombres = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 
   const cont = document.getElementById('dias-laborales-lista');
+  if (!cont) return;
   cont.innerHTML = `
     <div class="cfg-dias">
       ${[1,2,3,4,5,6,0].map(d => {
@@ -572,9 +666,13 @@ async function toggleDiaLaboral(diaSemana, activo) {
   await cargarDiasLaborales();
 }
 
+// ============================================================
+// FERIADOS
+// ============================================================
 async function cargarFeriados() {
   const { data } = await sb.from('feriados').select('*').order('fecha');
   const cont = document.getElementById('feriados-lista');
+  if (!cont) return;
 
   if (!data || data.length === 0) {
     cont.innerHTML = '<div class="vacio" style="padding: 1rem;">Sin feriados cargados</div>';
@@ -605,7 +703,7 @@ function abrirModalFeriado() {
   abrirModal(`
     <div class="modal-header">
       <div class="modal-titulo">Agregar feriado</div>
-      <button class="modal-cerrar" onclick="cerrarModal()">×</button>
+      <button class="modal-cerrar" onclick="abrirCfgAgenda()">×</button>
     </div>
     <form id="form-feriado">
       <div class="modal-body">
@@ -619,7 +717,7 @@ function abrirModalFeriado() {
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn" onclick="cerrarModal()">Cancelar</button>
+        <button type="button" class="btn" onclick="abrirCfgAgenda()">Cancelar</button>
         <button type="submit" class="btn btn-primary-sm">Agregar</button>
       </div>
     </form>
@@ -637,9 +735,15 @@ function abrirModalFeriado() {
     });
     if (error) { mostrarMensaje('Error: ' + error.message, 'error'); return; }
     mostrarMensaje('Feriado agregado', 'exito');
-    cerrarModal();
-    await cargarFeriados();
+    await abrirCfgAgenda();
   });
+}
+
+async function eliminarFeriado(id) {
+  if (!await confirmarModal({ titulo: 'Eliminar feriado', texto: '¿Eliminar este feriado?', textoSi: 'Eliminar', peligro: true })) return;
+  await sb.from('feriados').delete().eq('id', id);
+  mostrarMensaje('Feriado eliminado', 'exito');
+  await cargarFeriados();
 }
 
 // ============================================================
@@ -665,7 +769,6 @@ async function guardarRecordatorios(e) {
     recordatorios_activo: fd.get('recordatorios_activo') === 'on',
     recordatorios_hora: parseInt(fd.get('recordatorios_hora'), 10),
     recordatorios_mensaje: (fd.get('recordatorios_mensaje') || '').trim() || RECORDATORIO_MSG_DEFAULT,
-    email_contacto: (fd.get('email_contacto') || '').trim() || null,
     actualizado_en: new Date().toISOString()
   };
   const { error } = await sb.from('configuracion')
@@ -713,11 +816,4 @@ async function cargarUsoEmails() {
     .maybeSingle();
   const usados = data?.enviados ?? 0;
   el.textContent = `Enviaste ${usados} email${usados === 1 ? '' : 's'} este mes.`;
-}
-
-async function eliminarFeriado(id) {
-  if (!await confirmarModal({ titulo: 'Eliminar feriado', texto: '¿Eliminar este feriado?', textoSi: 'Eliminar', peligro: true })) return;
-  await sb.from('feriados').delete().eq('id', id);
-  mostrarMensaje('Feriado eliminado', 'exito');
-  await cargarFeriados();
 }
