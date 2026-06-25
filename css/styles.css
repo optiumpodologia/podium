@@ -2360,3 +2360,46 @@ input, select, textarea {
   margin-bottom: 6px;
   color: var(--texto);
 }
+
+/* ===== Cupo de emails (Notificaciones) ===== */
+.cupo-box {
+  background: var(--fondo-sutil);
+  border: 1px solid var(--borde);
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+.cupo-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 8px;
+}
+.cupo-lbl { font-weight: 600; font-size: 13px; color: var(--texto); }
+.cupo-num { font-size: 13px; font-weight: 600; color: var(--texto-secundario); }
+.cupo-num.alto  { color: #E08537; }
+.cupo-num.lleno { color: #D64545; }
+.cupo-ilim { color: var(--texto-tenue); font-weight: 400; }
+.cupo-bar {
+  height: 8px;
+  background: var(--borde);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.cupo-fill {
+  height: 100%;
+  border-radius: 99px;
+  background: var(--exito);
+  transition: width .3s ease;
+}
+.cupo-fill.alto  { background: #E8853B; }
+.cupo-fill.lleno { background: #D64545; }
+.cupo-alerta {
+  margin-top: 12px;
+  background: #FDECEC;
+  border: 1px solid #F5C2C2;
+  color: #9B2C2C;
+  font-size: 12.5px;
+  line-height: 1.5;
+  border-radius: 10px;
+  padding: 10px 12px;
+}

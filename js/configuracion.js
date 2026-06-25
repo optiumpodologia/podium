@@ -563,14 +563,15 @@ async function abrirCfgNotificaciones() {
 
       <div class="cfg-sep"></div>
 
+      <div id="cupo-emails-cont" style="margin-bottom:14px;">Cargando uso del mes...</div>
+
       <div class="cfg-bloque-flex">
         <div>
           <div style="font-weight:600;">Envío manual</div>
-          <small class="cfg-ayuda" id="uso-emails-texto">Cargando uso del mes...</small>
+          <small class="cfg-ayuda">Manda los recordatorios de mañana sin esperar a la hora configurada.</small>
         </div>
-        <button class="btn cfg-mini" onclick="enviarRecordatoriosAhora()">Enviar recordatorios ahora</button>
+        <button class="btn cfg-mini" id="btn-enviar-ahora" onclick="enviarRecordatoriosAhora()">Enviar recordatorios ahora</button>
       </div>
-      <small class="cfg-ayuda" style="display:block; margin-top:8px;">"Enviar ahora" manda los recordatorios de los turnos de mañana sin esperar a la hora configurada.</small>
       <small class="cfg-ayuda" style="display:block; margin-top:8px;">Las respuestas de los pacientes llegan al email de contacto configurado en "Información del consultorio".</small>
     </div>
     <div class="modal-footer">
@@ -896,6 +897,13 @@ async function guardarRecordatorios(e) {
 }
 
 async function enviarRecordatoriosAhora() {
+  // Pre-chequeo de cupo: si está lleno, no manda y ofrece cargar crédito.
+  const cupo = await _obtenerCupoEmails();
+  if (cupo.tope != null && cupo.usados >= cupo.tope) {
+    abrirCargarCredito();
+    return;
+  }
+
   const ok = await confirmarModal({
     titulo: 'Enviar recordatorios ahora',
     texto: 'Se van a enviar los recordatorios de los turnos de mañana a los pacientes que tengan email cargado. ¿Continuar?',
@@ -912,7 +920,10 @@ async function enviarRecordatoriosAhora() {
 
   const n = data?.enviados ?? 0;
   const errs = data?.errores ?? 0;
-  if (n === 0 && errs === 0) {
+  const porCupo = data?.salteados_por_cupo ?? 0;
+  if (porCupo > 0 && n === 0) {
+    abrirCargarCredito();
+  } else if (n === 0 && errs === 0) {
     mostrarMensaje('No había recordatorios pendientes para mañana', 'info');
   } else if (errs > 0) {
     mostrarMensaje(`Enviados: ${n}. Con ${errs} error(es).`, 'advertencia');
@@ -922,16 +933,75 @@ async function enviarRecordatoriosAhora() {
   await cargarUsoEmails();
 }
 
+// Lee el cupo y el uso del mes del negocio actual (vía RPC SECURITY DEFINER).
+async function _obtenerCupoEmails() {
+  try {
+    const { data } = await sb.rpc('obtener_cupo_emails');
+    const row = Array.isArray(data) ? data[0] : data;
+    return { tope: row?.tope ?? null, usados: row?.usados ?? 0 };
+  } catch {
+    return { tope: null, usados: 0 };
+  }
+}
+
 async function cargarUsoEmails() {
-  const el = document.getElementById('uso-emails-texto');
-  if (!el) return;
-  const now = new Date();
-  const periodo = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const { data } = await sb.from('uso_emails')
-    .select('enviados')
-    .eq('negocio_id', usuarioActual.negocio_id)
-    .eq('periodo', periodo)
-    .maybeSingle();
-  const usados = data?.enviados ?? 0;
-  el.textContent = `Enviaste ${usados} email${usados === 1 ? '' : 's'} este mes.`;
+  const cont = document.getElementById('cupo-emails-cont');
+  if (!cont) return;
+
+  const { tope, usados } = await _obtenerCupoEmails();
+
+  if (tope == null) {
+    cont.innerHTML = `
+      <div class="cupo-box">
+        <div class="cupo-head">
+          <span class="cupo-lbl">Emails este mes</span>
+          <span class="cupo-num">${usados} enviado${usados === 1 ? '' : 's'} <span class="cupo-ilim">· sin límite</span></span>
+        </div>
+      </div>`;
+    return;
+  }
+
+  const pct = tope > 0 ? Math.min(100, Math.round(usados / tope * 100)) : 100;
+  const lleno = usados >= tope;
+  const nivel = lleno ? 'lleno' : (pct >= 80 ? 'alto' : 'ok');
+
+  cont.innerHTML = `
+    <div class="cupo-box">
+      <div class="cupo-head">
+        <span class="cupo-lbl">Emails este mes</span>
+        <span class="cupo-num ${nivel}">${usados} de ${tope}</span>
+      </div>
+      <div class="cupo-bar"><div class="cupo-fill ${nivel}" style="width:${pct}%"></div></div>
+      ${lleno ? `
+        <div class="cupo-alerta">
+          Alcanzaste el límite de emails de tu plan. Los recordatorios no se están enviando.
+          Cargá crédito para seguir enviando.
+          <div style="margin-top:10px;"><button type="button" class="btn cfg-mini" onclick="abrirCargarCredito()">Cargar crédito</button></div>
+        </div>` : ''}
+    </div>`;
+
+  // Botón de envío manual deshabilitado si está lleno.
+  const btn = document.getElementById('btn-enviar-ahora');
+  if (btn) btn.disabled = lleno;
+
+  // Popup una sola vez por sesión cuando está al 100%.
+  if (lleno && !window._avisoCupoMostrado) {
+    window._avisoCupoMostrado = true;
+    confirmarModal({
+      titulo: 'Límite de emails alcanzado',
+      texto: 'Llegaste al límite de emails de tu plan este mes. Los recordatorios automáticos no se están enviando hasta el mes que viene. Podés cargar crédito para seguir enviando.',
+      textoSi: 'Cargar crédito',
+      textoNo: 'Más tarde'
+    }).then(ok => { if (ok) abrirCargarCredito(); });
+  }
+}
+
+// Cargar crédito (placeholder — el sistema real va con suscripciones, Fase B).
+function abrirCargarCredito() {
+  confirmarModal({
+    titulo: 'Cargar crédito',
+    texto: 'Próximamente vas a poder comprar paquetes de emails extra para seguir enviando cuando llegues al límite de tu plan. Lo estamos preparando junto con el sistema de suscripciones.',
+    textoSi: 'Entendido',
+    textoNo: 'Cerrar'
+  });
 }

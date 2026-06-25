@@ -43,13 +43,14 @@ async function renderPlanes(container) {
             <th>Consultorios</th>
             <th>Profesionales</th>
             <th>Recepción</th>
+            <th>Emails/mes</th>
             <th>Precio mensual</th>
             <th>Estado</th>
             <th style="text-align:right;">Acciones</th>
           </tr>
         </thead>
         <tbody id="tabla-planes">
-          <tr><td colspan="7" class="vacio">Cargando...</td></tr>
+          <tr><td colspan="8" class="vacio">Cargando...</td></tr>
         </tbody>
       </table>
     </div>
@@ -64,7 +65,7 @@ async function cargarPlanes() {
 
   const tbody = document.getElementById('tabla-planes');
   if (!data || data.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" class="vacio">No hay planes cargados. Creá el primero.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="vacio">No hay planes cargados. Creá el primero.</td></tr>';
     return;
   }
 
@@ -82,6 +83,7 @@ async function cargarPlanes() {
       <td>${num(p.max_consultorios)}</td>
       <td>${num(p.max_profesionales)}</td>
       <td>${num(p.max_recepcion)}</td>
+      <td>${num(p.max_emails_mes)}</td>
       <td>${formatearPrecio(p.precio_mensual)}</td>
       <td>${p.activo ? '<span class="badge badge-llego">Activo</span>' : '<span class="badge badge-cancelado">Inactivo</span>'}</td>
       <td>
@@ -97,6 +99,7 @@ async function abrirModalPlan(id) {
   let plan = {
     id: '', nombre: '', descripcion: '',
     max_consultorios: '', max_profesionales: '', max_recepcion: '',
+    max_emails_mes: '',
     precio_mensual: 0, precio_consultorio_extra: 0,
     orden: 0, activo: true
   };
@@ -159,6 +162,16 @@ async function abrirModalPlan(id) {
             </small>
           </div>
           <div class="input-group">
+            <label>Máx. emails por mes</label>
+            <input type="number" name="max_emails_mes" value="${plan.max_emails_mes ?? ''}" min="0" placeholder="Sin límite">
+            <small style="color: var(--texto-tenue); display:block; margin-top: 4px;">
+              Tope de emails (recordatorios, avisos) del negocio por mes. Vacío = sin límite.
+            </small>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="input-group">
             <label>Orden en la lista</label>
             <input type="number" name="orden" value="${plan.orden ?? 0}" min="0">
           </div>
@@ -209,6 +222,7 @@ async function abrirModalPlan(id) {
       max_consultorios: aEnteroONull(d.max_consultorios),
       max_profesionales: aEnteroONull(d.max_profesionales),
       max_recepcion: aEnteroONull(d.max_recepcion),
+      max_emails_mes: aEnteroONull(d.max_emails_mes),
       precio_mensual: aDecimalOCero(d.precio_mensual),
       precio_consultorio_extra: aDecimalOCero(d.precio_consultorio_extra),
       orden: aEnteroONull(d.orden) ?? 0,
