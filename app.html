@@ -71,6 +71,7 @@
 <script src="js/negocios.js"></script>
 <script src="js/planes.js"></script>
 <script src="js/consultorios.js"></script>
+<script src="js/admin.js"></script>
 <script>
 let usuarioActual = null;
 
@@ -94,15 +95,27 @@ const ICONS = {
   tipos_atencion: svgIcon('<path d="M11 2v2"/><path d="M5 2v2"/><path d="M5 3H4a2 2 0 0 0-2 2v4a6 6 0 0 0 12 0V5a2 2 0 0 0-2-2h-1"/><path d="M8 15a6 6 0 0 0 6 6 4 4 0 0 0 4-4 2 2 0 0 0-2-2 2 2 0 0 0-2 2"/><circle cx="20" cy="10" r="2"/>'),
   productos:      svgIcon('<path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/>'),
   usuarios:       svgIcon('<path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/>'),
-  configuracion:  svgIcon('<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>')
+  configuracion:  svgIcon('<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>'),
+  admin_inicio:   svgIcon('<rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/>'),
+  consumo_emails: svgIcon('<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>'),
+  suscripciones:  svgIcon('<rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/>'),
+  estadisticas:   svgIcon('<path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>'),
+  salud:          svgIcon('<path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/>'),
+  notas:          svgIcon('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h5"/>')
 };
 
 // Catálogo ÚNICO de módulos (id, etiqueta, ícono, función que lo dibuja).
 // Quién ve cada uno lo decide permisos.js (MODULOS_ACCESO), no este archivo.
 // El orden de acá es el orden en que aparecen en el menú.
 const MODULOS = [
-  { id: 'negocios',       label: 'Negocios',        icon: ICONS.negocios,       render: renderNegocios },
-  { id: 'planes',         label: 'Planes',          icon: ICONS.planes,         render: renderPlanes },
+  { id: 'admin_inicio',   label: 'Inicio',           icon: ICONS.admin_inicio,   render: renderAdminInicio },
+  { id: 'negocios',       label: 'Negocios',         icon: ICONS.negocios,       render: renderNegocios },
+  { id: 'consumo_emails', label: 'Consumo de emails',icon: ICONS.consumo_emails, render: renderConsumoEmails },
+  { id: 'suscripciones',  label: 'Suscripciones',    icon: ICONS.suscripciones,  render: renderSuscripciones },
+  { id: 'planes',         label: 'Planes',           icon: ICONS.planes,         render: renderPlanes },
+  { id: 'estadisticas',   label: 'Estadísticas',     icon: ICONS.estadisticas,   render: renderEstadisticas },
+  { id: 'salud',          label: 'Salud del sistema',icon: ICONS.salud,          render: renderSaludSistema },
+  { id: 'notas',          label: 'Notas / soporte',  icon: ICONS.notas,          render: renderNotasSoporte },
   { id: 'dashboard',      label: 'Inicio',          icon: ICONS.dashboard,      render: renderDashboard },
   { id: 'agenda',         label: 'Agenda',          icon: ICONS.agenda,         render: renderAgenda },
   { id: 'pacientes',      label: 'Pacientes',       icon: ICONS.pacientes,      render: renderPacientes },

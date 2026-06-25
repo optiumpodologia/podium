@@ -29,6 +29,12 @@ const ROLES = ['super_admin', 'negocio', 'recepcion', 'profesional'];
 const MODULOS_ACCESO = {
   negocios:       ['super_admin'],                          // clientes del SaaS
   planes:         ['super_admin'],                          // planes de suscripción del SaaS
+  admin_inicio:   ['super_admin'],                          // resumen de la plataforma
+  consumo_emails: ['super_admin'],                          // monitoreo de envíos
+  suscripciones:  ['super_admin'],                          // facturación / planes contratados
+  estadisticas:   ['super_admin'],                          // estadísticas generales
+  salud:          ['super_admin'],                          // estado del sistema
+  notas:          ['super_admin'],                          // notas / soporte por negocio
   dashboard:      ['negocio', 'recepcion', 'profesional'],  // Inicio
   agenda:         ['negocio', 'recepcion', 'profesional'],
   pacientes:      ['negocio', 'recepcion', 'profesional'],
