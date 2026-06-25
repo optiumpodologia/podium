@@ -2245,15 +2245,16 @@ input, select, textarea {
 /* ===== Hub de Configuración (tarjetas con fondo ilustrado) ===== */
 .cfg-hub-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 18px;
 }
-@media (max-width: 820px) {
-  .cfg-hub-grid { grid-template-columns: 1fr; }
-}
+@media (max-width: 1300px) { .cfg-hub-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 860px)  { .cfg-hub-grid { grid-template-columns: 1fr; } }
+
 .cfg-card {
   --cfg-t: var(--primario);
   --cfg-tbg: var(--primario-claro);
+  container-type: inline-size;          /* el texto escala según el ancho de la tarjeta */
   position: relative;
   border: 1px solid var(--borde);
   border-radius: 18px;
@@ -2287,43 +2288,44 @@ input, select, textarea {
   background: var(--cfg-tbg);
   color: var(--cfg-t);
 }
-.cfg-card-ico-bg svg { width: 54px; height: 54px; }
-/* Texto sobre el espacio vacío (derecha) */
+.cfg-card-ico-bg svg { width: clamp(40px, 9cqi, 60px); height: clamp(40px, 9cqi, 60px); }
+/* Texto sobre el espacio vacío (derecha), escalado con el ancho de la tarjeta */
 .cfg-card-contenido {
   margin-left: auto;
   width: 56%;
-  padding: 22px 24px;
+  padding: clamp(16px, 3.4cqi, 28px);
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 8px;
+  gap: clamp(6px, 1.2cqi, 10px);
 }
 .cfg-card-titulo {
   font-weight: 700;
-  font-size: 17px;
+  font-size: clamp(14px, 3cqi, 19px);
   color: var(--texto);
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+  line-height: 1.2;
 }
 .cfg-card-desc {
-  font-size: 13px;
+  font-size: clamp(11px, 2.1cqi, 14px);
   color: var(--texto-secundario);
   line-height: 1.45;
 }
 .cfg-card-cta {
   align-self: flex-start;
-  margin-top: 6px;
+  margin-top: clamp(4px, 1cqi, 8px);
   background: var(--cfg-t);
   color: #fff;
-  font-size: 13px;
   font-weight: 600;
-  padding: 8px 16px;
+  font-size: clamp(11px, 2.1cqi, 13px);
+  padding: clamp(7px, 1.4cqi, 9px) clamp(13px, 2.8cqi, 18px);
   border-radius: 8px;
 }
 .cfg-badge-prox {
-  font-size: 10px;
+  font-size: clamp(9px, 1.6cqi, 10px);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
