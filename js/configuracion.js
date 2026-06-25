@@ -164,6 +164,14 @@ const RECORDATORIO_VARS = [
 const RECORDATORIO_MSG_DEFAULT =
   'Hola {paciente}, te recordamos tu turno en {negocio} para mañana {fecha} a las {hora} hs con {profesional}. Si no vas a poder asistir, avisanos así liberamos el espacio. ¡Te esperamos!';
 
+// Emails por evento (se mandan solos al agendar / cancelar un turno).
+const CONFIRM_ASUNTO_DEFAULT = 'Confirmación de turno';
+const CONFIRM_MSG_DEFAULT =
+  'Hola {paciente}, tu turno en {negocio} quedó reservado para el {fecha} a las {hora} hs con {profesional}. Si no vas a poder asistir, avisanos así liberamos el espacio. ¡Te esperamos!';
+const CANCEL_ASUNTO_DEFAULT = 'Turno cancelado';
+const CANCEL_MSG_DEFAULT =
+  'Hola {paciente}, te confirmamos que tu turno en {negocio} del {fecha} a las {hora} hs fue cancelado. Si querés reprogramar, escribinos cuando quieras. ¡Gracias!';
+
 // Pie automático de los documentos (variables del negocio).
 const PIE_VARS = [
   { k: 'negocio',   d: 'Nombre del negocio' },
@@ -514,7 +522,7 @@ async function guardarPieDocumentos(e) {
 // ============================================================
 async function abrirCfgNotificaciones() {
   const { data: config } = await sb.from('configuracion')
-    .select('recordatorios_activo, recordatorios_hora, recordatorios_mensaje')
+    .select('recordatorios_activo, recordatorios_hora, recordatorios_mensaje, confirmacion_activo, confirmacion_asunto, confirmacion_mensaje, cancelacion_activo, cancelacion_asunto, cancelacion_mensaje')
     .eq('negocio_id', usuarioActual.negocio_id).maybeSingle();
 
   const horaSel = config?.recordatorios_hora ?? 10;
@@ -524,6 +532,9 @@ async function abrirCfgNotificaciones() {
   const chipsRec = RECORDATORIO_VARS.map(v =>
     `<button type="button" class="btn cfg-mini" onclick="insertarVariableRecordatorio('${v.k}')" title="${v.d}">{${v.k}}</button>`
   ).join(' ');
+  const chipsEvento = (targetId) => RECORDATORIO_VARS.map(v =>
+    `<button type="button" class="btn cfg-mini" onclick="insertarVariableEnTextarea('${targetId}','${v.k}')" title="${v.d}">{${v.k}}</button>`
+  ).join(' ');
 
   abrirModal(`
     <div class="modal-header">
@@ -531,9 +542,11 @@ async function abrirCfgNotificaciones() {
       <button class="modal-cerrar" onclick="cerrarModal()">×</button>
     </div>
     <div class="modal-body">
-      <div class="cfg-ayuda" style="margin-bottom:16px;">Recordatorio automático por email el día anterior al turno, a la hora que elijas. Sólo a pacientes que tengan email cargado.</div>
+      <div class="cfg-ayuda" style="margin-bottom:16px;">Emails automáticos a los pacientes que tengan email cargado. Cada tipo se prende o apaga por separado.</div>
 
       <form id="form-recordatorios">
+        <div style="font-weight:700; margin-bottom:4px;">Recordatorio (día anterior)</div>
+        <div class="cfg-ayuda" style="margin-bottom:12px;">Se manda el día anterior al turno, a la hora que elijas.</div>
         <div class="cfg-bloque-flex" style="margin-bottom:16px;">
           <div>
             <div style="font-weight:600;">Enviar recordatorios automáticos</div>
@@ -556,6 +569,46 @@ async function abrirCfgNotificaciones() {
           <textarea name="recordatorios_mensaje" id="recordatorio-mensaje" rows="5">${cfgEsc(config?.recordatorios_mensaje || RECORDATORIO_MSG_DEFAULT)}</textarea>
           <small class="cfg-ayuda">Variables (se reemplazan con los datos del turno):</small>
           <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:6px;">${chipsRec}</div>
+        </div>
+
+        <div class="cfg-sep"></div>
+        <div style="font-weight:700; margin-bottom:4px;">Confirmación al agendar</div>
+        <div class="cfg-ayuda" style="margin-bottom:12px;">Apenas cargás un turno, el paciente recibe un email de confirmación (si tiene email cargado).</div>
+        <div class="cfg-bloque-flex" style="margin-bottom:14px;">
+          <div><div style="font-weight:600;">Enviar confirmación</div></div>
+          <label class="cfg-switch">
+            <input type="checkbox" name="confirmacion_activo" ${config?.confirmacion_activo ? 'checked' : ''}>
+            <span class="cfg-slider"></span>
+          </label>
+        </div>
+        <div class="input-group">
+          <label>Asunto</label>
+          <input type="text" name="confirmacion_asunto" value="${cfgEsc(config?.confirmacion_asunto || CONFIRM_ASUNTO_DEFAULT)}">
+        </div>
+        <div class="input-group">
+          <label>Texto del mensaje</label>
+          <textarea name="confirmacion_mensaje" id="confirmacion-mensaje" rows="5">${cfgEsc(config?.confirmacion_mensaje || CONFIRM_MSG_DEFAULT)}</textarea>
+          <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:6px;">${chipsEvento('confirmacion-mensaje')}</div>
+        </div>
+
+        <div class="cfg-sep"></div>
+        <div style="font-weight:700; margin-bottom:4px;">Aviso al cancelar</div>
+        <div class="cfg-ayuda" style="margin-bottom:12px;">Cuando se cancela un turno, el paciente recibe un email avisándole.</div>
+        <div class="cfg-bloque-flex" style="margin-bottom:14px;">
+          <div><div style="font-weight:600;">Enviar aviso de cancelación</div></div>
+          <label class="cfg-switch">
+            <input type="checkbox" name="cancelacion_activo" ${config?.cancelacion_activo ? 'checked' : ''}>
+            <span class="cfg-slider"></span>
+          </label>
+        </div>
+        <div class="input-group">
+          <label>Asunto</label>
+          <input type="text" name="cancelacion_asunto" value="${cfgEsc(config?.cancelacion_asunto || CANCEL_ASUNTO_DEFAULT)}">
+        </div>
+        <div class="input-group">
+          <label>Texto del mensaje</label>
+          <textarea name="cancelacion_mensaje" id="cancelacion-mensaje" rows="5">${cfgEsc(config?.cancelacion_mensaje || CANCEL_MSG_DEFAULT)}</textarea>
+          <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:6px;">${chipsEvento('cancelacion-mensaje')}</div>
         </div>
 
         <button type="submit" class="btn btn-primary-sm">Guardar</button>
@@ -880,6 +933,18 @@ function insertarVariableRecordatorio(k) {
   ta.setSelectionRange(pos, pos);
 }
 
+function insertarVariableEnTextarea(id, k) {
+  const ta = document.getElementById(id);
+  if (!ta) return;
+  const ins = '{' + k + '}';
+  const s = ta.selectionStart != null ? ta.selectionStart : ta.value.length;
+  const e = ta.selectionEnd != null ? ta.selectionEnd : ta.value.length;
+  ta.value = ta.value.slice(0, s) + ins + ta.value.slice(e);
+  ta.focus();
+  const pos = s + ins.length;
+  ta.setSelectionRange(pos, pos);
+}
+
 async function guardarRecordatorios(e) {
   e.preventDefault();
   const fd = new FormData(e.target);
@@ -888,12 +953,18 @@ async function guardarRecordatorios(e) {
     recordatorios_activo: fd.get('recordatorios_activo') === 'on',
     recordatorios_hora: parseInt(fd.get('recordatorios_hora'), 10),
     recordatorios_mensaje: (fd.get('recordatorios_mensaje') || '').trim() || RECORDATORIO_MSG_DEFAULT,
+    confirmacion_activo: fd.get('confirmacion_activo') === 'on',
+    confirmacion_asunto: (fd.get('confirmacion_asunto') || '').trim() || CONFIRM_ASUNTO_DEFAULT,
+    confirmacion_mensaje: (fd.get('confirmacion_mensaje') || '').trim() || CONFIRM_MSG_DEFAULT,
+    cancelacion_activo: fd.get('cancelacion_activo') === 'on',
+    cancelacion_asunto: (fd.get('cancelacion_asunto') || '').trim() || CANCEL_ASUNTO_DEFAULT,
+    cancelacion_mensaje: (fd.get('cancelacion_mensaje') || '').trim() || CANCEL_MSG_DEFAULT,
     actualizado_en: new Date().toISOString()
   };
   const { error } = await sb.from('configuracion')
     .upsert(payload, { onConflict: 'negocio_id' });
   if (error) { mostrarMensaje('Error: ' + error.message, 'error'); return; }
-  mostrarMensaje('Recordatorios guardados', 'exito');
+  mostrarMensaje('Notificaciones guardadas', 'exito');
 }
 
 async function enviarRecordatoriosAhora() {
