@@ -2242,29 +2242,33 @@ input, select, textarea {
   transform: translateX(20px);
 }
 
-/* ===== Hub de Configuración (grilla de tarjetas) ===== */
+/* ===== Hub de Configuración (tarjetas con fondo ilustrado) ===== */
 .cfg-hub-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 18px;
 }
-@media (max-width: 1100px) {
-  .cfg-hub-grid { grid-template-columns: repeat(2, 1fr); }
+@media (max-width: 820px) {
+  .cfg-hub-grid { grid-template-columns: 1fr; }
 }
 .cfg-card {
-  background: var(--fondo-card);
+  --cfg-t: var(--primario);
+  --cfg-tbg: var(--primario-claro);
+  position: relative;
   border: 1px solid var(--borde);
-  border-radius: 16px;
-  padding: 22px;
+  border-radius: 18px;
+  overflow: hidden;
+  aspect-ratio: 1.9 / 1;
   cursor: pointer;
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  text-align: left;
+  background-color: var(--fondo-card);
+  background-size: cover;
+  background-position: left center;
+  background-repeat: no-repeat;
   transition: box-shadow .18s ease, transform .18s ease, border-color .18s ease;
 }
 .cfg-card:hover {
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.10);
   transform: translateY(-2px);
   border-color: var(--cfg-t);
 }
@@ -2272,20 +2276,31 @@ input, select, textarea {
   outline: 2px solid var(--cfg-t);
   outline-offset: 2px;
 }
-.cfg-card-ico {
-  width: 56px;
-  height: 56px;
-  border-radius: 14px;
-  background: var(--cfg-tbg);
-  color: var(--cfg-t);
+/* Ícono grande a la izquierda cuando la tarjeta todavía no tiene imagen */
+.cfg-card-ico-bg {
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 44%;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 6px;
+  background: var(--cfg-tbg);
+  color: var(--cfg-t);
+}
+.cfg-card-ico-bg svg { width: 54px; height: 54px; }
+/* Texto sobre el espacio vacío (derecha) */
+.cfg-card-contenido {
+  margin-left: auto;
+  width: 56%;
+  padding: 22px 24px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
 }
 .cfg-card-titulo {
   font-weight: 700;
-  font-size: 16px;
+  font-size: 17px;
   color: var(--texto);
   display: flex;
   align-items: center;
@@ -2296,11 +2311,10 @@ input, select, textarea {
   font-size: 13px;
   color: var(--texto-secundario);
   line-height: 1.45;
-  flex: 1;
 }
 .cfg-card-cta {
   align-self: flex-start;
-  margin-top: 10px;
+  margin-top: 6px;
   background: var(--cfg-t);
   color: #fff;
   font-size: 13px;
@@ -2319,7 +2333,7 @@ input, select, textarea {
   border-radius: 99px;
 }
 
-/* Tintes por tarjeta */
+/* Tintes (fallback sin imagen) */
 .cfg-tint-violeta  { --cfg-t: #6D5BD0; --cfg-tbg: #EEEBFB; }
 .cfg-tint-verde    { --cfg-t: #1F9D6B; --cfg-tbg: #E3F6EC; }
 .cfg-tint-naranja  { --cfg-t: #E08537; --cfg-tbg: #FBEEE0; }
