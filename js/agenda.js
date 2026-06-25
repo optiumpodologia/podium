@@ -1924,7 +1924,7 @@ function accionesTurnoHTML(t, numero, fechaStr, yaTieneSobre) {
     if (t.estado === 'agendado') {
       out.push(btn(ICO.check, 'Recibir paciente', `cambiarEstadoTurno('${t.id}','llego')`));
       if (puedeSobre) out.push(btn(ICO.rayo, 'Dar sobreturno', `abrirModalNuevoTurnoCasillero('${t.profesional_id}', ${numero}, '${fechaStr}', ${turnoMinInicio(t)}, null, true)`, 'violeta'));
-      out.push(btn(ICO.tacho, 'Eliminar turno', `eliminarTurno('${t.id}')`, 'peligro'));
+      out.push(btn(ICO.tacho, 'Cancelar o eliminar turno', `quitarTurno('${t.id}')`, 'peligro'));
     } else if (t.estado === 'llego') {
       out.push(btn(ICO.volver, 'Cancelar recepción', `cambiarEstadoTurno('${t.id}','agendado')`));
       if (puedeSobre) out.push(btn(ICO.rayo, 'Dar sobreturno', `abrirModalNuevoTurnoCasillero('${t.profesional_id}', ${numero}, '${fechaStr}', ${turnoMinInicio(t)}, null, true)`, 'violeta'));
@@ -2916,6 +2916,46 @@ async function agendarCancelarTurno(turnoId) {
   const fechaStr = agendaFechaStr(new Date(_agModal.fecha));
   await agendarCargarDia();
   _agSyncPanel(fechaStr);
+}
+
+// Mini-modal: al quitar un turno desde la agenda, el usuario elige entre
+// cancelar (marca cancelado, avisa al paciente, queda en su historial) o
+// eliminar (borra sin avisar, para turnos cargados por error).
+function quitarTurno(turnoId) {
+  abrirModal(`
+    <div class="modal-header">
+      <div class="modal-titulo">Quitar turno</div>
+      <button class="modal-cerrar" onclick="cerrarModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p style="margin:0; line-height:1.7;">
+        <strong>Cancelar turno</strong> lo marca como cancelado, le avisa al paciente por email y queda registrado en su historial.<br><br>
+        <strong>Eliminar</strong> lo borra sin avisar a nadie. Usalo solo si lo cargaste por error.
+      </p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="cerrarModal()">Volver</button>
+      <button class="btn" onclick="_quitarTurnoAccion('${turnoId}','eliminar')">Eliminar sin avisar</button>
+      <button class="btn btn-primary-sm" onclick="_quitarTurnoAccion('${turnoId}','cancelar')">Cancelar turno</button>
+    </div>
+  `);
+}
+
+async function _quitarTurnoAccion(turnoId, modo) {
+  cerrarModal();
+  if (modo === 'cancelar') {
+    const { error } = await sb.from('turnos').update({ estado: 'cancelado' }).eq('id', turnoId);
+    if (error) { mostrarMensaje('Error: ' + error.message, 'error'); return; }
+    mostrarMensaje('Turno cancelado. Se le avisó al paciente.', 'exito');
+  } else {
+    if (!await confirmarModal({ titulo: 'Eliminar turno', texto: 'Se borra el turno sin avisar al paciente. ¿Continuar?', textoSi: 'Eliminar', textoNo: 'Volver', peligro: true })) return;
+    const { error } = await sb.from('turnos').delete().eq('id', turnoId);
+    if (error) { mostrarMensaje('Error: ' + error.message, 'error'); return; }
+    mostrarMensaje('Turno eliminado', 'exito');
+  }
+  const moduloActivo = document.querySelector('.nav-item.active')?.dataset.modulo;
+  if (moduloActivo === 'agenda' && typeof dibujarAgenda === 'function') dibujarAgenda();
+  else if (moduloActivo === 'dashboard' && typeof renderDashboard === 'function') renderDashboard(document.getElementById('main'));
 }
 
 // Si el panel persistente está mostrando la misma fecha, lo redibuja.
