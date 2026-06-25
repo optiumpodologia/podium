@@ -2465,3 +2465,32 @@ input, select, textarea {
 /* Filas de tabla clickeables (abren detalle) */
 .tabla tr.fila-clickable { cursor: pointer; transition: background .12s; }
 .tabla tr.fila-clickable:hover { background: var(--fondo-hover, #F6F5F1); }
+
+/* ===== Modal Notificaciones (solapas) ===== */
+.notif-modal { max-width: 720px; }
+.notif-header { align-items: flex-start; }
+.notif-head-l { display: flex; gap: 14px; align-items: center; }
+.notif-head-ico {
+  width: 44px; height: 44px; border-radius: 50%;
+  background: color-mix(in srgb, var(--primario) 14%, #fff);
+  color: var(--primario);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.notif-sub { font-size: 13px; color: var(--texto-secundario); margin-top: 3px; max-width: 460px; }
+.notif-tabs { justify-content: stretch; }
+.notif-tabs .doc-tab { flex: 1; justify-content: center; }
+.notif-toggle { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.notif-toggle span { font-size: 13px; color: var(--texto-secundario); }
+.notif-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.notif-counter { text-align: right; font-size: 11px; color: var(--texto-tenue); margin-top: 4px; }
+.notif-info {
+  display: flex; gap: 12px; align-items: flex-start;
+  background: var(--fondo-sutil, #F6F5F1);
+  border-radius: 12px; padding: 14px 16px; margin-top: 18px;
+}
+.notif-info-ico {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: color-mix(in srgb, var(--primario) 16%, #fff);
+  color: var(--primario);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}

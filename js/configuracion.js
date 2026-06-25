@@ -536,104 +536,162 @@ async function abrirCfgNotificaciones() {
     `<button type="button" class="btn cfg-mini" onclick="insertarVariableEnTextarea('${targetId}','${v.k}')" title="${v.d}">{${v.k}}</button>`
   ).join(' ');
 
+  const ico = (p, s = 18) => `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+  const icoBell = ico('<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>', 22);
+  const icoCal  = ico('<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>', 16);
+  const icoChk  = ico('<path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/>', 16);
+  const icoX    = ico('<circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/>', 16);
+  const icoMail = ico('<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>', 18);
+  const icoSend = ico('<path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/>', 16);
+  const icoSave = ico('<path d="M20 6 9 17l-5-5"/>', 16);
+
+  const infoBox = `
+    <div class="notif-info">
+      <div class="notif-info-ico">${icoMail}</div>
+      <div>
+        <div style="font-weight:600; margin-bottom:2px;">¿Cómo funcionan?</div>
+        <div class="cfg-ayuda">Los emails se envían automáticamente a los pacientes que tengan email cargado. Podés personalizar el texto con las variables.</div>
+      </div>
+    </div>`;
+
   abrirModal(`
-    <div class="modal-header">
-      <div class="modal-titulo">Notificaciones</div>
+    <div class="modal-header notif-header">
+      <div class="notif-head-l">
+        <div class="notif-head-ico">${icoBell}</div>
+        <div>
+          <div class="modal-titulo">Notificaciones</div>
+          <div class="notif-sub">Personalizá y activá los mensajes que se envían por email a tus pacientes.</div>
+        </div>
+      </div>
       <button class="modal-cerrar" onclick="cerrarModal()">×</button>
     </div>
-    <div class="modal-body">
-      <div class="cfg-ayuda" style="margin-bottom:16px;">Emails automáticos a los pacientes que tengan email cargado. Cada tipo se prende o apaga por separado.</div>
 
-      <form id="form-recordatorios">
-        <div style="font-weight:700; margin-bottom:4px;">Recordatorio (día anterior)</div>
-        <div class="cfg-ayuda" style="margin-bottom:12px;">Se manda el día anterior al turno, a la hora que elijas.</div>
-        <div class="cfg-bloque-flex" style="margin-bottom:16px;">
-          <div>
-            <div style="font-weight:600;">Enviar recordatorios automáticos</div>
-            <small class="cfg-ayuda">Si está apagado, no se manda ningún recordatorio.</small>
+    <div class="doc-tabs notif-tabs">
+      <button type="button" class="doc-tab doc-tab-on" data-ntab="rec" onclick="notifTab('rec')">${icoCal} Recordatorios automáticos</button>
+      <button type="button" class="doc-tab" data-ntab="conf" onclick="notifTab('conf')">${icoChk} Confirmación de turno</button>
+      <button type="button" class="doc-tab" data-ntab="canc" onclick="notifTab('canc')">${icoX} Aviso de cancelación</button>
+    </div>
+
+    <form id="form-notificaciones">
+      <div class="modal-body">
+
+        <div class="notif-panel" id="np-rec">
+          <div class="cfg-bloque-flex" style="align-items:flex-start; margin-bottom:16px;">
+            <div>
+              <div style="font-weight:700; font-size:15px;">Recordatorios automáticos</div>
+              <div class="cfg-ayuda" style="margin-top:2px;">Enviá recordatorios de turnos a tus pacientes de manera automática.</div>
+            </div>
+            <div class="notif-toggle">
+              <span>Activar</span>
+              <label class="cfg-switch"><input type="checkbox" name="recordatorios_activo" ${config?.recordatorios_activo ? 'checked' : ''}><span class="cfg-slider"></span></label>
+            </div>
           </div>
-          <label class="cfg-switch">
-            <input type="checkbox" name="recordatorios_activo" ${config?.recordatorios_activo ? 'checked' : ''}>
-            <span class="cfg-slider"></span>
-          </label>
+          <div class="form-row">
+            <div class="input-group">
+              <label>Hora de envío</label>
+              <select name="recordatorios_hora">${horasOpts}</select>
+            </div>
+            <div class="input-group">
+              <label>Frecuencia</label>
+              <select name="recordatorios_frecuencia"><option>Enviar recordatorio 1 día antes</option></select>
+            </div>
+          </div>
+          <div class="input-group">
+            <label>Mensaje</label>
+            <textarea name="recordatorios_mensaje" id="recordatorio-mensaje" rows="4" maxlength="300" oninput="notifContador(this,'cnt-rec')">${cfgEsc(config?.recordatorios_mensaje || RECORDATORIO_MSG_DEFAULT)}</textarea>
+            <div class="notif-counter"><span id="cnt-rec"></span></div>
+            <small class="cfg-ayuda">Variables disponibles:</small>
+            <div class="notif-chips">${chipsRec}</div>
+          </div>
+          ${infoBox}
+          <div id="cupo-emails-cont" style="margin-top:16px;"></div>
         </div>
 
-        <div class="input-group">
-          <label>Hora de envío</label>
-          <select name="recordatorios_hora">${horasOpts}</select>
-          <small class="cfg-ayuda">Se manda el día anterior, a esta hora.</small>
+        <div class="notif-panel" id="np-conf" hidden>
+          <div class="cfg-bloque-flex" style="align-items:flex-start; margin-bottom:16px;">
+            <div>
+              <div style="font-weight:700; font-size:15px;">Confirmación de turno</div>
+              <div class="cfg-ayuda" style="margin-top:2px;">Apenas cargás un turno, el paciente recibe un email de confirmación.</div>
+            </div>
+            <div class="notif-toggle">
+              <span>Activar</span>
+              <label class="cfg-switch"><input type="checkbox" name="confirmacion_activo" ${config?.confirmacion_activo ? 'checked' : ''}><span class="cfg-slider"></span></label>
+            </div>
+          </div>
+          <div class="input-group">
+            <label>Asunto</label>
+            <input type="text" name="confirmacion_asunto" value="${cfgEsc(config?.confirmacion_asunto || CONFIRM_ASUNTO_DEFAULT)}">
+          </div>
+          <div class="input-group">
+            <label>Mensaje</label>
+            <textarea name="confirmacion_mensaje" id="confirmacion-mensaje" rows="4" maxlength="300" oninput="notifContador(this,'cnt-conf')">${cfgEsc(config?.confirmacion_mensaje || CONFIRM_MSG_DEFAULT)}</textarea>
+            <div class="notif-counter"><span id="cnt-conf"></span></div>
+            <small class="cfg-ayuda">Variables disponibles:</small>
+            <div class="notif-chips">${chipsEvento('confirmacion-mensaje')}</div>
+          </div>
+          ${infoBox}
         </div>
 
-        <div class="input-group">
-          <label>Texto del mensaje</label>
-          <textarea name="recordatorios_mensaje" id="recordatorio-mensaje" rows="5">${cfgEsc(config?.recordatorios_mensaje || RECORDATORIO_MSG_DEFAULT)}</textarea>
-          <small class="cfg-ayuda">Variables (se reemplazan con los datos del turno):</small>
-          <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:6px;">${chipsRec}</div>
+        <div class="notif-panel" id="np-canc" hidden>
+          <div class="cfg-bloque-flex" style="align-items:flex-start; margin-bottom:16px;">
+            <div>
+              <div style="font-weight:700; font-size:15px;">Aviso de cancelación</div>
+              <div class="cfg-ayuda" style="margin-top:2px;">Cuando se cancela un turno, el paciente recibe un email avisándole.</div>
+            </div>
+            <div class="notif-toggle">
+              <span>Activar</span>
+              <label class="cfg-switch"><input type="checkbox" name="cancelacion_activo" ${config?.cancelacion_activo ? 'checked' : ''}><span class="cfg-slider"></span></label>
+            </div>
+          </div>
+          <div class="input-group">
+            <label>Asunto</label>
+            <input type="text" name="cancelacion_asunto" value="${cfgEsc(config?.cancelacion_asunto || CANCEL_ASUNTO_DEFAULT)}">
+          </div>
+          <div class="input-group">
+            <label>Mensaje</label>
+            <textarea name="cancelacion_mensaje" id="cancelacion-mensaje" rows="4" maxlength="300" oninput="notifContador(this,'cnt-canc')">${cfgEsc(config?.cancelacion_mensaje || CANCEL_MSG_DEFAULT)}</textarea>
+            <div class="notif-counter"><span id="cnt-canc"></span></div>
+            <small class="cfg-ayuda">Variables disponibles:</small>
+            <div class="notif-chips">${chipsEvento('cancelacion-mensaje')}</div>
+          </div>
+          ${infoBox}
         </div>
 
-        <div class="cfg-sep"></div>
-        <div style="font-weight:700; margin-bottom:4px;">Confirmación al agendar</div>
-        <div class="cfg-ayuda" style="margin-bottom:12px;">Apenas cargás un turno, el paciente recibe un email de confirmación (si tiene email cargado).</div>
-        <div class="cfg-bloque-flex" style="margin-bottom:14px;">
-          <div><div style="font-weight:600;">Enviar confirmación</div></div>
-          <label class="cfg-switch">
-            <input type="checkbox" name="confirmacion_activo" ${config?.confirmacion_activo ? 'checked' : ''}>
-            <span class="cfg-slider"></span>
-          </label>
-        </div>
-        <div class="input-group">
-          <label>Asunto</label>
-          <input type="text" name="confirmacion_asunto" value="${cfgEsc(config?.confirmacion_asunto || CONFIRM_ASUNTO_DEFAULT)}">
-        </div>
-        <div class="input-group">
-          <label>Texto del mensaje</label>
-          <textarea name="confirmacion_mensaje" id="confirmacion-mensaje" rows="5">${cfgEsc(config?.confirmacion_mensaje || CONFIRM_MSG_DEFAULT)}</textarea>
-          <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:6px;">${chipsEvento('confirmacion-mensaje')}</div>
-        </div>
-
-        <div class="cfg-sep"></div>
-        <div style="font-weight:700; margin-bottom:4px;">Aviso al cancelar</div>
-        <div class="cfg-ayuda" style="margin-bottom:12px;">Cuando se cancela un turno, el paciente recibe un email avisándole.</div>
-        <div class="cfg-bloque-flex" style="margin-bottom:14px;">
-          <div><div style="font-weight:600;">Enviar aviso de cancelación</div></div>
-          <label class="cfg-switch">
-            <input type="checkbox" name="cancelacion_activo" ${config?.cancelacion_activo ? 'checked' : ''}>
-            <span class="cfg-slider"></span>
-          </label>
-        </div>
-        <div class="input-group">
-          <label>Asunto</label>
-          <input type="text" name="cancelacion_asunto" value="${cfgEsc(config?.cancelacion_asunto || CANCEL_ASUNTO_DEFAULT)}">
-        </div>
-        <div class="input-group">
-          <label>Texto del mensaje</label>
-          <textarea name="cancelacion_mensaje" id="cancelacion-mensaje" rows="5">${cfgEsc(config?.cancelacion_mensaje || CANCEL_MSG_DEFAULT)}</textarea>
-          <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:6px;">${chipsEvento('cancelacion-mensaje')}</div>
-        </div>
-
-        <button type="submit" class="btn btn-primary-sm">Guardar</button>
-      </form>
-
-      <div class="cfg-sep"></div>
-
-      <div id="cupo-emails-cont" style="margin-bottom:14px;">Cargando uso del mes...</div>
-
-      <div class="cfg-bloque-flex">
-        <div>
-          <div style="font-weight:600;">Envío manual</div>
-          <small class="cfg-ayuda">Manda los recordatorios de mañana sin esperar a la hora configurada.</small>
-        </div>
-        <button class="btn cfg-mini" id="btn-enviar-ahora" onclick="enviarRecordatoriosAhora()">Enviar recordatorios ahora</button>
       </div>
-      <small class="cfg-ayuda" style="display:block; margin-top:8px;">Las respuestas de los pacientes llegan al email de contacto configurado en "Información del consultorio".</small>
-    </div>
-    <div class="modal-footer">
-      <button type="button" class="btn" onclick="cerrarModal()">Cerrar</button>
-    </div>
+      <div class="modal-footer" style="justify-content:space-between;">
+        <button type="button" class="btn" id="notif-foot-manual" style="display:inline-flex; align-items:center; gap:6px;" onclick="enviarRecordatoriosAhora()">${icoSend} Enviar recordatorios ahora</button>
+        <div style="display:flex; gap:8px;">
+          <button type="button" class="btn" onclick="cerrarModal()">Cancelar</button>
+          <button type="submit" class="btn btn-primary-sm" style="display:inline-flex; align-items:center; gap:6px;">${icoSave} Guardar cambios</button>
+        </div>
+      </div>
+    </form>
   `);
 
-  document.getElementById('form-recordatorios').addEventListener('submit', guardarRecordatorios);
+  const box = document.querySelector('#modal-container .modal');
+  if (box) box.classList.add('notif-modal');
+
+  document.getElementById('form-notificaciones').addEventListener('submit', guardarRecordatorios);
+  notifContador(document.getElementById('recordatorio-mensaje'), 'cnt-rec');
+  notifContador(document.getElementById('confirmacion-mensaje'), 'cnt-conf');
+  notifContador(document.getElementById('cancelacion-mensaje'), 'cnt-canc');
   await cargarUsoEmails();
+}
+
+function notifTab(t) {
+  ['rec', 'conf', 'canc'].forEach(k => {
+    const panel = document.getElementById('np-' + k);
+    if (panel) panel.hidden = (k !== t);
+    const btn = document.querySelector('.notif-tabs [data-ntab="' + k + '"]');
+    if (btn) btn.classList.toggle('doc-tab-on', k === t);
+  });
+  const manual = document.getElementById('notif-foot-manual');
+  if (manual) manual.style.visibility = (t === 'rec') ? 'visible' : 'hidden';
+}
+
+function notifContador(ta, id) {
+  const el = document.getElementById(id);
+  if (el && ta) el.textContent = ta.value.length + ' / 300';
 }
 
 // ============================================================
@@ -965,6 +1023,7 @@ async function guardarRecordatorios(e) {
     .upsert(payload, { onConflict: 'negocio_id' });
   if (error) { mostrarMensaje('Error: ' + error.message, 'error'); return; }
   mostrarMensaje('Notificaciones guardadas', 'exito');
+  cerrarModal();
 }
 
 async function enviarRecordatoriosAhora() {
