@@ -158,7 +158,8 @@ const RECORDATORIO_VARS = [
   { k: 'fecha',       d: 'Fecha del turno' },
   { k: 'hora',        d: 'Hora del turno' },
   { k: 'negocio',     d: 'Nombre del negocio' },
-  { k: 'profesional', d: 'Profesional del turno' }
+  { k: 'profesional', d: 'Profesional del turno' },
+  { k: 'whatsapp',    d: 'WhatsApp del negocio (sale como link)' }
 ];
 
 const RECORDATORIO_MSG_DEFAULT =
