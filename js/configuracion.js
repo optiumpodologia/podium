@@ -124,6 +124,22 @@ function cfgEsc(s) {
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
+// ============================================================
+// RECORDATORIOS AUTOMÁTICOS (sección sólo para rol negocio)
+// ============================================================
+const RECORDATORIO_VARS = [
+  { k: 'paciente',    d: 'Nombre del paciente' },
+  { k: 'fecha',       d: 'Fecha del turno' },
+  { k: 'hora',        d: 'Hora del turno' },
+  { k: 'negocio',     d: 'Nombre del negocio' },
+  { k: 'profesional', d: 'Profesional del turno' }
+];
+
+const RECORDATORIO_MSG_DEFAULT =
+  'Hola {paciente}, te recordamos tu turno en {negocio} para mañana {fecha} a las {hora} hs con {profesional}. Si no vas a poder asistir, avisanos así liberamos el espacio. ¡Te esperamos!';
+
+const _icoCampana = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>';
+
 async function renderConfiguracion(container) {
   if (!puedeVerModulo(usuarioActual, 'configuracion')) {
     container.innerHTML = '<div class="vacio">Acceso restringido</div>';
@@ -141,6 +157,71 @@ async function renderConfiguracion(container) {
   const logoActual = config?.logo_url
     ? `<img src="${config.logo_url}" alt="Logo">`
     : icoLogo;
+
+  // Tarjeta de recordatorios automáticos (sólo rol negocio).
+  let cardRecordatorios = '';
+  if (usuarioActual.rol === 'negocio') {
+    const horaSel = config?.recordatorios_hora ?? 10;
+    const horasOpts = Array.from({ length: 17 }, (_, i) => i + 6).map(h =>
+      `<option value="${h}" ${h === horaSel ? 'selected' : ''}>${String(h).padStart(2, '0')}:00 hs</option>`
+    ).join('');
+    const chipsRec = RECORDATORIO_VARS.map(v =>
+      `<button type="button" class="btn cfg-mini" onclick="insertarVariableRecordatorio('${v.k}')" title="${v.d}">{${v.k}}</button>`
+    ).join(' ');
+
+    cardRecordatorios = `
+      <div class="card">
+        <div class="cfg-head"><span class="cfg-head-ico">${_icoCampana}</span> Recordatorios automáticos por email</div>
+        <div class="cfg-ayuda" style="margin-bottom:14px;">Se envía un email al paciente el día anterior a su turno, a la hora que elijas. Sólo a pacientes que tengan email cargado.</div>
+
+        <form id="form-recordatorios">
+          <div class="cfg-bloque-flex" style="margin-bottom:16px;">
+            <div>
+              <div style="font-weight:600;">Enviar recordatorios automáticos</div>
+              <small class="cfg-ayuda">Si está apagado, no se manda ningún recordatorio.</small>
+            </div>
+            <label class="cfg-switch">
+              <input type="checkbox" name="recordatorios_activo" ${config?.recordatorios_activo ? 'checked' : ''}>
+              <span class="cfg-slider"></span>
+            </label>
+          </div>
+
+          <div class="form-row">
+            <div class="input-group">
+              <label>Hora de envío</label>
+              <select name="recordatorios_hora">${horasOpts}</select>
+              <small class="cfg-ayuda">Se manda el día anterior, a esta hora.</small>
+            </div>
+            <div class="input-group">
+              <label>Email de contacto del negocio</label>
+              <input type="email" name="email_contacto" value="${cfgEsc(config?.email_contacto || '')}" placeholder="contacto@tunegocio.com">
+              <small class="cfg-ayuda">Si el paciente responde el mail, le llega acá.</small>
+            </div>
+          </div>
+
+          <div class="input-group">
+            <label>Texto del mensaje</label>
+            <textarea name="recordatorios_mensaje" id="recordatorio-mensaje" rows="5">${cfgEsc(config?.recordatorios_mensaje || RECORDATORIO_MSG_DEFAULT)}</textarea>
+            <small class="cfg-ayuda">Variables (se reemplazan con los datos del turno):</small>
+            <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:6px;">${chipsRec}</div>
+          </div>
+
+          <button type="submit" class="btn btn-primary-sm cfg-guardar">Guardar recordatorios</button>
+        </form>
+
+        <div class="cfg-sep"></div>
+
+        <div class="cfg-bloque-flex">
+          <div>
+            <div style="font-weight:600;">Envío manual</div>
+            <small class="cfg-ayuda" id="uso-emails-texto">Cargando uso del mes...</small>
+          </div>
+          <button class="btn cfg-mini" onclick="enviarRecordatoriosAhora()">Enviar recordatorios ahora</button>
+        </div>
+        <small class="cfg-ayuda" style="display:block; margin-top:8px;">"Enviar ahora" manda los recordatorios de los turnos de mañana sin esperar a la hora configurada.</small>
+      </div>
+    `;
+  }
 
   container.innerHTML = `
     <div class="page-header">
@@ -231,6 +312,8 @@ async function renderConfiguracion(container) {
         <div id="plantillas-consentimiento-lista">Cargando...</div>
       </div>
 
+      ${cardRecordatorios}
+
     </div>
   `;
 
@@ -299,6 +382,13 @@ async function renderConfiguracion(container) {
   await cargarDiasLaborales();
   await cargarFeriados();
   await cargarPlantillas();
+
+  // ----- Recordatorios (sólo rol negocio) -----
+  if (usuarioActual.rol === 'negocio') {
+    const formRec = document.getElementById('form-recordatorios');
+    if (formRec) formRec.addEventListener('submit', guardarRecordatorios);
+    await cargarUsoEmails();
+  }
 }
 
 // ============================================================
@@ -550,6 +640,79 @@ function abrirModalFeriado() {
     cerrarModal();
     await cargarFeriados();
   });
+}
+
+// ============================================================
+// RECORDATORIOS — guardar config, envío manual, uso del mes
+// ============================================================
+function insertarVariableRecordatorio(k) {
+  const ta = document.getElementById('recordatorio-mensaje');
+  if (!ta) return;
+  const ins = '{' + k + '}';
+  const s = ta.selectionStart != null ? ta.selectionStart : ta.value.length;
+  const e = ta.selectionEnd != null ? ta.selectionEnd : ta.value.length;
+  ta.value = ta.value.slice(0, s) + ins + ta.value.slice(e);
+  ta.focus();
+  const pos = s + ins.length;
+  ta.setSelectionRange(pos, pos);
+}
+
+async function guardarRecordatorios(e) {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const payload = {
+    negocio_id: usuarioActual.negocio_id,
+    recordatorios_activo: fd.get('recordatorios_activo') === 'on',
+    recordatorios_hora: parseInt(fd.get('recordatorios_hora'), 10),
+    recordatorios_mensaje: (fd.get('recordatorios_mensaje') || '').trim() || RECORDATORIO_MSG_DEFAULT,
+    email_contacto: (fd.get('email_contacto') || '').trim() || null,
+    actualizado_en: new Date().toISOString()
+  };
+  const { error } = await sb.from('configuracion')
+    .upsert(payload, { onConflict: 'negocio_id' });
+  if (error) { mostrarMensaje('Error: ' + error.message, 'error'); return; }
+  mostrarMensaje('Recordatorios guardados', 'exito');
+}
+
+async function enviarRecordatoriosAhora() {
+  const ok = await confirmarModal({
+    titulo: 'Enviar recordatorios ahora',
+    texto: 'Se van a enviar los recordatorios de los turnos de mañana a los pacientes que tengan email cargado. ¿Continuar?',
+    textoSi: 'Enviar',
+    textoNo: 'Cancelar'
+  });
+  if (!ok) return;
+
+  mostrarMensaje('Enviando recordatorios...', 'info');
+  const { data, error } = await sb.functions.invoke('recordatorio-turnos', {
+    body: { negocio_id: usuarioActual.negocio_id }
+  });
+  if (error) { mostrarMensaje('Error al enviar: ' + error.message, 'error'); return; }
+
+  const n = data?.enviados ?? 0;
+  const errs = data?.errores ?? 0;
+  if (n === 0 && errs === 0) {
+    mostrarMensaje('No había recordatorios pendientes para mañana', 'info');
+  } else if (errs > 0) {
+    mostrarMensaje(`Enviados: ${n}. Con ${errs} error(es).`, 'advertencia');
+  } else {
+    mostrarMensaje(`Recordatorios enviados: ${n}`, 'exito');
+  }
+  await cargarUsoEmails();
+}
+
+async function cargarUsoEmails() {
+  const el = document.getElementById('uso-emails-texto');
+  if (!el) return;
+  const now = new Date();
+  const periodo = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const { data } = await sb.from('uso_emails')
+    .select('enviados')
+    .eq('negocio_id', usuarioActual.negocio_id)
+    .eq('periodo', periodo)
+    .maybeSingle();
+  const usados = data?.enviados ?? 0;
+  el.textContent = `Enviaste ${usados} email${usados === 1 ? '' : 's'} este mes.`;
 }
 
 async function eliminarFeriado(id) {
