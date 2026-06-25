@@ -6,7 +6,12 @@ const PLANTILLA_VARS = [
   { k: 'profesional', d: 'Profesional que atiende' },
   { k: 'negocio', d: 'Nombre del negocio' },
   { k: 'motivo', d: 'Motivo / diagnóstico de la consulta' },
-  { k: 'horas', d: 'Horas de reposo (se completa al emitir)' }
+  { k: 'horas', d: 'Horas de reposo (se completa al emitir)' },
+  { k: 'direccion', d: 'Dirección del negocio' },
+  { k: 'telefono', d: 'Teléfono del negocio' },
+  { k: 'whatsapp', d: 'WhatsApp del negocio' },
+  { k: 'email', d: 'Email de contacto del negocio' },
+  { k: 'web', d: 'Sitio web / Instagram' }
 ];
 
 // Íconos chiquitos para la sección de plantillas.
@@ -147,6 +152,17 @@ const RECORDATORIO_VARS = [
 const RECORDATORIO_MSG_DEFAULT =
   'Hola {paciente}, te recordamos tu turno en {negocio} para mañana {fecha} a las {hora} hs con {profesional}. Si no vas a poder asistir, avisanos así liberamos el espacio. ¡Te esperamos!';
 
+// Pie automático de los documentos (variables del negocio).
+const PIE_VARS = [
+  { k: 'negocio',   d: 'Nombre del negocio' },
+  { k: 'direccion', d: 'Dirección' },
+  { k: 'telefono',  d: 'Teléfono' },
+  { k: 'whatsapp',  d: 'WhatsApp' },
+  { k: 'email',     d: 'Email de contacto' },
+  { k: 'web',       d: 'Sitio web / Instagram' }
+];
+const PIE_DEFAULT = '{negocio} · {direccion} · Tel: {telefono} · WhatsApp: {whatsapp} · {email}';
+
 // ============================================================
 // HUB DE CONFIGURACIÓN — grilla de tarjetas
 // ============================================================
@@ -226,6 +242,27 @@ async function abrirCfgConsultorio() {
 
         <div class="form-row">
           <div class="input-group">
+            <label>Teléfono</label>
+            <input type="text" name="telefono" value="${cfgEsc(config?.telefono || '')}" placeholder="Ej: 011 4123-4567">
+          </div>
+          <div class="input-group">
+            <label>WhatsApp</label>
+            <input type="text" name="whatsapp" value="${cfgEsc(config?.whatsapp || '')}" placeholder="Ej: 11 2345-6789">
+          </div>
+        </div>
+
+        <div class="input-group">
+          <label>Dirección</label>
+          <input type="text" name="direccion" value="${cfgEsc(config?.direccion || '')}" placeholder="Calle, número, localidad">
+        </div>
+
+        <div class="input-group">
+          <label>Sitio web / Instagram</label>
+          <input type="text" name="web" value="${cfgEsc(config?.web || '')}" placeholder="Ej: @tunegocio o www.tunegocio.com">
+        </div>
+
+        <div class="form-row">
+          <div class="input-group">
             <label>Hora de apertura</label>
             <input type="time" name="hora_apertura" value="${config?.hora_apertura?.slice(0,5) || '09:00'}">
           </div>
@@ -257,6 +294,10 @@ async function guardarInfoConsultorio(e) {
     negocio_id: usuarioActual.negocio_id,
     nombre_consultorio: d.nombre_consultorio || null,
     email_contacto: (d.email_contacto || '').trim() || null,
+    telefono: (d.telefono || '').trim() || null,
+    whatsapp: (d.whatsapp || '').trim() || null,
+    direccion: (d.direccion || '').trim() || null,
+    web: (d.web || '').trim() || null,
     hora_apertura: d.hora_apertura,
     hora_cierre: d.hora_cierre,
     actualizado_en: new Date().toISOString()
@@ -362,6 +403,14 @@ async function guardarDuracionTurno(e) {
 // TARJETA: Modelos de documentos
 // ============================================================
 async function abrirCfgDocumentos() {
+  const { data: cfg } = await sb.from('configuracion')
+    .select('documentos_pie_activo, documentos_pie')
+    .eq('negocio_id', usuarioActual.negocio_id).maybeSingle();
+
+  const chipsPie = PIE_VARS.map(v =>
+    `<button type="button" class="btn cfg-mini" onclick="insertarVariablePie('${v.k}')" title="${v.d}">{${v.k}}</button>`
+  ).join(' ');
+
   abrirModal(`
     <div class="modal-header">
       <div class="modal-titulo">Modelos de documentos</div>
@@ -383,12 +432,60 @@ async function abrirCfgDocumentos() {
         <button class="btn cfg-mini" onclick="abrirModalPlantilla('consentimiento')">+ Agregar</button>
       </div>
       <div id="plantillas-consentimiento-lista">Cargando...</div>
+
+      <div class="cfg-sep"></div>
+
+      <form id="form-pie">
+        <div class="cfg-bloque-flex" style="margin-bottom:10px;">
+          <div>
+            <div style="font-weight:600;">Pie de los documentos</div>
+            <small class="cfg-ayuda">Se agrega al final de todos los documentos al emitirlos.</small>
+          </div>
+          <label class="cfg-switch">
+            <input type="checkbox" name="documentos_pie_activo" ${cfg?.documentos_pie_activo ? 'checked' : ''}>
+            <span class="cfg-slider"></span>
+          </label>
+        </div>
+        <div class="input-group">
+          <textarea name="documentos_pie" id="documentos-pie" rows="3">${cfgEsc(cfg?.documentos_pie || PIE_DEFAULT)}</textarea>
+          <small class="cfg-ayuda">Variables (se completan con los datos del negocio):</small>
+          <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:6px;">${chipsPie}</div>
+        </div>
+        <button type="submit" class="btn btn-primary-sm">Guardar pie</button>
+      </form>
     </div>
     <div class="modal-footer">
       <button type="button" class="btn" onclick="cerrarModal()">Cerrar</button>
     </div>
   `);
+  document.getElementById('form-pie').addEventListener('submit', guardarPieDocumentos);
   await cargarPlantillas();
+}
+
+function insertarVariablePie(k) {
+  const ta = document.getElementById('documentos-pie');
+  if (!ta) return;
+  const ins = '{' + k + '}';
+  const s = ta.selectionStart != null ? ta.selectionStart : ta.value.length;
+  const e = ta.selectionEnd != null ? ta.selectionEnd : ta.value.length;
+  ta.value = ta.value.slice(0, s) + ins + ta.value.slice(e);
+  ta.focus();
+  const pos = s + ins.length;
+  ta.setSelectionRange(pos, pos);
+}
+
+async function guardarPieDocumentos(e) {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const payload = {
+    negocio_id: usuarioActual.negocio_id,
+    documentos_pie_activo: fd.get('documentos_pie_activo') === 'on',
+    documentos_pie: (fd.get('documentos_pie') || '').trim() || null,
+    actualizado_en: new Date().toISOString()
+  };
+  const { error } = await sb.from('configuracion').upsert(payload, { onConflict: 'negocio_id' });
+  if (error) { mostrarMensaje('Error: ' + error.message, 'error'); return; }
+  mostrarMensaje('Pie guardado', 'exito');
 }
 
 // ============================================================

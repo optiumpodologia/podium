@@ -1030,7 +1030,8 @@ async function generarDocumento(pacienteId, tipoInicial) {
   if (!pac) { mostrarMensaje('Paciente no encontrado', 'error'); return; }
 
   const { data: cfg } = await sb.from('configuracion')
-    .select('nombre_consultorio, logo_url').eq('negocio_id', usuarioActual.negocio_id).maybeSingle();
+    .select('nombre_consultorio, logo_url, direccion, telefono, whatsapp, web, email_contacto, documentos_pie_activo, documentos_pie')
+    .eq('negocio_id', usuarioActual.negocio_id).maybeSingle();
 
   // Profesional que lo atendió (automático): último turno atendido del paciente.
   // Si no hay, cae al profesional logueado o al de cualquier turno más reciente.
@@ -1108,7 +1109,8 @@ function _docEsc(s) {
   return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-// Reemplaza {paciente} {dni} {fecha} {profesional} {negocio} {motivo}
+// Reemplaza {paciente} {dni} {fecha} {profesional} {negocio} {motivo} {horas}
+// y los datos del negocio {direccion} {telefono} {whatsapp} {email} {web}.
 function _docLlenar(contenido) {
   const d = window._doc;
   const ape = d.pac.apellido || '', nom = d.pac.nombre || '';
@@ -1120,10 +1122,25 @@ function _docLlenar(contenido) {
     profesional: d.profSel || '',
     negocio: d.cfg?.nombre_consultorio || '',
     motivo: d.motivo || '',
-    horas: d.horas || ''
+    horas: d.horas || '',
+    direccion: d.cfg?.direccion || '',
+    telefono: d.cfg?.telefono || '',
+    whatsapp: d.cfg?.whatsapp || '',
+    email: d.cfg?.email_contacto || '',
+    web: d.cfg?.web || ''
   };
-  return contenido.replace(/\{(paciente|dni|fecha|profesional|negocio|motivo|horas)\}/g,
+  return contenido.replace(/\{(paciente|dni|fecha|profesional|negocio|motivo|horas|direccion|telefono|whatsapp|email|web)\}/g,
     (_, k) => repl[k] ?? '');
+}
+
+// Si el negocio activó el pie automático, lo agrega al final del contenido
+// (antes de resolver las variables, para que el pie también se complete).
+function _docConPie(contenido) {
+  const d = window._doc;
+  if (d.cfg?.documentos_pie_activo && (d.cfg?.documentos_pie || '').trim()) {
+    return contenido + '\n\n' + d.cfg.documentos_pie;
+  }
+  return contenido;
 }
 
 // Texto informativo y checklist, según el tipo de documento.
@@ -1186,7 +1203,7 @@ function _docTextoActual() {
   const d = window._doc;
   if (d.textoEditado != null) return d.textoEditado;
   const pl = d.plantillas.find(p => String(p.id) === String(d.plantillaId)) || d.plantillas[0];
-  return pl ? _docLlenar(pl.contenido) : '';
+  return pl ? _docLlenar(_docConPie(pl.contenido)) : '';
 }
 
 // Sincroniza el estado con el DOM y refresca la vista previa.
@@ -1211,7 +1228,7 @@ function _docPreview() {
   if (wrapHs) wrapHs.style.display = pl.contenido.includes('{horas}') ? '' : 'none';
 
   const cont = document.getElementById('doc-preview');
-  if (cont) cont.innerHTML = _docPreviewHTML(_docLlenar(pl.contenido));
+  if (cont) cont.innerHTML = _docPreviewHTML(_docLlenar(_docConPie(pl.contenido)));
 }
 
 // Capa propia para el modal de documentos: se apila ENCIMA del modal de la
