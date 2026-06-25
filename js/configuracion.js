@@ -163,15 +163,15 @@ const RECORDATORIO_VARS = [
 ];
 
 const RECORDATORIO_MSG_DEFAULT =
-  'Hola {paciente}, te recordamos tu turno en {negocio} para mañana {fecha} a las {hora} hs con {profesional}. Si no vas a poder asistir, avisanos así liberamos el espacio. ¡Te esperamos!';
+  'Hola {paciente},\n\nTe recordamos tu turno en {negocio} para mañana {fecha} a las {hora} hs con {profesional}.\nSi no vas a poder asistir, avisanos así liberamos el espacio.\n\n¡Te esperamos!';
 
 // Emails por evento (se mandan solos al agendar / cancelar un turno).
 const CONFIRM_ASUNTO_DEFAULT = 'Confirmación de turno';
 const CONFIRM_MSG_DEFAULT =
-  'Hola {paciente}, tu turno en {negocio} quedó reservado para el {fecha} a las {hora} hs con {profesional}. Si no vas a poder asistir, avisanos así liberamos el espacio. ¡Te esperamos!';
+  'Hola {paciente},\n\nTu turno en {negocio} quedó reservado para el {fecha} a las {hora} hs con {profesional}.\nSi no vas a poder asistir, avisanos así liberamos el espacio.\n\n¡Te esperamos!';
 const CANCEL_ASUNTO_DEFAULT = 'Turno cancelado';
 const CANCEL_MSG_DEFAULT =
-  'Hola {paciente}, te confirmamos que tu turno en {negocio} del {fecha} a las {hora} hs fue cancelado. Si querés reprogramar, escribinos cuando quieras. ¡Gracias!';
+  'Hola {paciente},\n\nTe confirmamos que tu turno en {negocio} del {fecha} a las {hora} hs fue cancelado.\nSi querés reprogramar, escribinos cuando quieras.\n\n¡Gracias!';
 
 // Pie automático de los documentos (variables del negocio).
 const PIE_VARS = [
