@@ -42,7 +42,6 @@ const MODULOS_ACCESO = {
   profesionales:  ['negocio', 'recepcion'],                 // pantalla "Mi equipo"
   tipos_atencion: ['negocio'],                              // Atenciones (catálogo)
   productos:      ['negocio'],
-  usuarios:       ['super_admin'],                          // solo uso interno Optium
   configuracion:  ['negocio'],
 };
 
