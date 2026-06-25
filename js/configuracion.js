@@ -1044,7 +1044,7 @@ async function enviarRecordatoriosAhora() {
 
   mostrarMensaje('Enviando recordatorios...', 'info');
   const { data, error } = await sb.functions.invoke('recordatorio-turnos', {
-    body: { negocio_id: usuarioActual.negocio_id }
+    body: { negocio_id: usuarioActual.negocio_id, forzar: true }
   });
   if (error) { mostrarMensaje('Error al enviar: ' + error.message, 'error'); return; }
 
