@@ -72,6 +72,58 @@ async function abrirCobro(turnoId) {
   window._cobro = {
     lineasAt, lineasProd,
     metodo: 'Efectivo',
+    pacienteId: turno.paciente_id,
+    pacienteLabel: `${pac.apellido || ''}, ${(pac.nombre || '').split(' ')[0]}`.replace(/^,\s*/, '').replace(/,\s*$/, '') || 'el paciente',
+    proxNota: fichaAt?.proxima_visita_nota || '',
+    proxTurno: null,
+
+    // Sección "Próxima visita": muestra la sugerencia + botón para dar el turno,
+    // o el turno ya agendado con opción de cambiarlo. Sin salir del cobro.
+    renderProx() {
+      const c = document.getElementById('cobro-prox');
+      if (!c) return;
+      const calIco = sv('<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>', 16);
+      const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+      if (this.proxTurno) {
+        const d = new Date(this.proxTurno.fecha_hora);
+        let f = d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
+        f = f.charAt(0).toUpperCase() + f.slice(1);
+        const h = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+        c.innerHTML = `
+          <div class="cb-sec-lbl" style="margin:6px 0 10px;">${calIco} Próximo turno</div>
+          <div class="cb-prox">
+            <div class="cb-prox-info ok">
+              <span class="cb-prox-check">${I.finok}</span>
+              <span>${f} · ${h} hs${this.proxTurno.profNombre ? ' · ' + esc(this.proxTurno.profNombre) : ''}</span>
+            </div>
+            <button type="button" class="cb-prox-btn ghost" onclick="_cobro.darProximoTurno()">Cambiar</button>
+          </div>`;
+      } else {
+        const sugerencia = this.proxNota
+          ? esc(this.proxNota)
+          : 'Agendá el próximo turno del paciente.';
+        c.innerHTML = `
+          <div class="cb-sec-lbl" style="margin:6px 0 10px;">${calIco} ${this.proxNota ? 'Próxima visita sugerida' : 'Próximo turno'}</div>
+          <div class="cb-prox">
+            <div class="cb-prox-info">${sugerencia}</div>
+            <button type="button" class="cb-prox-btn" onclick="_cobro.darProximoTurno()">${sv('<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>', 15)} Dar turno</button>
+          </div>`;
+      }
+    },
+    darProximoTurno() {
+      const cb = (info) => _cobro.onProxTurno(info);
+      if (this.proxTurno && this.proxTurno.id) {
+        abrirReprogramar(this.proxTurno.id, this.pacienteId, cb);
+      } else {
+        abrirDarTurnoPaciente(this.pacienteId, this.pacienteLabel, cb);
+      }
+    },
+    onProxTurno(info) {
+      if (!info) return;
+      this.proxTurno = { id: info.id || (this.proxTurno && this.proxTurno.id), fecha_hora: info.fecha_hora, profNombre: info.profNombre || '' };
+      this.renderProx();
+    },
 
     filaItem(l, i, tipo) {
       const tint = tipo === 'prod' ? 'cb-ico-verde' : 'cb-ico-violeta';
@@ -242,6 +294,14 @@ async function abrirCobro(turnoId) {
       .cb-resumen-total .v { font-size:21px; color:var(--primario); }
 
       .cb-listo { display:flex; align-items:center; gap:14px; background:var(--exito-claro); border:1px solid rgba(31,157,107,.28); border-radius:14px; padding:13px 16px; margin-top:18px; }
+      .cb-prox { display:flex; align-items:center; gap:12px; border:1px solid var(--borde-tenue); border-radius:12px; padding:11px 13px; background:var(--fondo); }
+      .cb-prox-info { flex:1; min-width:0; font-size:13px; color:var(--texto); }
+      .cb-prox-info.ok { display:flex; align-items:center; gap:8px; font-weight:600; }
+      .cb-prox-check { color:var(--exito); display:inline-flex; flex:none; }
+      .cb-prox-btn { flex:none; display:inline-flex; align-items:center; gap:7px; background:var(--primario); color:#fff; border:none; border-radius:10px; padding:9px 14px; font-size:13px; font-weight:600; cursor:pointer; transition:.12s; }
+      .cb-prox-btn:hover { filter:brightness(1.06); }
+      .cb-prox-btn.ghost { background:#fff; color:var(--primario); border:1px solid var(--primario-medio); }
+      .cb-prox-btn.ghost:hover { background:var(--primario-claro); }
       .cb-listo-ico { width:34px; height:34px; border-radius:50%; background:var(--exito); color:#fff; display:flex; align-items:center; justify-content:center; flex:none; }
       .cb-listo-tit { font-size:13.5px; font-weight:700; color:#0B5E3E; }
       .cb-listo-meta { display:flex; gap:16px; font-size:12px; color:#1F9D6B; margin-top:3px; }
@@ -300,10 +360,7 @@ async function abrirCobro(turnoId) {
             <button type="button" class="cb-add verde" onclick="_cobro.abrirPicker('prod')">+ Agregar producto</button>
           </div>
           <div class="cb-card" id="cobro-list-prod"></div>
-          ${fichaAt?.proxima_visita_nota ? `
-          <div class="cb-sec-lbl" style="margin:6px 0 10px;">${sv('<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>', 16)} Próxima visita sugerida</div>
-          <div style="border:1px solid var(--borde-tenue); border-radius:12px; padding:12px 14px; font-size:13px; color:var(--texto); background:var(--fondo);">${String(fichaAt.proxima_visita_nota).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
-          ` : ''}
+          <div id="cobro-prox"></div>
         </div>
 
         <div>
@@ -349,6 +406,7 @@ async function abrirCobro(turnoId) {
 
   _cobro.renderAt();
   _cobro.renderProd();
+  _cobro.renderProx();
   _cobro.setMetodo('Efectivo');
 }
 

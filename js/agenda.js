@@ -2069,7 +2069,7 @@ function _agInyectarEstilos() {
   st.id = 'estilos-agendar-modal';
   st.textContent = `
     /* Ventana flotante "Dar turno" (no bloquea la agenda de atrás) */
-    .agw-frame { position:fixed; top:74px; left:20px; z-index:90; width:820px; max-width:96vw; height:min(900px, calc(100vh - 24px)); display:flex; flex-direction:column; background:#fff; border:1px solid var(--borde); border-radius:16px; box-shadow:0 24px 60px -18px rgba(20,20,40,.45); overflow:hidden; }
+    .agw-frame { position:fixed; top:74px; left:20px; z-index:150; width:820px; max-width:96vw; height:min(900px, calc(100vh - 24px)); display:flex; flex-direction:column; background:#fff; border:1px solid var(--borde); border-radius:16px; box-shadow:0 24px 60px -18px rgba(20,20,40,.45); overflow:hidden; }
     .agw-head { flex:none; display:flex; align-items:center; justify-content:space-between; gap:10px; padding:11px 16px; background:linear-gradient(120deg,#F3F0FE,#ECE8FB); border-bottom:1px solid var(--borde-tenue); cursor:move; user-select:none; }
     .agw-head-left { display:flex; align-items:center; gap:8px; }
     .agw-panel-toggle { width:28px; height:28px; border:none; border-radius:8px; background:rgba(109,91,208,0.12); color:var(--primario); cursor:pointer; display:flex; align-items:center; justify-content:center; padding:0; transition:background .1s; }
@@ -2199,14 +2199,22 @@ function _agInyectarEstilos() {
 }
 
 // --- Apertura -------------------------------------------------
-async function abrirAgendarTurnos(reprog) {
+async function abrirAgendarTurnos(opts) {
   if (!puede(usuarioActual, 'crear_turno')) return;
   _agInyectarEstilos();
 
   // Si ya está abierta, no duplicar (es una ventana, no un modal).
   if (document.getElementById('agendar-win')) return;
 
-  _agModal = { fecha: new Date(), profId: null, dur: 45, abierto: true, movida: false, reprog: reprog || null };
+  // opts puede traer dos modos:
+  //  - reprogramar: { turnoId, pacienteLabel, fechaActualLabel, profActualLabel, dur, onDone }
+  //  - paciente fijo (crear): { pacienteFijo:true, pacienteId, pacienteLabel, onDone }
+  const reprog = (opts && opts.turnoId) ? opts : null;
+  const fijo = (opts && opts.pacienteFijo) ? opts : null;
+
+  _agModal = { fecha: new Date(), profId: null, dur: 45, abierto: true, movida: false, reprog, fijo };
+
+  const titulo = reprog ? 'Reprogramar turno' : 'Dar turno';
 
   const win = document.createElement('div');
   win.id = 'agendar-win';
@@ -2215,7 +2223,7 @@ async function abrirAgendarTurnos(reprog) {
     <div class="agw-head" id="agw-head">
       <div class="agw-head-left">
         <button class="agw-panel-toggle" id="ag-panel-toggle" title="Mostrar panel" onclick="agendarTogglePanel()"></button>
-        <div class="agw-title">${_agIco(_AGI.cal, 17)} ${reprog ? 'Reprogramar turno' : 'Dar turno'}</div>
+        <div class="agw-title">${_agIco(_AGI.cal, 17)} ${titulo}</div>
       </div>
       <div class="agw-head-actions">
         <span class="agw-hint">Arrastrá para mover</span>
@@ -2458,6 +2466,7 @@ async function agendarCargarDia() {
   }
   cards.innerHTML = _agProfes.map(p => _agCardProfHTML(p)).join('');
   if (_agModal.reprog) cards.innerHTML += _agReprogInfoHTML(_agModal.reprog);
+  else if (_agModal.fijo) cards.innerHTML += _agFijoInfoHTML(_agModal.fijo);
   agendarRenderColumna();
 }
 
@@ -2468,6 +2477,16 @@ function _agReprogInfoHTML(rep) {
       <div class="ag-reprog-tit">${_agIco(_AGI.reloj, 13)} Reprogramando</div>
       <div class="ag-reprog-pac">${rep.pacienteLabel}</div>
       <div class="ag-reprog-act">Turno actual: ${rep.fechaActualLabel}${rep.profActualLabel ? ' · ' + rep.profActualLabel : ''}</div>
+    </div>`;
+}
+
+// Card cuando se agenda para un paciente ya fijado (ej. desde el cobro).
+function _agFijoInfoHTML(fijo) {
+  return `
+    <div class="ag-reprog-info">
+      <div class="ag-reprog-tit">${_agIco(_AGI.user, 13)} Agendando para</div>
+      <div class="ag-reprog-pac">${fijo.pacienteLabel}</div>
+      <div class="ag-reprog-act">Elegí un horario libre para darle el turno.</div>
     </div>`;
 }
 
@@ -2743,6 +2762,13 @@ function agendarRenderColumna() {
               <span class="ag-slot-txt">${_agIco(_AGI.mas, 16)} Reprogramar</span>
             </div>`;
         }
+        if (_agModal.fijo) {
+          return `
+            <div class="ag-slot ag-slot-libre" onclick="agendarFijoSlot(${f.min})">
+              <span class="ag-slot-hora">${hora}</span>
+              <span class="ag-slot-txt">${_agIco(_AGI.mas, 16)} Dar turno</span>
+            </div>`;
+        }
         return `
           <div class="ag-slot ag-slot-libre" onclick="agendarClickHueco(${f.min}, false)">
             <span class="ag-slot-hora">${hora}</span>
@@ -2774,7 +2800,7 @@ function agendarRenderColumna() {
       const btnRayo = tieneSobre
         ? `<button class="ag-slot-btn sobre activo" title="Ver sobreturno" onclick="agendarToggleSobre('${t.id}')">${_agIco(_AGI.rayo, 15)}</button>`
         : `<button class="ag-slot-btn sobre" title="Dar sobreturno" onclick="agendarClickHueco(${f.min}, true)">${_agIco(_AGI.rayo, 15)}</button>`;
-      const accTomado = _agModal.reprog
+      const accTomado = (_agModal.reprog || _agModal.fijo)
         ? ojoMain
         : `${ojoMain}
             ${btnRayo}
@@ -3006,7 +3032,74 @@ async function agendarReprogramarSlot(min) {
 
   mostrarMensaje('Turno reprogramado', 'exito');
   cerrarAgendarTurnos();
-  if (typeof rep.onDone === 'function') rep.onDone();
+  if (typeof rep.onDone === 'function') {
+    rep.onDone({ id: rep.turnoId, fecha_hora: fechaHora.toISOString(), profNombre: prof.nombre });
+  }
+}
+
+// Modo "paciente fijo": crea un turno nuevo para el paciente ya fijado
+// (ej. el próximo turno desde el cobro). Confirma antes de insertar.
+async function agendarFijoSlot(min) {
+  const fijo = _agModal.fijo;
+  if (!fijo) return;
+  const profId = _agModal.profId;
+  const prof = _agProfes.find(p => p.id === profId);
+  if (!profId || !prof) return;
+
+  const fecha = new Date(_agModal.fecha);
+  const fechaStr = agendaFechaStr(fecha);
+  const dur = _agModal.dur;
+  const ini = min, fin = min + dur;
+
+  // 1) Entra en la franja del profesional
+  const franjas = _agFranjasProf[profId] || [];
+  if (!franjas.some(f => ini >= f.ini && fin <= f.fin)) {
+    mostrarMensaje('El turno no entra en el horario del profesional.', 'error'); return;
+  }
+  // 2) No se superpone con otro turno
+  const normales = (_agTurnosProf[profId] || []).filter(t => !t.es_sobreturno);
+  if (haySolapamiento(ini, fin, normales)) {
+    mostrarMensaje('Se superpone con otro turno de ese profesional.', 'error'); return;
+  }
+
+  const hora = minToHora(min);
+  let fechaLinda = fecha.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
+  fechaLinda = fechaLinda.charAt(0).toUpperCase() + fechaLinda.slice(1);
+
+  const ok = await confirmarModal({
+    titulo: 'Dar turno',
+    texto: `¿Dar turno a ${fijo.pacienteLabel} el ${fechaLinda} a las ${hora} hs con ${prof.nombre}?`,
+    textoSi: 'Dar turno',
+    textoNo: 'Volver'
+  });
+  if (!ok) return;
+
+  // Aviso si el paciente ya tiene otros turnos agendados a futuro
+  if (!await avisarTurnoAgendado(fijo.pacienteId)) return;
+
+  const fechaHora = new Date(`${fechaStr}T${minToHora(min)}:00`);
+  const { data: nuevo, error } = await sb.from('turnos').insert({
+    negocio_id: usuarioActual.negocio_id,
+    paciente_id: fijo.pacienteId,
+    profesional_id: profId,
+    fecha_hora: fechaHora.toISOString(),
+    duracion_minutos: dur,
+    estado: 'agendado',
+    es_sobreturno: false,
+    creado_por: usuarioActual.id
+  }).select('id').single();
+  if (error) { mostrarMensaje('Error: ' + error.message, 'error'); return; }
+
+  mostrarMensaje('Turno agendado', 'exito');
+  cerrarAgendarTurnos();
+  if (typeof fijo.onDone === 'function') {
+    fijo.onDone({ id: nuevo?.id, fecha_hora: fechaHora.toISOString(), profNombre: prof.nombre });
+  }
+}
+
+// Entry point del modo "paciente fijo" (lo llama el cobro).
+function abrirDarTurnoPaciente(pacienteId, pacienteLabel, onDone) {
+  abrirAgendarTurnos({ pacienteFijo: true, pacienteId, pacienteLabel, onDone: onDone || null });
 }
 
 async function agendarCancelarTurno(turnoId) {
