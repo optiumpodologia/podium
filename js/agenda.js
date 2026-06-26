@@ -885,7 +885,7 @@ async function _dibujarAgendaInner() {
         const topS = (m - inicioMin) * ESCALA_AGENDA;
         sobrePorMin[m].forEach(t => {
           const nom = t.pacientes ? `${t.pacientes.apellido}, ${(t.pacientes.nombre || '').split(' ')[0]}` : 'Sobreturno';
-          if (esProf) {
+          if (esProfesional) {
             html += `<div class="turno-sobre-chip turno-sobre-suelto chip-info estado-${t.estado}" style="top:${topS}px;"
               title="Sobreturno (sin turno base)">${nom}</div>`;
           } else {
