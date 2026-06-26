@@ -278,14 +278,14 @@ async function fichaPacienteHTML(pacienteId, opts = {}) {
       <div class="turno-row-tipo">${t.profesionales?.nombre || ''} · ${formatearHora(t.fecha_hora)}${extra}</div>
     </div>`;
 
-  const btnIcono = 'padding:7px; line-height:0; flex-shrink:0;';
+  const btnIcono = 'background:transparent;';
 
   const filaProximo = (t) => `
     <div class="turno-row" style="cursor:default; padding:6px 12px;">
       ${infoTurno(t)}
       ${puedeEditar ? `
-        <button class="btn" style="${btnIcono}" title="Reprogramar" onclick="abrirModalReprogramar('${t.id}', '${paciente.id}')">${icoReprog}</button>
-        <button class="btn btn-danger" style="${btnIcono}" title="Cancelar turno" onclick="cancelarTurnoFicha('${t.id}', '${paciente.id}')">${icoX}</button>
+        <button class="btn-icon" style="${btnIcono}" title="Reprogramar" onclick="abrirModalReprogramar('${t.id}', '${paciente.id}')">${icoReprog}</button>
+        <button class="btn-icon" style="${btnIcono}" title="Cancelar turno" onclick="cancelarTurnoFicha('${t.id}', '${paciente.id}')">${icoX}</button>
       ` : ''}
     </div>`;
 
@@ -295,7 +295,7 @@ async function fichaPacienteHTML(pacienteId, opts = {}) {
     return `
     <div class="turno-row" style="cursor:default; padding:6px 12px;">
       ${infoTurno(t, extra)}
-      ${!emb ? `<button class="btn btn-primary-sm" style="${btnIcono}" title="Ver atención" onclick="cerrarModal(); setTimeout(() => abrirFichaAtencion('${t.id}', true), 100);">${icoOjo}</button>` : ''}
+      ${!emb ? `<button class="btn-icon" style="${btnIcono}" title="Ver atención" onclick="cerrarModal(); setTimeout(() => abrirFichaAtencion('${t.id}', true), 100);">${icoOjo}</button>` : ''}
     </div>`;
   };
 
