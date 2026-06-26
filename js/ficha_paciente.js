@@ -255,6 +255,7 @@ async function fichaPacienteHTML(pacienteId, opts = {}) {
 
   const icoOjo = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>';
   const icoX = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
+  const icoReprog = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h5.5"/><path d="M16 2v4M8 2v4M3 10h18"/><circle cx="17.5" cy="17.5" r="4.5"/><path d="M17.5 15.5v2l1.5 1"/></svg>';
 
   const tlist = turnos || [];
   const proximos = tlist
@@ -282,7 +283,10 @@ async function fichaPacienteHTML(pacienteId, opts = {}) {
   const filaProximo = (t) => `
     <div class="turno-row" style="cursor:default; padding:6px 12px;">
       ${infoTurno(t)}
-      ${puedeEditar ? `<button class="btn btn-danger" style="${btnIcono}" title="Cancelar turno" onclick="cancelarTurnoFicha('${t.id}', '${paciente.id}')">${icoX}</button>` : ''}
+      ${puedeEditar ? `
+        <button class="btn" style="${btnIcono}" title="Reprogramar" onclick="abrirModalReprogramar('${t.id}', '${paciente.id}')">${icoReprog}</button>
+        <button class="btn btn-danger" style="${btnIcono}" title="Cancelar turno" onclick="cancelarTurnoFicha('${t.id}', '${paciente.id}')">${icoX}</button>
+      ` : ''}
     </div>`;
 
   const filaAtencion = (t) => {

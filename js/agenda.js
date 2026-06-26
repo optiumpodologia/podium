@@ -3095,6 +3095,113 @@ function pedirMotivoCancelacion() {
   });
 }
 
+// ===== Reprogramar turno: mover a otra fecha / hora / profesional =====
+async function abrirModalReprogramar(turnoId, pacienteId) {
+  const { data: t } = await sb.from('turnos')
+    .select('id, fecha_hora, duracion_minutos, profesional_id, pacientes(nombre, apellido), profesionales(nombre)')
+    .eq('id', turnoId).maybeSingle();
+  if (!t) { mostrarMensaje('Turno no encontrado', 'error'); return; }
+
+  const { data: profesionales } = await sb.from('profesionales')
+    .select('id, nombre').eq('activo', true).order('nombre');
+
+  const fechaAct = new Date(t.fecha_hora);
+  const fechaStr = agendaFechaStr(fechaAct);
+  const horaStr = minToHora(turnoMinInicio(t));
+  const pac = t.pacientes ? `${t.pacientes.apellido}, ${t.pacientes.nombre}` : 'Paciente';
+  const profAct = t.profesionales?.nombre || '';
+  let fechaLinda = fechaAct.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
+  fechaLinda = fechaLinda.charAt(0).toUpperCase() + fechaLinda.slice(1);
+
+  const opts = (profesionales || []).map(p =>
+    `<option value="${p.id}"${p.id === t.profesional_id ? ' selected' : ''}>${p.nombre}</option>`).join('');
+
+  const volver = pacienteId ? `_reprogramarVolver('${pacienteId}')` : 'cerrarModal()';
+
+  abrirModal(`
+    <div class="modal-header">
+      <div class="modal-titulo">Reprogramar turno</div>
+      <button class="modal-cerrar" onclick="${volver}">×</button>
+    </div>
+    <div class="modal-body">
+      <div style="background:#f6f6fa; border-radius:11px; padding:12px 14px; margin-bottom:16px; font-size:13.5px; color:#5a5f6b; line-height:1.5;">
+        <strong style="color:#2a2e3a;">${pac}</strong><br>
+        Turno actual: ${fechaLinda} a las ${horaStr} hs con ${profAct}
+      </div>
+      <div class="input-group">
+        <label>Profesional</label>
+        <select id="rp-prof">${opts}</select>
+      </div>
+      <div class="form-row">
+        <div class="input-group"><label>Nueva fecha</label><input type="date" id="rp-fecha" value="${fechaStr}"></div>
+        <div class="input-group"><label>Nueva hora</label><input type="time" id="rp-hora" value="${horaStr}"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="${volver}">Volver</button>
+      <button class="btn btn-primary-sm" onclick="_reprogramarConfirmar('${turnoId}', ${t.duracion_minutos}, '${pacienteId || ''}')">Reprogramar</button>
+    </div>
+  `);
+}
+
+function _reprogramarVolver(pacienteId) {
+  if (pacienteId && typeof verFichaPaciente === 'function') {
+    verFichaPaciente(pacienteId).then(() => { if (typeof fichaTab === 'function') fichaTab('consultas'); });
+  } else {
+    cerrarModal();
+  }
+}
+
+async function _reprogramarConfirmar(turnoId, dur, pacienteId) {
+  const profId = document.getElementById('rp-prof').value;
+  const fechaStr = document.getElementById('rp-fecha').value;
+  const hora = document.getElementById('rp-hora').value;
+  if (!fechaStr || !hora) { mostrarMensaje('Completá fecha y hora.', 'advertencia'); return; }
+
+  const ini = parseHoraMin(hora);
+  const fin = ini + dur;
+
+  // 1) ¿El profesional atiende ese día y el turno entra en su horario?
+  const mapa = await mapaFranjasProfes([profId], new Date(fechaStr + 'T00:00'));
+  const franjas = mapa[profId] || [];
+  if (franjas.length === 0) { mostrarMensaje('Ese profesional no atiende ese día.', 'error'); return; }
+  if (!franjas.some(f => ini >= f.ini && fin <= f.fin)) {
+    const txt = franjas.map(f => `${minToHora(f.ini)}-${minToHora(f.fin)}`).join(', ');
+    mostrarMensaje(`El turno no entra en su horario (${txt}).`, 'error'); return;
+  }
+
+  // 2) ¿Choca con otro turno suyo ese día? (excluye el propio turno)
+  const di = new Date(fechaStr + 'T00:00'); di.setHours(0, 0, 0, 0);
+  const df = new Date(fechaStr + 'T00:00'); df.setHours(23, 59, 59, 999);
+  const { data: existentes } = await sb.from('turnos')
+    .select('fecha_hora, duracion_minutos, estado, es_sobreturno')
+    .eq('profesional_id', profId)
+    .neq('id', turnoId)
+    .gte('fecha_hora', di.toISOString())
+    .lte('fecha_hora', df.toISOString());
+  const ocupanSlot = (existentes || []).filter(e => !e.es_sobreturno);
+  if (haySolapamiento(ini, fin, ocupanSlot)) {
+    mostrarMensaje('Se superpone con otro turno de ese profesional.', 'error'); return;
+  }
+
+  // 3) Actualizar (mismo turno, nueva fecha/hora/profesional)
+  const fechaHora = new Date(`${fechaStr}T${hora}:00`);
+  const { error } = await sb.from('turnos')
+    .update({ fecha_hora: fechaHora.toISOString(), profesional_id: profId, actualizado_en: new Date().toISOString() })
+    .eq('id', turnoId);
+  if (error) { mostrarMensaje('Error: ' + error.message, 'error'); return; }
+
+  mostrarMensaje('Turno reprogramado', 'exito');
+  if (pacienteId) {
+    await verFichaPaciente(pacienteId);
+    if (typeof fichaTab === 'function') fichaTab('consultas');
+  } else {
+    cerrarModal();
+    const moduloActivo = document.querySelector('.nav-item.active')?.dataset.modulo;
+    if (moduloActivo === 'agenda' && typeof dibujarAgenda === 'function') dibujarAgenda();
+  }
+}
+
 // Si el panel persistente está mostrando la misma fecha, lo redibuja.
 function _agSyncPanel(fechaStr) {
   try {
