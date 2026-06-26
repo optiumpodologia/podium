@@ -1909,7 +1909,7 @@ function accionesTurnoHTML(t, numero, fechaStr, yaTieneSobre) {
     rayo:   sv('<path d="M13 2 3 14h7l-1 8 10-12h-7z"/>'),
     tacho:  sv('<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>'),
     volver: sv('<path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/>'),
-    cobro:  sv('<line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>')
+    cobro:  sv('<rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/>')
   };
   const btn = (icono, titulo, fn, extra) =>
     `<button class="turno-accion-btn ${extra || ''}" title="${titulo}" onclick="${stop}${fn}">${icono}</button>`;
@@ -1921,13 +1921,13 @@ function accionesTurnoHTML(t, numero, fechaStr, yaTieneSobre) {
   if (esGestor) {
     if (t.estado === 'agendado') {
       out.push(btn(ICO.check, 'Recibir paciente', `cambiarEstadoTurno('${t.id}','llego')`));
-      if (puedeSobre) out.push(btn(ICO.rayo, 'Dar sobreturno', `abrirModalNuevoTurnoCasillero('${t.profesional_id}', ${numero}, '${fechaStr}', ${turnoMinInicio(t)}, null, true)`, 'violeta'));
-      out.push(btn(ICO.tacho, 'Cancelar o eliminar turno', `quitarTurno('${t.id}')`, 'peligro'));
+      if (puedeSobre) out.push(btn(ICO.rayo, 'Dar sobreturno', `abrirModalNuevoTurnoCasillero('${t.profesional_id}', ${numero}, '${fechaStr}', ${turnoMinInicio(t)}, null, true)`));
+      out.push(btn(ICO.tacho, 'Cancelar o eliminar turno', `quitarTurno('${t.id}')`));
     } else if (t.estado === 'llego') {
       out.push(btn(ICO.volver, 'Cancelar recepción', `cambiarEstadoTurno('${t.id}','agendado')`));
-      if (puedeSobre) out.push(btn(ICO.rayo, 'Dar sobreturno', `abrirModalNuevoTurnoCasillero('${t.profesional_id}', ${numero}, '${fechaStr}', ${turnoMinInicio(t)}, null, true)`, 'violeta'));
+      if (puedeSobre) out.push(btn(ICO.rayo, 'Dar sobreturno', `abrirModalNuevoTurnoCasillero('${t.profesional_id}', ${numero}, '${fechaStr}', ${turnoMinInicio(t)}, null, true)`));
     } else if (t.estado === 'finalizado') {
-      out.push(btn(ICO.cobro, 'Cobrar', `(typeof abrirCobro==='function' ? abrirCobro('${t.id}') : mostrarMensaje('El cobro se activa en el próximo paso','advertencia'))`, 'exito'));
+      out.push(btn(ICO.cobro, 'Cobrar', `(typeof abrirCobro==='function' ? abrirCobro('${t.id}') : mostrarMensaje('El cobro se activa en el próximo paso','advertencia'))`));
     }
   }
 

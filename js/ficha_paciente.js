@@ -265,10 +265,16 @@ async function fichaPacienteHTML(pacienteId, opts = {}) {
   const noAsistio = tlist.filter(t =>
     t.estado === 'cancelado' || (t.estado === 'agendado' && new Date(t.fecha_hora) < ahoraTs));
 
-  const tituloSec = (txt) => `
-    <div style="display:flex; align-items:center; gap:12px; margin:16px 0 8px;">
+  const icSec = (p) => `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#6D5BD0" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+  const icSecCal = icSec('<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>');
+  const icSecReloj = icSec('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>');
+  const icSecPersonas = icSec('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>');
+
+  const tituloSec = (ic, txt) => `
+    <div style="display:flex; align-items:center; gap:9px; margin:16px 0 8px;">
+      ${ic}
       <span style="font-size:16px; font-weight:700; color:var(--texto);">${txt}</span>
-      <span style="flex:1; height:6px; border-radius:3px; background:var(--fondo);"></span>
+      <span style="flex:1; height:6px; border-radius:3px; background:var(--fondo); margin-left:3px;"></span>
     </div>`;
 
   const infoTurno = (t, extra = '') => `
@@ -321,8 +327,8 @@ async function fichaPacienteHTML(pacienteId, opts = {}) {
   };
 
   // scroll = alto máx en px (muestra ~6 tarjetas y deja scroll el resto)
-  const seccion = (titulo, arr, fila, scroll) => arr.length
-    ? tituloSec(titulo) + `<div class="turnos-dia-lista"${scroll ? ` style="max-height:${scroll}px; overflow-y:auto; padding-right:4px;"` : ''}>${arr.map(fila).join('')}</div>`
+  const seccion = (ic, titulo, arr, fila, scroll) => arr.length
+    ? tituloSec(ic, titulo) + `<div class="turnos-dia-lista"${scroll ? ` style="max-height:${scroll}px; overflow-y:auto; padding-right:4px;"` : ''}>${arr.map(fila).join('')}</div>`
     : '';
 
   const hayConsultas = proximos.length || atenciones.length || noAsistio.length;
@@ -330,9 +336,9 @@ async function fichaPacienteHTML(pacienteId, opts = {}) {
   const panelConsultas = `
         <div class="ficha-panel" data-fpanel="consultas">
           ${hayConsultas ? `
-            ${seccion('Turnos agendados', proximos, filaProximo)}
-            ${seccion('Historial de atenciones', atenciones, filaAtencion, 300)}
-            ${seccion('Ausentes y cancelaciones', noAsistio, filaNoAsistio)}
+            ${seccion(icSecCal, 'Turnos agendados', proximos, filaProximo)}
+            ${seccion(icSecReloj, 'Historial de atenciones', atenciones, filaAtencion, 300)}
+            ${seccion(icSecPersonas, 'Ausentes y cancelaciones', noAsistio, filaNoAsistio)}
           ` : '<div class="vacio" style="padding:1.5rem;">Sin turnos registrados</div>'}
         </div>`;
 

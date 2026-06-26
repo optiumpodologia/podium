@@ -30,6 +30,7 @@ async function abrirCobro(turnoId) {
   const { data: productosCat } = await sb.from('productos').select('*').eq('activo', true).order('nombre');
   const { data: atExist } = await sb.from('turno_atenciones').select('*').eq('turno_id', turnoId);
   const { data: prodExist } = await sb.from('turno_productos').select('*').eq('turno_id', turnoId);
+  const { data: fichaAt } = await sb.from('fichas_atencion').select('proxima_visita_nota').eq('turno_id', turnoId).maybeSingle();
 
   const lineasAt = (atExist || []).map(a => {
     const c = (tipos || []).find(t => t.id === a.tipo_atencion_id);
@@ -299,6 +300,10 @@ async function abrirCobro(turnoId) {
             <button type="button" class="cb-add verde" onclick="_cobro.abrirPicker('prod')">+ Agregar producto</button>
           </div>
           <div class="cb-card" id="cobro-list-prod"></div>
+          ${fichaAt?.proxima_visita_nota ? `
+          <div class="cb-sec-lbl" style="margin:6px 0 10px;">${sv('<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>', 16)} Próxima visita sugerida</div>
+          <div style="border:1px solid var(--borde-tenue); border-radius:12px; padding:12px 14px; font-size:13px; color:var(--texto); background:var(--fondo);">${String(fichaAt.proxima_visita_nota).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
+          ` : ''}
         </div>
 
         <div>
