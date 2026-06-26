@@ -795,7 +795,8 @@ async function dibujarAgenda() {
       const bloqueadosMin = new Set(susBloqueos.map(b => b.hora_min));
 
       // Separar turnos normales de sobreturnos (estos van como chip, no como tarjeta)
-      const normales = susTurnos.filter(t => !t.es_sobreturno);
+      // Los cancelados no se muestran ni ocupan el slot (quedan guardados para stats).
+      const normales = susTurnos.filter(t => !t.es_sobreturno && t.estado !== 'cancelado');
       const sobres = susTurnos.filter(t => t.es_sobreturno && t.estado !== 'cancelado');
       sobres.forEach(s => sobresPanel.push({ turno: s, numero }));
       const sobrePorMin = {};
@@ -820,20 +821,17 @@ async function dibujarAgenda() {
           const btnBloq = esGestor
             ? `<button class="agenda-hueco-bloq" title="Bloquear este horario" onclick="event.stopPropagation(); crearBloqueo('${col.profesional.id}','${fechaStrSel}',${t})">&#8709;</button>`
             : '';
-          if (esHoy && puedeCrearTurno) {
-            // HOY: dar turno (+) y bloquear horario
+          if (puedeCrearTurno) {
+            // HOY y FUTURO: dar turno (+) y, para gestores, bloquear horario
             html += `<div class="agenda-hueco" style="top:${topH}px; height:${altoH}px;"
               title="Dar turno ${minToHora(t)}"
               onclick="abrirModalNuevoTurnoCasillero('${col.profesional.id}', ${numero}, '${fechaStrSel}', ${t})">
               <span class="agenda-hueco-mas">+</span>
               ${btnBloq}
               </div>`;
-          } else if (esFuturo && esGestor) {
-            // FUTURO: no se dan turnos desde el panel (va por la ventana "Dar turno"),
-            // pero sí se puede bloquear el horario.
-            html += `<div class="agenda-celda-libre" style="top:${topH}px; height:${altoH}px;">${btnBloq}</div>`;
           } else {
-            html += `<div class="agenda-celda-libre" style="top:${topH}px; height:${altoH}px;"></div>`;
+            // Sin permiso para crear turno: celda libre (con bloqueo si es gestor)
+            html += `<div class="agenda-celda-libre" style="top:${topH}px; height:${altoH}px;">${btnBloq}</div>`;
           }
         });
 
