@@ -2942,7 +2942,7 @@ function quitarTurno(turnoId) {
   const btnBase = 'display:inline-flex; align-items:center; justify-content:center; gap:8px; font-size:14px; font-weight:600; padding:11px 18px; border-radius:10px; cursor:pointer;';
 
   abrirModal(`
-    <div style="padding:6px 6px 2px;">
+    <div style="padding:24px;">
       <div style="display:flex; align-items:flex-start; gap:16px;">
         <div style="flex:none; width:52px; height:52px; border-radius:50%; background:#ede9fb; display:flex; align-items:center; justify-content:center;">${svgCal}</div>
         <div style="flex:1;">
