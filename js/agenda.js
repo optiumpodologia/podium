@@ -3046,7 +3046,7 @@ async function agendarReprogramarSlot(min) {
 
   const fechaHora = new Date(`${fechaStr}T${minToHora(min)}:00`);
   const { error } = await sb.from('turnos')
-    .update({ fecha_hora: fechaHora.toISOString(), profesional_id: profId })
+    .update({ fecha_hora: fechaHora.toISOString(), profesional_id: profId, es_sobreturno: false })
     .eq('id', rep.turnoId);
   if (error) { mostrarMensaje('Error: ' + error.message, 'error'); return; }
 
