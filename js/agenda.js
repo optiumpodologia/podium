@@ -2965,12 +2965,17 @@ function quitarTurno(turnoId) {
 }
 
 async function _quitarTurnoAccion(turnoId, modo) {
-  cerrarModal();
   if (modo === 'cancelar') {
-    const { error } = await sb.from('turnos').update({ estado: 'cancelado' }).eq('id', turnoId);
+    const motivo = await pedirMotivoCancelacion();
+    if (motivo === false) return;            // volvió atrás: el modal de quitar sigue abierto
+    cerrarModal();
+    const { error } = await sb.from('turnos')
+      .update({ estado: 'cancelado', motivo_cancelacion: motivo || null })
+      .eq('id', turnoId);
     if (error) { mostrarMensaje('Error: ' + error.message, 'error'); return; }
     mostrarMensaje('Turno cancelado. Se le avisó al paciente.', 'exito');
   } else {
+    cerrarModal();
     if (!await confirmarModal({ titulo: 'Eliminar turno', texto: 'Se borra el turno sin avisar al paciente. ¿Continuar?', textoSi: 'Eliminar', textoNo: 'Volver', peligro: true })) return;
     const { error } = await sb.from('turnos').delete().eq('id', turnoId);
     if (error) { mostrarMensaje('Error: ' + error.message, 'error'); return; }
@@ -2979,6 +2984,45 @@ async function _quitarTurnoAccion(turnoId, modo) {
   const moduloActivo = document.querySelector('.nav-item.active')?.dataset.modulo;
   if (moduloActivo === 'agenda' && typeof dibujarAgenda === 'function') dibujarAgenda();
   else if (moduloActivo === 'dashboard' && typeof renderDashboard === 'function') renderDashboard(document.getElementById('main'));
+}
+
+// Mini-modal (overlay propio, no pisa otros modales) para registrar el motivo
+// de una cancelación. Devuelve el texto (puede ser '') al confirmar, o false si
+// el usuario vuelve atrás. Reutilizable desde la agenda y la ficha del paciente.
+function pedirMotivoCancelacion() {
+  return new Promise((resolve) => {
+    const previo = document.getElementById('mc-layer');
+    if (previo) previo.remove();
+    const CHIPS = ['Avisó el paciente', 'No puede asistir', 'Reprogramó', 'Motivo de salud'];
+    const layer = document.createElement('div');
+    layer.id = 'mc-layer';
+    layer.innerHTML = `
+      <div class="cm-overlay">
+        <div class="cm-box" role="dialog" aria-modal="true" style="max-width:440px;">
+          <div class="cm-tit">Motivo de la cancelación</div>
+          <div class="cm-txt" style="margin-bottom:12px;">Opcional. Queda registrado en el historial del paciente.</div>
+          <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px;">
+            ${CHIPS.map(c => `<button type="button" class="mc-chip" style="background:#f0eefb; color:#5a4bcf; border:1px solid #d9d2f6; border-radius:999px; padding:6px 13px; font-size:13px; font-weight:600; cursor:pointer;">${c}</button>`).join('')}
+          </div>
+          <textarea id="mc-texto" rows="2" placeholder="O escribí el motivo..." style="width:100%; box-sizing:border-box; border:1px solid #e2e2ea; border-radius:10px; padding:10px; font:inherit; font-size:14px; resize:vertical;"></textarea>
+          <div class="cm-acc" style="margin-top:14px;">
+            <button type="button" class="btn mc-no">Volver</button>
+            <button type="button" class="btn cm-si-peligro mc-si">Confirmar cancelación</button>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(layer);
+    const ta = layer.querySelector('#mc-texto');
+    layer.querySelectorAll('.mc-chip').forEach(ch => {
+      ch.onclick = () => { ta.value = ch.textContent; ta.focus(); };
+    });
+    const cerrar = (val) => { layer.remove(); resolve(val); };
+    layer.querySelector('.mc-no').onclick = () => cerrar(false);
+    layer.querySelector('.mc-si').onclick = () => cerrar(ta.value.trim());
+    layer.querySelector('.cm-overlay').onclick = (e) => {
+      if (e.target.classList.contains('cm-overlay')) cerrar(false);
+    };
+  });
 }
 
 // Si el panel persistente está mostrando la misma fecha, lo redibuja.

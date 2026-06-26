@@ -295,14 +295,23 @@ async function fichaPacienteHTML(pacienteId, opts = {}) {
     </div>`;
   };
 
+  const escMotivo = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const filaNoAsistio = (t) => {
     const cancelado = t.estado === 'cancelado';
     const badge = cancelado
       ? '<span class="badge badge-cancelado">Cancelado</span>'
       : '<span class="badge" style="background:#EFEFF2; color:#6B6B7B;">Ausente</span>';
+    const motivo = (cancelado && t.motivo_cancelacion)
+      ? `<div class="turno-row-tipo" style="margin-top:2px; font-style:italic;">Motivo: ${escMotivo(t.motivo_cancelacion)}</div>`
+      : '';
     return `
     <div class="turno-row" style="cursor:default; padding:6px 12px;">
-      ${infoTurno(t)}
+      <div class="turno-row-hora">${fmtFecha(t.fecha_hora)}</div>
+      <div class="turno-row-info">
+        <div class="turno-row-nombre">${t.tipos_atencion?.nombre || 'Atención'}</div>
+        <div class="turno-row-tipo">${t.profesionales?.nombre || ''} · ${formatearHora(t.fecha_hora)}</div>
+        ${motivo}
+      </div>
       ${badge}
     </div>`;
   };
@@ -411,15 +420,11 @@ function fichaTab(id) {
 // Cancela un turno desde la ficha (sin cerrarla). Dispara el email igual que
 // la agenda (update estado='cancelado') y refresca la ficha en la solapa consultas.
 async function cancelarTurnoFicha(turnoId, pacienteId) {
-  const ok = await confirmarModal({
-    titulo: 'Cancelar turno',
-    texto: 'Se marca como cancelado y se le avisa al paciente por email. ¿Continuar?',
-    textoSi: 'Cancelar turno',
-    textoNo: 'Volver',
-    peligro: true
-  });
-  if (!ok) return;
-  const { error } = await sb.from('turnos').update({ estado: 'cancelado' }).eq('id', turnoId);
+  const motivo = await pedirMotivoCancelacion();
+  if (motivo === false) return;
+  const { error } = await sb.from('turnos')
+    .update({ estado: 'cancelado', motivo_cancelacion: motivo || null })
+    .eq('id', turnoId);
   if (error) { mostrarMensaje('Error: ' + error.message, 'error'); return; }
   mostrarMensaje('Turno cancelado. Se le avisó al paciente.', 'exito');
   await verFichaPaciente(pacienteId);
