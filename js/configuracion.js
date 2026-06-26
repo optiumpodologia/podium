@@ -151,6 +151,91 @@ function cfgEsc(s) {
 }
 
 // ============================================================
+// WHATSAPP DEL NEGOCIO — selector de país + número (a prueba de errores)
+// El valor que se guarda es el número internacional limpio (sin +),
+// listo para wa.me. Ej Argentina: 5491112345678
+// ============================================================
+const PAISES_WA = [
+  { code: 'AR', nombre: 'Argentina', dial: '54',  movil9: true,  bandera: '🇦🇷' },
+  { code: 'UY', nombre: 'Uruguay',   dial: '598', movil9: false, bandera: '🇺🇾' },
+  { code: 'CL', nombre: 'Chile',     dial: '56',  movil9: false, bandera: '🇨🇱' },
+  { code: 'PY', nombre: 'Paraguay',  dial: '595', movil9: false, bandera: '🇵🇾' },
+  { code: 'BO', nombre: 'Bolivia',   dial: '591', movil9: false, bandera: '🇧🇴' },
+  { code: 'PE', nombre: 'Perú',      dial: '51',  movil9: false, bandera: '🇵🇪' },
+  { code: 'EC', nombre: 'Ecuador',   dial: '593', movil9: false, bandera: '🇪🇨' },
+  { code: 'BR', nombre: 'Brasil',    dial: '55',  movil9: false, bandera: '🇧🇷' },
+  { code: 'MX', nombre: 'México',    dial: '52',  movil9: false, bandera: '🇲🇽' },
+  { code: 'ES', nombre: 'España',    dial: '34',  movil9: false, bandera: '🇪🇸' },
+];
+
+// Desde el valor guardado (internacional) deduce país + número "humano".
+function waParsear(guardado) {
+  const n = String(guardado || '').replace(/\D/g, '');
+  if (!n) return { code: 'AR', numero: '' };
+  if (n.startsWith('549')) return { code: 'AR', numero: n.slice(3) };
+  const ordenados = [...PAISES_WA].sort((a, b) => b.dial.length - a.dial.length);
+  for (const p of ordenados) {
+    if (n.startsWith(p.dial)) return { code: p.code, numero: n.slice(p.dial.length) };
+  }
+  return { code: 'AR', numero: n };
+}
+
+// Construye el número internacional para wa.me a partir del país + lo tipeado.
+function waConstruir(code, raw) {
+  const pais = PAISES_WA.find(p => p.code === code) || PAISES_WA[0];
+  let n = String(raw || '').replace(/\D/g, '');
+  if (!n) return '';
+  if (n.startsWith(pais.dial)) n = n.slice(pais.dial.length); // por si repitió el código
+  n = n.replace(/^0+/, '');                                   // saca el 0 nacional
+  if (pais.movil9) {                                          // Argentina
+    if (n.startsWith('9')) n = n.slice(1);
+    if (n.startsWith('15')) n = n.slice(2);
+  }
+  return pais.dial + (pais.movil9 ? '9' : '') + n;
+}
+
+// <option> del selector de país.
+function waOpciones(codeSel) {
+  return PAISES_WA.map(p =>
+    `<option value="${p.code}"${p.code === codeSel ? ' selected' : ''}>${p.bandera} +${p.dial}</option>`
+  ).join('');
+}
+
+// Refresca el preview "Se guardará como: wa.me/...".
+function waPreview() {
+  const paisEl = document.getElementById('wa-pais');
+  const numEl = document.getElementById('wa-numero');
+  const prev = document.getElementById('wa-preview');
+  if (!paisEl || !numEl || !prev) return;
+  const pais = PAISES_WA.find(p => p.code === paisEl.value) || PAISES_WA[0];
+  const limpio = waConstruir(paisEl.value, numEl.value);
+  if (!limpio) {
+    prev.innerHTML = '<span style="color:#9aa0b0;">Sin WhatsApp cargado</span>';
+    return;
+  }
+  const prefijo = pais.dial + (pais.movil9 ? '9' : '');
+  const nacional = limpio.slice(prefijo.length);
+  let aviso = '';
+  if (pais.code === 'AR' && nacional.length !== 10) {
+    aviso = '<div style="color:#e5484d; margin-top:3px;">⚠️ En Argentina son 10 dígitos (área + número). Fijate si te quedó el 0 o el 15.</div>';
+  }
+  prev.innerHTML = `Se guardará como: <strong>wa.me/${limpio}</strong>${aviso}`;
+}
+
+// Engancha los listeners y carga el valor guardado en el selector + campo.
+function waInit(guardado) {
+  const pais = document.getElementById('wa-pais');
+  const num = document.getElementById('wa-numero');
+  if (!pais || !num) return;
+  const parsed = waParsear(guardado);
+  pais.value = parsed.code;
+  num.value = parsed.numero;
+  pais.addEventListener('change', waPreview);
+  num.addEventListener('input', waPreview);
+  waPreview();
+}
+
+// ============================================================
 // RECORDATORIOS AUTOMÁTICOS (datos)
 // ============================================================
 const RECORDATORIO_VARS = [
@@ -277,7 +362,12 @@ async function abrirCfgConsultorio() {
           </div>
           <div class="input-group">
             <label>WhatsApp</label>
-            <input type="text" name="whatsapp" value="${cfgEsc(config?.whatsapp || '')}" placeholder="Ej: 11 2345-6789">
+            <div style="display:flex; gap:8px;">
+              <select id="wa-pais" style="flex:none; width:auto; padding-right:8px;">${waOpciones('AR')}</select>
+              <input type="text" id="wa-numero" style="flex:1;" placeholder="Cód. de área y número" inputmode="numeric">
+            </div>
+            <small class="cfg-ayuda">Elegí el país y poné el código de área + número, sin el 0 ni el 15. Ej: 11 23456789</small>
+            <div id="wa-preview" style="margin-top:6px; font-size:13px; color:#4a4f5b;"></div>
           </div>
         </div>
 
@@ -310,6 +400,7 @@ async function abrirCfgConsultorio() {
   `);
 
   document.getElementById('form-config').addEventListener('submit', guardarInfoConsultorio);
+  waInit(config?.whatsapp);
   document.getElementById('cfg-logo-btn').addEventListener('click', () => {
     document.getElementById('cfg-logo-input').click();
   });
@@ -320,12 +411,15 @@ async function guardarInfoConsultorio(e) {
   e.preventDefault();
   const fd = new FormData(e.target);
   const d = Object.fromEntries(fd.entries());
+  const waPais = document.getElementById('wa-pais');
+  const waNum = document.getElementById('wa-numero');
+  const whatsappLimpio = waPais && waNum ? waConstruir(waPais.value, waNum.value) : '';
   const payload = {
     negocio_id: usuarioActual.negocio_id,
     nombre_consultorio: d.nombre_consultorio || null,
     email_contacto: (d.email_contacto || '').trim() || null,
     telefono: (d.telefono || '').trim() || null,
-    whatsapp: (d.whatsapp || '').trim() || null,
+    whatsapp: whatsappLimpio || null,
     direccion: (d.direccion || '').trim() || null,
     web: (d.web || '').trim() || null,
     hora_apertura: d.hora_apertura,
