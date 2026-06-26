@@ -172,7 +172,7 @@ async function fichaPacienteHTML(pacienteId, opts = {}) {
     .select('*, tipos_atencion(nombre), profesionales(nombre)')
     .eq('paciente_id', pacienteId)
     .order('fecha_hora', { ascending: false })
-    .limit(20);
+    .limit(50);
 
   const edad = calcularEdad(paciente.fecha_nacimiento);
   const inic = ((paciente.apellido?.[0] || '') + (paciente.nombre?.[0] || '')).toUpperCase() || '?';
@@ -245,21 +245,75 @@ async function fichaPacienteHTML(pacienteId, opts = {}) {
           ${panelAnamnesisHTML(anam, puedeEditarClinica, paciente.id, opts.soloPaneles)}
         </div>`;
 
+  // --- Últimas consultas: 3 secciones (próximos / atenciones / no asistió) ---
+  const ahoraTs = new Date();
+  const fmtFecha = (f) => new Date(f).toLocaleDateString('es-AR');
+  const durAtencion = (t) => {
+    if (!t.hora_inicio_atencion || !t.hora_fin_atencion) return null;
+    return Math.max(0, Math.round((new Date(t.hora_fin_atencion) - new Date(t.hora_inicio_atencion)) / 60000));
+  };
+
+  const tlist = turnos || [];
+  const proximos = tlist
+    .filter(t => t.estado === 'agendado' && new Date(t.fecha_hora) >= ahoraTs)
+    .sort((a, b) => new Date(a.fecha_hora) - new Date(b.fecha_hora));  // el más cercano arriba
+  const atenciones = tlist.filter(t => ['finalizado', 'cobrado'].includes(t.estado));  // más reciente arriba
+  const noAsistio = tlist.filter(t =>
+    t.estado === 'cancelado' || (t.estado === 'agendado' && new Date(t.fecha_hora) < ahoraTs));
+
+  const tituloSec = (txt) => `
+    <div style="display:flex; align-items:center; gap:12px; margin:20px 0 10px;">
+      <span style="font-size:16px; font-weight:700; color:var(--texto);">${txt}</span>
+      <span style="flex:1; height:6px; border-radius:3px; background:var(--fondo);"></span>
+    </div>`;
+
+  const infoTurno = (t, extra = '') => `
+    <div class="turno-row-hora">${fmtFecha(t.fecha_hora)}</div>
+    <div class="turno-row-info">
+      <div class="turno-row-nombre">${t.tipos_atencion?.nombre || 'Atención'}</div>
+      <div class="turno-row-tipo">${t.profesionales?.nombre || ''} · ${formatearHora(t.fecha_hora)}${extra}</div>
+    </div>`;
+
+  const filaProximo = (t) => `
+    <div class="turno-row" style="cursor:default;">
+      ${infoTurno(t)}
+      ${puedeEditar ? `<button class="btn btn-danger" onclick="cancelarTurnoFicha('${t.id}', '${paciente.id}')">Cancelar</button>` : ''}
+    </div>`;
+
+  const filaAtencion = (t) => {
+    const d = durAtencion(t);
+    const extra = d != null ? ` · ${d} min` : '';
+    return `
+    <div class="turno-row" style="cursor:default;">
+      ${infoTurno(t, extra)}
+      ${!emb ? `<button class="btn btn-primary-sm" onclick="cerrarModal(); setTimeout(() => abrirFichaAtencion('${t.id}', true), 100);">Ver atención</button>` : ''}
+    </div>`;
+  };
+
+  const filaNoAsistio = (t) => {
+    const cancelado = t.estado === 'cancelado';
+    const badge = cancelado
+      ? '<span class="badge badge-cancelado">Cancelado</span>'
+      : '<span class="badge" style="background:#EFEFF2; color:#6B6B7B;">Ausente</span>';
+    return `
+    <div class="turno-row" style="cursor:default;">
+      ${infoTurno(t)}
+      ${badge}
+    </div>`;
+  };
+
+  const seccion = (titulo, arr, fila) => arr.length
+    ? tituloSec(titulo) + `<div class="turnos-dia-lista">${arr.map(fila).join('')}</div>`
+    : '';
+
+  const hayConsultas = proximos.length || atenciones.length || noAsistio.length;
+
   const panelConsultas = `
         <div class="ficha-panel" data-fpanel="consultas">
-          ${turnos && turnos.length > 0 ? `
-            <div class="turnos-dia-lista">
-              ${turnos.map(t => `
-                <div class="turno-row"${emb ? ' style="cursor:default;"' : ` onclick="cerrarModal(); setTimeout(() => abrirModalTurno('${t.id}'), 100);"`}>
-                  <div class="turno-row-hora">${new Date(t.fecha_hora).toLocaleDateString('es-AR')}</div>
-                  <div class="turno-row-info">
-                    <div class="turno-row-nombre">${t.tipos_atencion?.nombre || 'Pendiente'}</div>
-                    <div class="turno-row-tipo">${t.profesionales?.nombre || ''} · ${formatearHora(t.fecha_hora)}</div>
-                  </div>
-                  <span class="badge badge-${t.estado}">${etiquetaEstado(t.estado)}</span>
-                </div>
-              `).join('')}
-            </div>
+          ${hayConsultas ? `
+            ${seccion('Turnos agendados', proximos, filaProximo)}
+            ${seccion('Historial de atenciones', atenciones, filaAtencion)}
+            ${seccion('Ausentes y cancelaciones', noAsistio, filaNoAsistio)}
           ` : '<div class="vacio" style="padding:1.5rem;">Sin turnos registrados</div>'}
         </div>`;
 
@@ -346,6 +400,24 @@ async function guardarNota(pacienteId) {
 function fichaTab(id) {
   document.querySelectorAll('.ficha-tab').forEach(t => t.classList.toggle('active', t.dataset.ftab === id));
   document.querySelectorAll('.ficha-panel').forEach(p => p.classList.toggle('active', p.dataset.fpanel === id));
+}
+
+// Cancela un turno desde la ficha (sin cerrarla). Dispara el email igual que
+// la agenda (update estado='cancelado') y refresca la ficha en la solapa consultas.
+async function cancelarTurnoFicha(turnoId, pacienteId) {
+  const ok = await confirmarModal({
+    titulo: 'Cancelar turno',
+    texto: 'Se marca como cancelado y se le avisa al paciente por email. ¿Continuar?',
+    textoSi: 'Cancelar turno',
+    textoNo: 'Volver',
+    peligro: true
+  });
+  if (!ok) return;
+  const { error } = await sb.from('turnos').update({ estado: 'cancelado' }).eq('id', turnoId);
+  if (error) { mostrarMensaje('Error: ' + error.message, 'error'); return; }
+  mostrarMensaje('Turno cancelado. Se le avisó al paciente.', 'exito');
+  await verFichaPaciente(pacienteId);
+  fichaTab('consultas');
 }
 
 // Guarda la anamnesis del paciente (una por paciente). La completa el profesional/negocio.
