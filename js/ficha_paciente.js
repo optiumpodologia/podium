@@ -295,7 +295,7 @@ async function fichaPacienteHTML(pacienteId, opts = {}) {
     return `
     <div class="turno-row" style="cursor:default; padding:6px 12px;">
       ${infoTurno(t, extra)}
-      ${!emb ? `<button class="btn-icon" style="${btnIcono}" title="Ver atención" onclick="cerrarModal(); setTimeout(() => abrirFichaAtencion('${t.id}', true), 100);">${icoOjo}</button>` : ''}
+      ${!emb ? `<button class="btn-icon" style="${btnIcono}" title="Ver atención" onclick="verAtencionLectura('${t.id}')">${icoOjo}</button>` : ''}
     </div>`;
   };
 
@@ -433,6 +433,117 @@ async function cancelarTurnoFicha(turnoId, pacienteId) {
   mostrarMensaje(res.notificar ? 'Turno cancelado. Se le avisó al paciente.' : 'Turno cancelado.', 'exito');
   await verFichaPaciente(pacienteId);
   fichaTab('consultas');
+}
+
+// Muestra una atención cerrada en solo lectura, en un modal apilado encima
+// de la ficha (no la cierra) y sin solapas redundantes. Lo puede ver cualquier
+// rol con acceso a la ficha (no requiere ser el profesional que atendió).
+async function verAtencionLectura(turnoId) {
+  const { data: turno } = await sb.from('turnos')
+    .select('fecha_hora, hora_inicio_atencion, hora_fin_atencion, paciente_id, pacientes(nombre, apellido)')
+    .eq('id', turnoId).single();
+  if (!turno) { mostrarMensaje('Atención no encontrada', 'error'); return; }
+
+  const { data: ficha } = await sb.from('fichas_atencion')
+    .select('observaciones, proxima_visita_nota').eq('turno_id', turnoId).maybeSingle();
+  const { data: ats } = await sb.from('turno_atenciones')
+    .select('cantidad, precio_unitario, tipos_atencion(nombre)').eq('turno_id', turnoId);
+  const { data: prods } = await sb.from('turno_productos')
+    .select('cantidad, precio_unitario, productos(nombre, descripcion)').eq('turno_id', turnoId);
+
+  const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const pac = turno.pacientes || {};
+  const inic = ((pac.apellido?.[0] || '') + (pac.nombre?.[0] || '')).toUpperCase() || '?';
+  const fechaTurno = new Date(turno.fecha_hora).toLocaleDateString('es-AR');
+  let dur = null;
+  if (turno.hora_inicio_atencion && turno.hora_fin_atencion) {
+    dur = Math.max(0, Math.round((new Date(turno.hora_fin_atencion) - new Date(turno.hora_inicio_atencion)) / 60000));
+  }
+
+  const SVG = (p, w = 18) => `<svg viewBox="0 0 24 24" width="${w}" height="${w}" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+  const icAt = SVG('<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M9 13h6"/><path d="M9 17h4"/>');
+  const icProd = SVG('<path d="M6 7h12l-1 13a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 7Z"/><path d="M9 7V5a3 3 0 0 1 6 0v2"/>');
+  const icEvo = SVG('<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>');
+  const icCal = SVG('<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>', 16);
+  const icX = SVG('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>', 20);
+
+  const itemHTML = (nombre, sub, monto, prod) => `
+    <div style="display:flex; align-items:center; gap:11px; padding:11px 13px; border:1px solid #ececf3; border-radius:11px;">
+      <span style="flex:none; width:36px; height:36px; border-radius:9px; background:${prod ? '#e7f6ee' : '#f0eefb'}; color:${prod ? '#1f9d57' : '#6D5BD0'}; display:flex; align-items:center; justify-content:center;">${prod ? icProd : icAt}</span>
+      <div style="flex:1; min-width:0;">
+        <div style="font-size:14px; font-weight:600; color:#2a2e3a;">${esc(nombre)}</div>
+        ${sub ? `<div style="font-size:12.5px; color:#9aa0b0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${esc(sub)}</div>` : ''}
+      </div>
+      <div style="font-size:14px; font-weight:700; color:#2a2e3a; white-space:nowrap;">${monto}</div>
+    </div>`;
+
+  const atItems = (ats || []).map(a => itemHTML(
+    a.tipos_atencion?.nombre || 'Atención',
+    a.cantidad > 1 ? `${a.cantidad} × ${formatearPrecio(a.precio_unitario)}` : '',
+    formatearPrecio((a.precio_unitario || 0) * (a.cantidad || 1)), false));
+  const prodItems = (prods || []).map(p => itemHTML(
+    p.productos?.nombre || 'Producto',
+    p.productos?.descripcion || (p.cantidad > 1 ? `${p.cantidad} × ${formatearPrecio(p.precio_unitario)}` : ''),
+    formatearPrecio((p.precio_unitario || 0) * (p.cantidad || 1)), true));
+  const total = (ats || []).reduce((s, a) => s + (a.precio_unitario || 0) * (a.cantidad || 1), 0)
+              + (prods || []).reduce((s, p) => s + (p.precio_unitario || 0) * (p.cantidad || 1), 0);
+
+  const secLbl = (ic, txt) => `<div style="display:flex; align-items:center; gap:7px; font-size:13px; font-weight:700; color:#6D5BD0; margin-bottom:9px;">${ic} ${txt}</div>`;
+  const vacio = (txt) => `<div style="font-size:13px; color:#9aa0b0; padding:6px 2px;">${txt}</div>`;
+
+  const previo = document.getElementById('va-layer');
+  if (previo) previo.remove();
+  const layer = document.createElement('div');
+  layer.id = 'va-layer';
+  layer.innerHTML = `
+    <div class="cm-overlay" style="z-index:320;">
+      <div style="background:#fff; border-radius:16px; max-width:600px; width:100%; max-height:90vh; overflow-y:auto; box-shadow:0 16px 50px rgba(27,27,43,.28);">
+        <div style="display:flex; align-items:center; gap:11px; padding:18px 22px; border-bottom:1px solid #f0f0f4;">
+          <span style="flex:none; width:34px; height:34px; border-radius:9px; background:#ede9fb; color:#6D5BD0; display:flex; align-items:center; justify-content:center;">${icCal}</span>
+          <div style="flex:1; font-size:17px; font-weight:700; color:#1f2330;">Atención del ${fechaTurno}</div>
+          <button class="va-cerrar" style="background:none; border:none; cursor:pointer; color:#9aa0b0; padding:0; display:flex;">${icX}</button>
+        </div>
+        <div style="padding:18px 22px;">
+          <div style="display:flex; align-items:center; gap:13px; background:linear-gradient(135deg,#efeafc,#f6f3fd); border-radius:13px; padding:14px 16px; margin-bottom:18px;">
+            <div style="flex:none; width:48px; height:48px; border-radius:50%; background:#c9bdf0; color:#4a3ba8; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:17px;">${inic}</div>
+            <div>
+              <div style="font-size:16px; font-weight:700; color:#1f2330;">${esc(pac.apellido || '')}, ${esc(pac.nombre || '')}</div>
+              <div style="font-size:12.5px; color:#7a7f8c; margin-top:2px;">${fechaTurno}${dur != null ? ` · Duró ${dur} min` : ''}</div>
+            </div>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+            <div>
+              ${secLbl(icAt, 'Atenciones')}
+              <div style="display:flex; flex-direction:column; gap:8px;">${atItems.length ? atItems.join('') : vacio('Sin atenciones')}</div>
+            </div>
+            <div>
+              ${secLbl(icProd, 'Productos')}
+              <div style="display:flex; flex-direction:column; gap:8px;">${prodItems.length ? prodItems.join('') : vacio('Sin productos')}</div>
+            </div>
+          </div>
+          <div style="border:1px solid #ececf3; border-radius:12px; padding:14px; margin-bottom:14px;">
+            ${secLbl(icEvo, 'Evolución / observaciones')}
+            <div style="font-size:13.5px; color:#3a3f4b; line-height:1.6; white-space:pre-wrap;">${ficha?.observaciones ? esc(ficha.observaciones) : '<span style="color:#9aa0b0;">Sin observaciones cargadas.</span>'}</div>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center; background:#faf9ff; border:1px solid #ece8fb; border-radius:12px; padding:14px 16px;">
+            <div style="font-size:13px; color:#7a7f8c;">Total cobrado</div>
+            <div style="font-size:22px; font-weight:800; color:#6D5BD0;">${formatearPrecio(total)}</div>
+          </div>
+          ${ficha?.proxima_visita_nota ? `
+          <div style="border:1px solid #ececf3; border-radius:12px; padding:13px 16px; margin-top:14px;">
+            ${secLbl(icCal, 'Próxima visita sugerida')}
+            <div style="font-size:13.5px; color:#3a3f4b;">${esc(ficha.proxima_visita_nota)}</div>
+          </div>` : ''}
+        </div>
+        <div style="display:flex; justify-content:flex-end; padding:14px 22px; border-top:1px solid #f0f0f4;">
+          <button class="btn va-cerrar">Cerrar</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(layer);
+  const cerrar = () => layer.remove();
+  layer.querySelectorAll('.va-cerrar').forEach(b => b.onclick = cerrar);
+  layer.querySelector('.cm-overlay').onclick = (e) => { if (e.target.classList.contains('cm-overlay')) cerrar(); };
 }
 
 // Guarda la anamnesis del paciente (una por paciente). La completa el profesional/negocio.
