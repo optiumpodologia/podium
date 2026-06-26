@@ -163,15 +163,15 @@ const RECORDATORIO_VARS = [
 ];
 
 const RECORDATORIO_MSG_DEFAULT =
-  'Hola {paciente},\n\nTe recordamos tu turno en {negocio} para mañana {fecha} a las {hora} hs con {profesional}.\nSi no vas a poder asistir, avisanos así liberamos el espacio.\n\n¡Te esperamos!';
+  'Hola {paciente}!\nTe recordamos tu turno en {negocio} para mañana {fecha} a las {hora} hs con {profesional}.\n\nSi no podes asistir avisanos así liberamos el espacio.\n\nNo contestes este email, escribinos por Whatsapp para gestionar tu turno {whatsapp}\n\n¡Te esperamos!';
 
 // Emails por evento (se mandan solos al agendar / cancelar un turno).
 const CONFIRM_ASUNTO_DEFAULT = 'Confirmación de turno';
 const CONFIRM_MSG_DEFAULT =
-  'Hola {paciente},\n\nTu turno en {negocio} quedó reservado para el {fecha} a las {hora} hs con {profesional}.\nSi no vas a poder asistir, avisanos así liberamos el espacio.\n\n¡Te esperamos!';
+  'Hola {paciente}!\nTu turno en {negocio} quedó reservado para el {fecha} a las {hora} hs con {profesional}.\n\nSi no vas a poder asistir, avisanos así liberamos el espacio.\nNo contestes este email, escribinos por Whatsapp para gestionar tu turno {whatsapp}\n\n¡Te esperamos!';
 const CANCEL_ASUNTO_DEFAULT = 'Turno cancelado';
 const CANCEL_MSG_DEFAULT =
-  'Hola {paciente},\n\nTe confirmamos que tu turno en {negocio} del {fecha} a las {hora} hs fue cancelado.\nSi querés reprogramar, escribinos cuando quieras.\n\n¡Gracias!';
+  'Hola {paciente},\nEl turno en {negocio} del {fecha} a las {hora} hs fue cancelado.\n\nSi querés reprogramar, escribinos por Whatsapp {whatsapp}\n\n¡Gracias!';
 
 // Pie automático de los documentos (variables del negocio).
 const PIE_VARS = [
@@ -599,7 +599,7 @@ async function abrirCfgNotificaciones() {
           </div>
           <div class="input-group">
             <label>Mensaje</label>
-            <textarea name="recordatorios_mensaje" id="recordatorio-mensaje" rows="4" maxlength="300" oninput="notifContador(this,'cnt-rec')">${cfgEsc(config?.recordatorios_mensaje || RECORDATORIO_MSG_DEFAULT)}</textarea>
+            <textarea name="recordatorios_mensaje" id="recordatorio-mensaje" rows="4" maxlength="400" oninput="notifContador(this,'cnt-rec')">${cfgEsc(config?.recordatorios_mensaje || RECORDATORIO_MSG_DEFAULT)}</textarea>
             <div class="notif-counter"><span id="cnt-rec"></span></div>
             <small class="cfg-ayuda">Variables disponibles:</small>
             <div class="notif-chips">${chipsRec}</div>
@@ -625,7 +625,7 @@ async function abrirCfgNotificaciones() {
           </div>
           <div class="input-group">
             <label>Mensaje</label>
-            <textarea name="confirmacion_mensaje" id="confirmacion-mensaje" rows="4" maxlength="300" oninput="notifContador(this,'cnt-conf')">${cfgEsc(config?.confirmacion_mensaje || CONFIRM_MSG_DEFAULT)}</textarea>
+            <textarea name="confirmacion_mensaje" id="confirmacion-mensaje" rows="4" maxlength="400" oninput="notifContador(this,'cnt-conf')">${cfgEsc(config?.confirmacion_mensaje || CONFIRM_MSG_DEFAULT)}</textarea>
             <div class="notif-counter"><span id="cnt-conf"></span></div>
             <small class="cfg-ayuda">Variables disponibles:</small>
             <div class="notif-chips">${chipsEvento('confirmacion-mensaje')}</div>
@@ -650,7 +650,7 @@ async function abrirCfgNotificaciones() {
           </div>
           <div class="input-group">
             <label>Mensaje</label>
-            <textarea name="cancelacion_mensaje" id="cancelacion-mensaje" rows="4" maxlength="300" oninput="notifContador(this,'cnt-canc')">${cfgEsc(config?.cancelacion_mensaje || CANCEL_MSG_DEFAULT)}</textarea>
+            <textarea name="cancelacion_mensaje" id="cancelacion-mensaje" rows="4" maxlength="400" oninput="notifContador(this,'cnt-canc')">${cfgEsc(config?.cancelacion_mensaje || CANCEL_MSG_DEFAULT)}</textarea>
             <div class="notif-counter"><span id="cnt-canc"></span></div>
             <small class="cfg-ayuda">Variables disponibles:</small>
             <div class="notif-chips">${chipsEvento('cancelacion-mensaje')}</div>
@@ -692,7 +692,7 @@ function notifTab(t) {
 
 function notifContador(ta, id) {
   const el = document.getElementById(id);
-  if (el && ta) el.textContent = ta.value.length + ' / 300';
+  if (el && ta) el.textContent = ta.value.length + ' / 400';
 }
 
 // ============================================================
