@@ -253,6 +253,9 @@ async function fichaPacienteHTML(pacienteId, opts = {}) {
     return Math.max(0, Math.round((new Date(t.hora_fin_atencion) - new Date(t.hora_inicio_atencion)) / 60000));
   };
 
+  const icoOjo = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>';
+  const icoX = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
+
   const tlist = turnos || [];
   const proximos = tlist
     .filter(t => t.estado === 'agendado' && new Date(t.fecha_hora) >= ahoraTs)
@@ -262,7 +265,7 @@ async function fichaPacienteHTML(pacienteId, opts = {}) {
     t.estado === 'cancelado' || (t.estado === 'agendado' && new Date(t.fecha_hora) < ahoraTs));
 
   const tituloSec = (txt) => `
-    <div style="display:flex; align-items:center; gap:12px; margin:20px 0 10px;">
+    <div style="display:flex; align-items:center; gap:12px; margin:16px 0 8px;">
       <span style="font-size:16px; font-weight:700; color:var(--texto);">${txt}</span>
       <span style="flex:1; height:6px; border-radius:3px; background:var(--fondo);"></span>
     </div>`;
@@ -274,19 +277,21 @@ async function fichaPacienteHTML(pacienteId, opts = {}) {
       <div class="turno-row-tipo">${t.profesionales?.nombre || ''} · ${formatearHora(t.fecha_hora)}${extra}</div>
     </div>`;
 
+  const btnIcono = 'padding:7px; line-height:0; flex-shrink:0;';
+
   const filaProximo = (t) => `
-    <div class="turno-row" style="cursor:default;">
+    <div class="turno-row" style="cursor:default; padding:6px 12px;">
       ${infoTurno(t)}
-      ${puedeEditar ? `<button class="btn btn-danger" onclick="cancelarTurnoFicha('${t.id}', '${paciente.id}')">Cancelar</button>` : ''}
+      ${puedeEditar ? `<button class="btn btn-danger" style="${btnIcono}" title="Cancelar turno" onclick="cancelarTurnoFicha('${t.id}', '${paciente.id}')">${icoX}</button>` : ''}
     </div>`;
 
   const filaAtencion = (t) => {
     const d = durAtencion(t);
     const extra = d != null ? ` · ${d} min` : '';
     return `
-    <div class="turno-row" style="cursor:default;">
+    <div class="turno-row" style="cursor:default; padding:6px 12px;">
       ${infoTurno(t, extra)}
-      ${!emb ? `<button class="btn btn-primary-sm" onclick="cerrarModal(); setTimeout(() => abrirFichaAtencion('${t.id}', true), 100);">Ver atención</button>` : ''}
+      ${!emb ? `<button class="btn btn-primary-sm" style="${btnIcono}" title="Ver atención" onclick="cerrarModal(); setTimeout(() => abrirFichaAtencion('${t.id}', true), 100);">${icoOjo}</button>` : ''}
     </div>`;
   };
 
@@ -296,14 +301,15 @@ async function fichaPacienteHTML(pacienteId, opts = {}) {
       ? '<span class="badge badge-cancelado">Cancelado</span>'
       : '<span class="badge" style="background:#EFEFF2; color:#6B6B7B;">Ausente</span>';
     return `
-    <div class="turno-row" style="cursor:default;">
+    <div class="turno-row" style="cursor:default; padding:6px 12px;">
       ${infoTurno(t)}
       ${badge}
     </div>`;
   };
 
-  const seccion = (titulo, arr, fila) => arr.length
-    ? tituloSec(titulo) + `<div class="turnos-dia-lista">${arr.map(fila).join('')}</div>`
+  // scroll = alto máx en px (muestra ~6 tarjetas y deja scroll el resto)
+  const seccion = (titulo, arr, fila, scroll) => arr.length
+    ? tituloSec(titulo) + `<div class="turnos-dia-lista"${scroll ? ` style="max-height:${scroll}px; overflow-y:auto; padding-right:4px;"` : ''}>${arr.map(fila).join('')}</div>`
     : '';
 
   const hayConsultas = proximos.length || atenciones.length || noAsistio.length;
@@ -312,7 +318,7 @@ async function fichaPacienteHTML(pacienteId, opts = {}) {
         <div class="ficha-panel" data-fpanel="consultas">
           ${hayConsultas ? `
             ${seccion('Turnos agendados', proximos, filaProximo)}
-            ${seccion('Historial de atenciones', atenciones, filaAtencion)}
+            ${seccion('Historial de atenciones', atenciones, filaAtencion, 300)}
             ${seccion('Ausentes y cancelaciones', noAsistio, filaNoAsistio)}
           ` : '<div class="vacio" style="padding:1.5rem;">Sin turnos registrados</div>'}
         </div>`;
