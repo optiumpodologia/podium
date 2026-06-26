@@ -1692,6 +1692,8 @@ async function abrirModalNuevoTurnoCasillero(profId, columna, fechaStr, startMin
       }
     }
 
+    if (!await avisarTurnoAgendado(pacienteId)) return;
+
     const { error } = await sb.from('turnos').insert({
       negocio_id: usuarioActual.negocio_id,
       paciente_id: pacienteId,
@@ -2888,6 +2890,8 @@ async function agendarConfirmar(min, esSobre) {
     if ((count || 0) >= 1) { mostrarMensaje('Ya hay un sobreturno en ese horario.', 'advertencia'); return; }
   }
 
+  if (!await avisarTurnoAgendado(pacienteId)) return;
+
   const { error } = await sb.from('turnos').insert({
     negocio_id: usuarioActual.negocio_id,
     paciente_id: pacienteId,
@@ -3092,6 +3096,68 @@ function pedirMotivoCancelacion() {
     layer.querySelector('.cm-overlay').onclick = (e) => {
       if (e.target.classList.contains('cm-overlay')) cerrar(false);
     };
+  });
+}
+
+// ===== Aviso: el paciente ya tiene turnos agendados a futuro =====
+// Devuelve true para seguir agendando, false para volver (cancelar el alta).
+async function avisarTurnoAgendado(pacienteId) {
+  if (!pacienteId) return true;
+  const ahora = new Date().toISOString();
+  const { data: turnos } = await sb.from('turnos')
+    .select('fecha_hora, profesionales(nombre)')
+    .eq('paciente_id', pacienteId)
+    .eq('estado', 'agendado')
+    .gte('fecha_hora', ahora)
+    .order('fecha_hora', { ascending: true });
+  if (!turnos || turnos.length === 0) return true;
+
+  return new Promise((resolve) => {
+    const previo = document.getElementById('ta-layer');
+    if (previo) previo.remove();
+    const SVG = (p, w = 22) => `<svg viewBox="0 0 24 24" width="${w}" height="${w}" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+    const icCal = SVG('<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>', 20);
+    const icAlert = SVG('<path d="m21.7 18-9-15a1.5 1.5 0 0 0-2.6 0l-9 15A1.5 1.5 0 0 0 2.4 20h18.2a1.5 1.5 0 0 0 1.3-2Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>', 22);
+
+    const filas = turnos.map(t => {
+      const d = new Date(t.fecha_hora);
+      let f = d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
+      f = f.charAt(0).toUpperCase() + f.slice(1);
+      const h = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+      return `<div style="display:flex; align-items:center; gap:11px; padding:11px 13px; border:1px solid #ececf3; border-radius:11px;">
+        <span style="flex:none; width:34px; height:34px; border-radius:9px; background:#f0eefb; color:#6D5BD0; display:flex; align-items:center; justify-content:center;">${icCal}</span>
+        <div style="flex:1; min-width:0;">
+          <div style="font-size:14px; font-weight:600; color:#2a2e3a;">${f} · ${h} hs</div>
+          <div style="font-size:12.5px; color:#9aa0b0;">${t.profesionales?.nombre || ''}</div>
+        </div>
+      </div>`;
+    }).join('');
+    const plural = turnos.length > 1;
+
+    const layer = document.createElement('div');
+    layer.id = 'ta-layer';
+    layer.innerHTML = `
+      <div class="cm-overlay" style="z-index:330;">
+        <div style="background:#fff; border-radius:16px; max-width:460px; width:100%; max-height:90vh; overflow-y:auto; box-shadow:0 16px 50px rgba(27,27,43,.28); padding:24px;">
+          <div style="display:flex; align-items:flex-start; gap:14px; margin-bottom:16px;">
+            <span style="flex:none; width:46px; height:46px; border-radius:50%; background:#fdf6e3; color:#c79a1e; display:flex; align-items:center; justify-content:center;">${icAlert}</span>
+            <div style="flex:1;">
+              <div style="font-size:18px; font-weight:700; color:#1f2330;">Este paciente ya tiene ${plural ? 'turnos agendados' : 'un turno agendado'}</div>
+              <div style="font-size:13.5px; color:#8a90a2; margin-top:3px; line-height:1.5;">Revisá que no estés agendando un turno repetido por error.</div>
+            </div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:18px;">${filas}</div>
+          <div style="display:flex; justify-content:flex-end; gap:10px;">
+            <button class="btn ta-no">Volver</button>
+            <button class="btn btn-primary-sm ta-si">Agendar igual</button>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(layer);
+    const cerrar = (val) => { layer.remove(); resolve(val); };
+    layer.querySelector('.ta-no').onclick = () => cerrar(false);
+    layer.querySelector('.ta-si').onclick = () => cerrar(true);
+    layer.querySelector('.cm-overlay').onclick = (e) => { if (e.target.classList.contains('cm-overlay')) cerrar(false); };
   });
 }
 
