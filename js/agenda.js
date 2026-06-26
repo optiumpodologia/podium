@@ -2966,14 +2966,14 @@ function quitarTurno(turnoId) {
 
 async function _quitarTurnoAccion(turnoId, modo) {
   if (modo === 'cancelar') {
-    const motivo = await pedirMotivoCancelacion();
-    if (motivo === false) return;            // volvió atrás: el modal de quitar sigue abierto
+    const res = await pedirMotivoCancelacion();
+    if (res === false) return;               // volvió atrás: el modal de quitar sigue abierto
     cerrarModal();
     const { error } = await sb.from('turnos')
-      .update({ estado: 'cancelado', motivo_cancelacion: motivo || null })
+      .update({ estado: 'cancelado', motivo_cancelacion: res.motivo || null, notificar_cancelacion: res.notificar })
       .eq('id', turnoId);
     if (error) { mostrarMensaje('Error: ' + error.message, 'error'); return; }
-    mostrarMensaje('Turno cancelado. Se le avisó al paciente.', 'exito');
+    mostrarMensaje(res.notificar ? 'Turno cancelado. Se le avisó al paciente.' : 'Turno cancelado.', 'exito');
   } else {
     cerrarModal();
     if (!await confirmarModal({ titulo: 'Eliminar turno', texto: 'Se borra el turno sin avisar al paciente. ¿Continuar?', textoSi: 'Eliminar', textoNo: 'Volver', peligro: true })) return;
@@ -2987,38 +2987,108 @@ async function _quitarTurnoAccion(turnoId, modo) {
 }
 
 // Mini-modal (overlay propio, no pisa otros modales) para registrar el motivo
-// de una cancelación. Devuelve el texto (puede ser '') al confirmar, o false si
-// el usuario vuelve atrás. Reutilizable desde la agenda y la ficha del paciente.
+// de una cancelación y decidir si se notifica al paciente. Devuelve
+// { motivo, notificar } al confirmar, o false si el usuario vuelve atrás.
+// Reutilizable desde la agenda y la ficha del paciente.
 function pedirMotivoCancelacion() {
   return new Promise((resolve) => {
     const previo = document.getElementById('mc-layer');
     if (previo) previo.remove();
-    const CHIPS = ['Avisó el paciente', 'No puede asistir', 'Reprogramó', 'Motivo de salud'];
+
+    const SVG = (p, w = 20, sw = 1.9) => `<svg viewBox="0 0 24 24" width="${w}" height="${w}" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+    const icCalX = SVG('<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="m17 16-4 4"/><path d="m13 16 4 4"/>', 24);
+    const icPers = SVG('<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.2 3.6-6.5 8-6.5s8 2.3 8 6.5"/>', 18);
+    const icBan  = SVG('<circle cx="12" cy="12" r="9"/><path d="m5.6 5.6 12.8 12.8"/>', 18);
+    const icCal  = SVG('<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>', 18);
+    const icSalud = SVG('<path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7Z"/>', 18);
+    const icOtro = '<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>';
+    const icTacho = SVG('<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>', 16, 2);
+    const icWarn = SVG('<path d="m21.7 18-9-15a1.5 1.5 0 0 0-2.6 0l-9 15A1.5 1.5 0 0 0 2.4 20h18.2a1.5 1.5 0 0 0 1.3-2Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>', 18);
+
+    const OPCIONES = [
+      { v: 'El paciente avisó', ic: icPers },
+      { v: 'No puede asistir',  ic: icBan },
+      { v: 'Reprogramado',      ic: icCal },
+      { v: 'Motivo de salud',   ic: icSalud },
+    ];
+    const opt = (v, ic, otro = false) => `
+      <div class="mc-opt" data-motivo="${otro ? '__otro__' : v}" style="display:flex; align-items:center; gap:12px; padding:12px 14px; border:1.5px solid #ececf3; border-radius:12px; cursor:pointer; transition:border-color .1s, background .1s;">
+        <span style="flex:none; width:34px; height:34px; border-radius:50%; background:#f0eefb; display:flex; align-items:center; justify-content:center; color:#6D5BD0;">${ic}</span>
+        <span style="flex:1; font-size:14.5px; font-weight:600; color:#2a2e3a;">${otro ? 'Otro motivo' : v}</span>
+        <span class="mc-radio" style="flex:none; width:20px; height:20px; border-radius:50%; border:2px solid #cfcfdb; background:#fff; transition:.1s;"></span>
+      </div>`;
+
     const layer = document.createElement('div');
     layer.id = 'mc-layer';
     layer.innerHTML = `
       <div class="cm-overlay">
-        <div class="cm-box" role="dialog" aria-modal="true" style="max-width:440px;">
-          <div class="cm-tit">Motivo de la cancelación</div>
-          <div class="cm-txt" style="margin-bottom:12px;">Opcional. Queda registrado en el historial del paciente.</div>
-          <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px;">
-            ${CHIPS.map(c => `<button type="button" class="mc-chip" style="background:#f0eefb; color:#5a4bcf; border:1px solid #d9d2f6; border-radius:999px; padding:6px 13px; font-size:13px; font-weight:600; cursor:pointer;">${c}</button>`).join('')}
+        <div class="cm-box" style="max-width:480px; padding:0; text-align:left; max-height:92vh; overflow-y:auto;">
+          <div style="padding:22px 24px 0;">
+            <div style="display:flex; align-items:flex-start; gap:14px;">
+              <span style="flex:none; width:48px; height:48px; border-radius:50%; background:#ede9fb; display:flex; align-items:center; justify-content:center; color:#6D5BD0;">${icCalX}</span>
+              <div style="flex:1;">
+                <div style="font-size:19px; font-weight:700; color:#1f2330;">Cancelar turno</div>
+                <div style="font-size:13.5px; color:#8a90a2; margin-top:3px; line-height:1.5;">El turno se cancelará y, si lo dejás activado, el paciente será notificado por email. Esta acción quedará registrada en el historial.</div>
+              </div>
+              <button class="mc-no" style="flex:none; background:none; border:none; cursor:pointer; color:#9aa0b0; font-size:22px; line-height:1; padding:0;">&times;</button>
+            </div>
+            <div style="font-size:13px; font-weight:700; color:#3a3f4b; margin:18px 0 10px;">Motivo <span style="font-weight:500; color:#9aa0b0;">(opcional)</span></div>
+            <div style="display:flex; flex-direction:column; gap:9px;">
+              ${OPCIONES.map(o => opt(o.v, o.ic)).join('')}
+              ${opt('', icOtro, true)}
+            </div>
+            <div id="mc-txtwrap" style="display:none; margin-top:9px;">
+              <textarea id="mc-texto" maxlength="200" rows="3" placeholder="Escribí el motivo de la cancelación..." style="width:100%; box-sizing:border-box; border:1.5px solid #d9d2f6; border-radius:11px; padding:11px; font:inherit; font-size:14px; resize:vertical;" oninput="document.getElementById('mc-cont').textContent = this.value.length + '/200';"></textarea>
+              <div style="text-align:right; font-size:12px; color:#9aa0b0; margin-top:3px;"><span id="mc-cont">0/200</span></div>
+            </div>
+            <div style="display:flex; align-items:center; gap:12px; margin-top:16px; padding:13px 14px; border:1px solid #ececf3; border-radius:12px;">
+              <div style="flex:1;">
+                <div style="font-size:14px; font-weight:600; color:#2a2e3a;">Notificar al paciente por email</div>
+                <div style="font-size:12.5px; color:#9aa0b0; margin-top:2px;">Se enviará un email avisando sobre la cancelación.</div>
+              </div>
+              <label class="cfg-switch"><input type="checkbox" id="mc-notificar" checked><span class="cfg-slider"></span></label>
+            </div>
+            <div style="display:flex; gap:10px; margin-top:14px; padding:12px 14px; background:#fdf6e3; border:1px solid #f5e6b8; border-radius:11px;">
+              <span style="color:#c79a1e; flex:none;">${icWarn}</span>
+              <div style="font-size:12.5px; color:#8a7a3f; line-height:1.5;"><strong style="color:#7a6a2f;">Esta acción liberará el horario en la agenda.</strong> El paciente conservará el registro de la cancelación en su historial.</div>
+            </div>
           </div>
-          <textarea id="mc-texto" rows="2" placeholder="O escribí el motivo..." style="width:100%; box-sizing:border-box; border:1px solid #e2e2ea; border-radius:10px; padding:10px; font:inherit; font-size:14px; resize:vertical;"></textarea>
-          <div class="cm-acc" style="margin-top:14px;">
-            <button type="button" class="btn mc-no">Volver</button>
-            <button type="button" class="btn cm-si-peligro mc-si">Confirmar cancelación</button>
+          <div style="display:flex; justify-content:flex-end; gap:10px; padding:16px 24px 22px;">
+            <button class="btn mc-no">Volver</button>
+            <button class="btn cm-si-peligro mc-si" style="display:inline-flex; align-items:center; gap:7px;">${icTacho} Cancelar turno</button>
           </div>
         </div>
       </div>`;
     document.body.appendChild(layer);
+
+    let esOtro = false, motivoSel = '';
+    const txtWrap = layer.querySelector('#mc-txtwrap');
     const ta = layer.querySelector('#mc-texto');
-    layer.querySelectorAll('.mc-chip').forEach(ch => {
-      ch.onclick = () => { ta.value = ch.textContent; ta.focus(); };
+    layer.querySelectorAll('.mc-opt').forEach(o => {
+      o.onclick = () => {
+        layer.querySelectorAll('.mc-opt').forEach(x => {
+          const sel = x === o;
+          x.style.borderColor = sel ? '#6D5BD0' : '#ececf3';
+          x.style.background = sel ? '#faf9ff' : '#fff';
+          const r = x.querySelector('.mc-radio');
+          r.style.borderColor = sel ? '#6D5BD0' : '#cfcfdb';
+          r.style.background = sel ? '#6D5BD0' : '#fff';
+          r.style.boxShadow = sel ? 'inset 0 0 0 3px #fff' : 'none';
+        });
+        esOtro = o.dataset.motivo === '__otro__';
+        motivoSel = esOtro ? '' : o.dataset.motivo;
+        txtWrap.style.display = esOtro ? 'block' : 'none';
+        if (esOtro) ta.focus();
+      };
     });
+
     const cerrar = (val) => { layer.remove(); resolve(val); };
-    layer.querySelector('.mc-no').onclick = () => cerrar(false);
-    layer.querySelector('.mc-si').onclick = () => cerrar(ta.value.trim());
+    layer.querySelectorAll('.mc-no').forEach(b => b.onclick = () => cerrar(false));
+    layer.querySelector('.mc-si').onclick = () => {
+      const motivo = esOtro ? ta.value.trim() : motivoSel;
+      const notificar = layer.querySelector('#mc-notificar').checked;
+      cerrar({ motivo, notificar });
+    };
     layer.querySelector('.cm-overlay').onclick = (e) => {
       if (e.target.classList.contains('cm-overlay')) cerrar(false);
     };

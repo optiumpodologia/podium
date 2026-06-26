@@ -420,13 +420,13 @@ function fichaTab(id) {
 // Cancela un turno desde la ficha (sin cerrarla). Dispara el email igual que
 // la agenda (update estado='cancelado') y refresca la ficha en la solapa consultas.
 async function cancelarTurnoFicha(turnoId, pacienteId) {
-  const motivo = await pedirMotivoCancelacion();
-  if (motivo === false) return;
+  const res = await pedirMotivoCancelacion();
+  if (res === false) return;
   const { error } = await sb.from('turnos')
-    .update({ estado: 'cancelado', motivo_cancelacion: motivo || null })
+    .update({ estado: 'cancelado', motivo_cancelacion: res.motivo || null, notificar_cancelacion: res.notificar })
     .eq('id', turnoId);
   if (error) { mostrarMensaje('Error: ' + error.message, 'error'); return; }
-  mostrarMensaje('Turno cancelado. Se le avisó al paciente.', 'exito');
+  mostrarMensaje(res.notificar ? 'Turno cancelado. Se le avisó al paciente.' : 'Turno cancelado.', 'exito');
   await verFichaPaciente(pacienteId);
   fichaTab('consultas');
 }
