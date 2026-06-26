@@ -466,6 +466,7 @@ async function verAtencionLectura(turnoId) {
   const icEvo = SVG('<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>');
   const icCal = SVG('<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>', 16);
   const icX = SVG('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>', 20);
+  const icReloj = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="10" x2="14" y1="2" y2="2"/><line x1="12" x2="15" y1="14" y2="11"/><circle cx="12" cy="14" r="8"/></svg>';
 
   const itemHTML = (nombre, sub, monto, prod) => `
     <div style="display:flex; align-items:center; gap:11px; padding:11px 13px; border:1px solid #ececf3; border-radius:11px;">
@@ -506,20 +507,26 @@ async function verAtencionLectura(turnoId) {
         <div style="padding:18px 22px;">
           <div style="display:flex; align-items:center; gap:13px; background:linear-gradient(135deg,#efeafc,#f6f3fd); border-radius:13px; padding:14px 16px; margin-bottom:18px;">
             <div style="flex:none; width:48px; height:48px; border-radius:50%; background:#c9bdf0; color:#4a3ba8; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:17px;">${inic}</div>
-            <div>
+            <div style="flex:1; min-width:0;">
               <div style="font-size:16px; font-weight:700; color:#1f2330;">${esc(pac.apellido || '')}, ${esc(pac.nombre || '')}</div>
-              <div style="font-size:12.5px; color:#7a7f8c; margin-top:2px;">${fechaTurno}${dur != null ? ` · Duró ${dur} min` : ''}</div>
+              <div style="font-size:12.5px; color:#7a7f8c; margin-top:2px;">${fechaTurno}</div>
             </div>
+            ${dur != null ? `
+            <div style="display:flex; align-items:center; gap:9px; background:rgba(31,157,107,.08); border:1px solid rgba(31,157,107,.25); color:#3FA77F; border-radius:12px; padding:8px 14px; flex:none;">
+              ${icReloj}
+              <div>
+                <div style="font-size:9.5px; font-weight:700; letter-spacing:.06em; opacity:.85;">DURACIÓN</div>
+                <div style="font-size:20px; font-weight:600; line-height:1;">${dur} min</div>
+              </div>
+            </div>` : ''}
           </div>
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
-            <div>
-              ${secLbl(icAt, 'Atenciones')}
-              <div style="display:flex; flex-direction:column; gap:8px;">${atItems.length ? atItems.join('') : vacio('Sin atenciones')}</div>
-            </div>
-            <div>
-              ${secLbl(icProd, 'Productos')}
-              <div style="display:flex; flex-direction:column; gap:8px;">${prodItems.length ? prodItems.join('') : vacio('Sin productos')}</div>
-            </div>
+          <div style="margin-bottom:16px;">
+            ${secLbl(icAt, 'Atenciones')}
+            <div style="display:flex; flex-direction:column; gap:8px;">${atItems.length ? atItems.join('') : vacio('Sin atenciones')}</div>
+          </div>
+          <div style="margin-bottom:16px;">
+            ${secLbl(icProd, 'Productos')}
+            <div style="display:flex; flex-direction:column; gap:8px;">${prodItems.length ? prodItems.join('') : vacio('Sin productos')}</div>
           </div>
           <div style="border:1px solid #ececf3; border-radius:12px; padding:14px; margin-bottom:14px;">
             ${secLbl(icEvo, 'Evolución / observaciones')}
