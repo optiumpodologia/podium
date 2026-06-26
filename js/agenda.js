@@ -550,7 +550,27 @@ async function topUpSiembra(columnas, fecha, cantColumnas, negId, fechaStr) {
 // ============================================================
 // DIBUJAR
 // ============================================================
+// Wrapper de seguridad: si el dibujo del día falla por cualquier dato inesperado,
+// muestra el error (en vez de quedar en "Cargando..." para siempre) y permite reintentar.
 async function dibujarAgenda() {
+  try {
+    await _dibujarAgendaInner();
+  } catch (e) {
+    console.error('dibujarAgenda() falló:', e);
+    const grilla = document.getElementById('agenda-grid-container');
+    if (grilla) {
+      const msg = (e && e.message) ? String(e.message).replace(/</g, '&lt;').replace(/>/g, '&gt;') : 'Error desconocido';
+      grilla.innerHTML = `
+        <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:3rem 2rem; text-align:center; gap:12px;">
+          <div style="font-size:17px; font-weight:700; color:var(--peligro);">No se pudo cargar la agenda de este día</div>
+          <div style="font-size:13px; color:var(--texto-secundario); max-width:420px;">${msg}</div>
+          <button class="btn btn-primary-sm" onclick="dibujarAgenda()">Reintentar</button>
+        </div>`;
+    }
+  }
+}
+
+async function _dibujarAgendaInner() {
   const titulo = document.getElementById('agenda-titulo');
   if (titulo) {
     titulo.textContent = agendaFechaActual.toLocaleDateString('es-AR', {
@@ -864,7 +884,7 @@ async function dibujarAgenda() {
         if (minConCard.has(m)) return;  // si hay base, ya va como chip en la tarjeta
         const topS = (m - inicioMin) * ESCALA_AGENDA;
         sobrePorMin[m].forEach(t => {
-          const nom = t.pacientes ? `${t.pacientes.apellido}, ${t.pacientes.nombre.split(' ')[0]}` : 'Sobreturno';
+          const nom = t.pacientes ? `${t.pacientes.apellido}, ${(t.pacientes.nombre || '').split(' ')[0]}` : 'Sobreturno';
           if (esProf) {
             html += `<div class="turno-sobre-chip turno-sobre-suelto chip-info estado-${t.estado}" style="top:${topS}px;"
               title="Sobreturno (sin turno base)">${nom}</div>`;
@@ -920,7 +940,7 @@ async function dibujarAgenda() {
         .sort((a, b) => turnoMinInicio(a.turno) - turnoMinInicio(b.turno))
         .map(it => {
           const s = it.turno;
-          const nom = s.pacientes ? `${s.pacientes.apellido}, ${s.pacientes.nombre.split(' ')[0]}` : 'Sobreturno';
+          const nom = s.pacientes ? `${s.pacientes.apellido}, ${(s.pacientes.nombre || '').split(' ')[0]}` : 'Sobreturno';
           const sub = s.tipos_atencion?.nombre || (s.estado === 'agendado' ? 'Pendiente' : '');
           const acc = esPasado ? '' : accionesTurnoHTML(s, it.numero, fechaStrSel, false);
           return `<div class="sobre-item estado-${s.estado}" onclick="abrirModalTurno('${s.id}')" title="${nom}">
@@ -1853,7 +1873,7 @@ function ttNuevoPacienteDesdeTurno(profId, columna, fechaStr, startMin, esSobret
 function tarjetaTurnoHTML(t, numero, fechaStr, sobres, esPasado, esHoy, inicioMin, esHuerfano, jornadaCerrada) {
   const top = (turnoMinInicio(t) - inicioMin) * ESCALA_AGENDA;
   const altura = Math.max(52, t.duracion_minutos * ESCALA_AGENDA);
-  const nombre = t.pacientes ? `${t.pacientes.apellido}, ${t.pacientes.nombre.split(' ')[0]}` : '-';
+  const nombre = t.pacientes ? `${t.pacientes.apellido}, ${(t.pacientes.nombre || '').split(' ')[0]}` : '-';
   // Sin recibir + jornada ya cerrada (2hs post último turno, o día pasado) => AUSENTE.
   const esAusentePasado = t.estado === 'agendado' && !t.es_sobreturno && jornadaCerrada;
   const estadoVisual = esAusentePasado ? 'ausente' : t.estado;
@@ -1864,7 +1884,7 @@ function tarjetaTurnoHTML(t, numero, fechaStr, sobres, esPasado, esHoy, inicioMi
   let chip = '';
   if (tieneSobre) {
     const s = sobres[0];
-    const nombreSobre = s.pacientes ? `${s.pacientes.apellido}, ${s.pacientes.nombre.split(' ')[0]}` : 'Sobreturno';
+    const nombreSobre = s.pacientes ? `${s.pacientes.apellido}, ${(s.pacientes.nombre || '').split(' ')[0]}` : 'Sobreturno';
     if (usuarioActual.rol === 'profesional') {
       // Profesional: el chip es informativo. Las acciones van por el panel de sobreturnos.
       chip = `<div class="turno-sobre-chip chip-info estado-${s.estado}" title="${nombreSobre}">${nombreSobre}</div>`;
