@@ -2922,21 +2922,46 @@ async function agendarCancelarTurno(turnoId) {
 // cancelar (marca cancelado, avisa al paciente, queda en su historial) o
 // eliminar (borra sin avisar, para turnos cargados por error).
 function quitarTurno(turnoId) {
+  const ICO_AZUL = '#6D5BD0';
+  const svgCal = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${ICO_AZUL}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="m17 16-4 4"/><path d="m13 16 4 4"/></svg>`;
+  const svgMail = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${ICO_AZUL}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>`;
+  const svgTacho = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${ICO_AZUL}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`;
+  const svgMailW = svgMail.replace(ICO_AZUL, '#ffffff').replace('width="20" height="20"', 'width="16" height="16"');
+  const svgTachoR = svgTacho.replace(ICO_AZUL, '#e5484d').replace('width="20" height="20"', 'width="16" height="16"');
+  const svgFlecha = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4a4f5b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>`;
+
+  const fila = (icono, titulo, desc, borde) => `
+    <div style="display:flex; align-items:flex-start; gap:14px; padding:16px 0;${borde ? ' border-bottom:1px solid #e9e9f0;' : ''}">
+      <div style="flex:none; width:42px; height:42px; border-radius:50%; background:#ede9fb; display:flex; align-items:center; justify-content:center;">${icono}</div>
+      <div>
+        <div style="font-weight:700; color:#1f2330; margin-bottom:3px;">${titulo}</div>
+        <div style="font-size:13px; color:#8a90a2; line-height:1.5;">${desc}</div>
+      </div>
+    </div>`;
+
+  const btnBase = 'display:inline-flex; align-items:center; justify-content:center; gap:8px; font-size:14px; font-weight:600; padding:11px 18px; border-radius:10px; cursor:pointer;';
+
   abrirModal(`
-    <div class="modal-header">
-      <div class="modal-titulo">Quitar turno</div>
-      <button class="modal-cerrar" onclick="cerrarModal()">&times;</button>
-    </div>
-    <div class="modal-body">
-      <p style="margin:0; line-height:1.7;">
-        <strong>Cancelar turno</strong> lo marca como cancelado, le avisa al paciente por email y queda registrado en su historial.<br><br>
-        <strong>Eliminar</strong> lo borra sin avisar a nadie. Usalo solo si lo cargaste por error.
-      </p>
-    </div>
-    <div class="modal-footer">
-      <button class="btn" onclick="cerrarModal()">Volver</button>
-      <button class="btn" onclick="_quitarTurnoAccion('${turnoId}','eliminar')">Eliminar sin avisar</button>
-      <button class="btn btn-primary-sm" onclick="_quitarTurnoAccion('${turnoId}','cancelar')">Cancelar turno</button>
+    <div style="padding:6px 6px 2px;">
+      <div style="display:flex; align-items:flex-start; gap:16px;">
+        <div style="flex:none; width:52px; height:52px; border-radius:50%; background:#ede9fb; display:flex; align-items:center; justify-content:center;">${svgCal}</div>
+        <div style="flex:1;">
+          <div style="font-size:21px; font-weight:700; color:#1f2330;">Quitar turno</div>
+          <div style="font-size:14px; color:#8a90a2; margin-top:3px;">¿Qué querés hacer con este turno?</div>
+        </div>
+        <button onclick="cerrarModal()" style="flex:none; background:none; border:none; cursor:pointer; color:#9aa0b0; font-size:24px; line-height:1; padding:0;">&times;</button>
+      </div>
+
+      <div style="margin:20px 0; background:#f6f6fa; border-radius:14px; padding:2px 18px;">
+        ${fila(svgMail, 'Cancelar turno', 'Se marca como cancelado, se notifica al paciente por email y queda registrado en su historial.', true)}
+        ${fila(svgTacho, 'Eliminar sin avisar', 'Se elimina por completo sin enviar notificación. Usalo solo si lo cargaste por error.', false)}
+      </div>
+
+      <div style="display:flex; gap:10px; align-items:center;">
+        <button onclick="cerrarModal()" style="${btnBase} background:#fff; color:#3a3f4b; border:1px solid #e2e2ea;">${svgFlecha} Volver</button>
+        <button onclick="_quitarTurnoAccion('${turnoId}','eliminar')" style="${btnBase} background:#fff; color:#e5484d; border:1px solid #f1c4c6;">${svgTachoR} Eliminar sin avisar</button>
+        <button onclick="_quitarTurnoAccion('${turnoId}','cancelar')" style="${btnBase} flex:1; background:#6D5BD0; color:#fff; border:1px solid #6D5BD0;">${svgMailW} Cancelar turno</button>
+      </div>
     </div>
   `);
 }
