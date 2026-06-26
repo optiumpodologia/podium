@@ -2120,6 +2120,11 @@ function _agInyectarEstilos() {
     .ag-minical-wrap { padding:10px 12px; flex:none; }
     .ag-cards { display:flex; flex-direction:column; gap:9px; }
     .ag-cards-vacio { font-size:12.5px; color:var(--texto-secundario); padding:8px 4px; }
+    .ag-reprog-info { margin-top:4px; background:linear-gradient(120deg,#F3F0FE,#ECE8FB); border:1px solid var(--primario-medio); border-radius:12px; padding:11px 13px; }
+    .ag-reprog-tit { display:flex; align-items:center; gap:6px; font-size:11.5px; font-weight:700; text-transform:uppercase; letter-spacing:.4px; color:var(--primario); }
+    .ag-reprog-tit svg { color:var(--primario); }
+    .ag-reprog-pac { font-size:14px; font-weight:700; color:var(--texto); margin-top:6px; }
+    .ag-reprog-act { font-size:12px; color:var(--texto-secundario); margin-top:2px; line-height:1.4; }
     .ag-prof-card { display:flex; align-items:center; gap:11px; background:#fff; border:1px solid var(--borde-tenue); border-radius:13px; padding:11px 12px; cursor:pointer; transition:border-color .12s, box-shadow .12s, background .12s; text-align:left; }
     .ag-prof-card:hover { border-color:var(--primario-medio); box-shadow:0 4px 14px -8px rgba(83,74,183,.5); }
     .ag-prof-card.sel { border-color:var(--primario); background:linear-gradient(120deg,#F5F2FE,#FFFFFF); box-shadow:0 4px 14px -8px rgba(83,74,183,.6); }
@@ -2194,14 +2199,14 @@ function _agInyectarEstilos() {
 }
 
 // --- Apertura -------------------------------------------------
-async function abrirAgendarTurnos() {
+async function abrirAgendarTurnos(reprog) {
   if (!puede(usuarioActual, 'crear_turno')) return;
   _agInyectarEstilos();
 
   // Si ya está abierta, no duplicar (es una ventana, no un modal).
   if (document.getElementById('agendar-win')) return;
 
-  _agModal = { fecha: new Date(), profId: null, dur: 45, abierto: true, movida: false };
+  _agModal = { fecha: new Date(), profId: null, dur: 45, abierto: true, movida: false, reprog: reprog || null };
 
   const win = document.createElement('div');
   win.id = 'agendar-win';
@@ -2210,7 +2215,7 @@ async function abrirAgendarTurnos() {
     <div class="agw-head" id="agw-head">
       <div class="agw-head-left">
         <button class="agw-panel-toggle" id="ag-panel-toggle" title="Mostrar panel" onclick="agendarTogglePanel()"></button>
-        <div class="agw-title">${_agIco(_AGI.cal, 17)} Dar turno</div>
+        <div class="agw-title">${_agIco(_AGI.cal, 17)} ${reprog ? 'Reprogramar turno' : 'Dar turno'}</div>
       </div>
       <div class="agw-head-actions">
         <span class="agw-hint">Arrastrá para mover</span>
@@ -2452,7 +2457,18 @@ async function agendarCargarDia() {
     _agModal.profId = _agProfes[0].id;
   }
   cards.innerHTML = _agProfes.map(p => _agCardProfHTML(p)).join('');
+  if (_agModal.reprog) cards.innerHTML += _agReprogInfoHTML(_agModal.reprog);
   agendarRenderColumna();
+}
+
+// Card con el turno que se está reprogramando (debajo de los profesionales).
+function _agReprogInfoHTML(rep) {
+  return `
+    <div class="ag-reprog-info">
+      <div class="ag-reprog-tit">${_agIco(_AGI.reloj, 13)} Reprogramando</div>
+      <div class="ag-reprog-pac">${rep.pacienteLabel}</div>
+      <div class="ag-reprog-act">Turno actual: ${rep.fechaActualLabel}${rep.profActualLabel ? ' · ' + rep.profActualLabel : ''}</div>
+    </div>`;
 }
 
 function _agDiaCerrado(txt) {
@@ -2720,6 +2736,13 @@ function agendarRenderColumna() {
     cuerpo = filasVis.map(f => {
       const hora = minToHora(f.min);
       if (f.tipo === 'libre') {
+        if (_agModal.reprog) {
+          return `
+            <div class="ag-slot ag-slot-libre" onclick="agendarReprogramarSlot(${f.min})">
+              <span class="ag-slot-hora">${hora}</span>
+              <span class="ag-slot-txt">${_agIco(_AGI.mas, 16)} Reprogramar</span>
+            </div>`;
+        }
         return `
           <div class="ag-slot ag-slot-libre" onclick="agendarClickHueco(${f.min}, false)">
             <span class="ag-slot-hora">${hora}</span>
@@ -2751,14 +2774,17 @@ function agendarRenderColumna() {
       const btnRayo = tieneSobre
         ? `<button class="ag-slot-btn sobre activo" title="Ver sobreturno" onclick="agendarToggleSobre('${t.id}')">${_agIco(_AGI.rayo, 15)}</button>`
         : `<button class="ag-slot-btn sobre" title="Dar sobreturno" onclick="agendarClickHueco(${f.min}, true)">${_agIco(_AGI.rayo, 15)}</button>`;
+      const accTomado = _agModal.reprog
+        ? ojoMain
+        : `${ojoMain}
+            ${btnRayo}
+            <button class="ag-slot-btn cancel" title="${puedeCancelar ? 'Cancelar turno' : 'Solo se cancelan turnos agendados'}" ${puedeCancelar ? '' : 'disabled'} onclick="agendarCancelarTurno('${t.id}')">${_agIco(_AGI.x, 15)}</button>`;
       let html = `
         <div class="ag-slot ag-slot-tomado">
           <span class="ag-slot-hora">${hora}</span>
           <span class="ag-slot-pac">${pac}</span>
           <span class="ag-slot-acc">
-            ${ojoMain}
-            ${btnRayo}
-            <button class="ag-slot-btn cancel" title="${puedeCancelar ? 'Cancelar turno' : 'Solo se cancelan turnos agendados'}" ${puedeCancelar ? '' : 'disabled'} onclick="agendarCancelarTurno('${t.id}')">${_agIco(_AGI.x, 15)}</button>
+            ${accTomado}
           </span>
         </div>`;
       // Sobreturno(s): ocultos hasta clickear el rayo.
@@ -2908,6 +2934,79 @@ async function agendarConfirmar(min, esSobre) {
   mostrarMensaje(esSobre ? 'Sobreturno creado' : 'Turno creado', 'exito');
   await agendarCargarDia();   // recalcula stats + columna
   _agSyncPanel(fechaStr);     // si el panel muestra esta fecha, lo refresca
+}
+
+// === Reprogramar: mover el turno existente al slot elegido ===========
+// Entry point (lo llaman la ficha y la agenda). Carga el turno y abre la
+// ventana de agendar en modo reprogramar.
+async function abrirReprogramar(turnoId, pacienteId, onDone) {
+  const { data: t } = await sb.from('turnos')
+    .select('id, paciente_id, fecha_hora, duracion_minutos, profesional_id, pacientes(nombre, apellido), profesionales(nombre)')
+    .eq('id', turnoId).maybeSingle();
+  if (!t) { mostrarMensaje('No se encontró el turno.', 'error'); return; }
+
+  const pacLabel = t.pacientes ? `${t.pacientes.apellido}, ${(t.pacientes.nombre || '').split(' ')[0]}` : 'el paciente';
+  const d = new Date(t.fecha_hora);
+  let fechaAct = d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
+  fechaAct = fechaAct.charAt(0).toUpperCase() + fechaAct.slice(1);
+  const horaAct = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+
+  abrirAgendarTurnos({
+    turnoId,
+    pacienteId: pacienteId || t.paciente_id,
+    pacienteLabel: pacLabel,
+    fechaActualLabel: `${fechaAct} ${horaAct} hs`,
+    profActualLabel: t.profesionales?.nombre || '',
+    dur: t.duracion_minutos || null,
+    onDone: onDone || null
+  });
+}
+
+// Mueve el turno al slot clickeado (valida franja + solapamiento, confirma y actualiza).
+async function agendarReprogramarSlot(min) {
+  const rep = _agModal.reprog;
+  if (!rep) return;
+  const profId = _agModal.profId;
+  const prof = _agProfes.find(p => p.id === profId);
+  if (!profId || !prof) return;
+
+  const fecha = new Date(_agModal.fecha);
+  const fechaStr = agendaFechaStr(fecha);
+  const dur = rep.dur || _agModal.dur;
+  const ini = min, fin = min + dur;
+
+  // 1) Entra en la franja del profesional
+  const franjas = _agFranjasProf[profId] || [];
+  if (!franjas.some(f => ini >= f.ini && fin <= f.fin)) {
+    mostrarMensaje('El turno no entra en el horario del profesional.', 'error'); return;
+  }
+  // 2) No se superpone con otro turno (excluye el propio turno que estamos moviendo)
+  const normales = (_agTurnosProf[profId] || []).filter(t => !t.es_sobreturno && t.id !== rep.turnoId);
+  if (haySolapamiento(ini, fin, normales)) {
+    mostrarMensaje('Se superpone con otro turno de ese profesional.', 'error'); return;
+  }
+
+  const hora = minToHora(min);
+  let fechaLinda = fecha.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
+  fechaLinda = fechaLinda.charAt(0).toUpperCase() + fechaLinda.slice(1);
+
+  const ok = await confirmarModal({
+    titulo: 'Reprogramar turno',
+    texto: `¿Mover el turno de ${rep.pacienteLabel} para el ${fechaLinda} a las ${hora} hs con ${prof.nombre}?`,
+    textoSi: 'Reprogramar',
+    textoNo: 'Volver'
+  });
+  if (!ok) return;
+
+  const fechaHora = new Date(`${fechaStr}T${minToHora(min)}:00`);
+  const { error } = await sb.from('turnos')
+    .update({ fecha_hora: fechaHora.toISOString(), profesional_id: profId })
+    .eq('id', rep.turnoId);
+  if (error) { mostrarMensaje('Error: ' + error.message, 'error'); return; }
+
+  mostrarMensaje('Turno reprogramado', 'exito');
+  cerrarAgendarTurnos();
+  if (typeof rep.onDone === 'function') rep.onDone();
 }
 
 async function agendarCancelarTurno(turnoId) {

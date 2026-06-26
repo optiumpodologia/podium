@@ -290,7 +290,7 @@ async function fichaPacienteHTML(pacienteId, opts = {}) {
     <div class="turno-row" style="cursor:default; padding:6px 12px;">
       ${infoTurno(t)}
       ${puedeEditar ? `
-        <button class="btn-icon" style="${btnIcono}" title="Reprogramar" onclick="abrirModalReprogramar('${t.id}', '${paciente.id}')">${icoReprog}</button>
+        <button class="btn-icon" style="${btnIcono}" title="Reprogramar" onclick="reprogramarDesdeFicha('${t.id}', '${paciente.id}')">${icoReprog}</button>
         <button class="btn-icon" style="${btnIcono}" title="Cancelar turno" onclick="cancelarTurnoFicha('${t.id}', '${paciente.id}')">${icoX}</button>
       ` : ''}
     </div>`;
@@ -425,6 +425,15 @@ async function guardarNota(pacienteId) {
 function fichaTab(id) {
   document.querySelectorAll('.ficha-tab').forEach(t => t.classList.toggle('active', t.dataset.ftab === id));
   document.querySelectorAll('.ficha-panel').forEach(p => p.classList.toggle('active', p.dataset.fpanel === id));
+}
+
+// Reprograma un turno desde la ficha: abre la grilla de horarios en modo
+// reprogramar; al confirmar, vuelve a la ficha en la solapa de consultas.
+function reprogramarDesdeFicha(turnoId, pacienteId) {
+  abrirReprogramar(turnoId, pacienteId, () => {
+    verFichaPaciente(pacienteId);
+    fichaTab('consultas');
+  });
 }
 
 // Cancela un turno desde la ficha (sin cerrarla). Dispara el email igual que
