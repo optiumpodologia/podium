@@ -93,7 +93,7 @@ async function abrirModalNuevoTurno(fechaHoraInicial) {
       creado_por: usuarioActual.id
     };
 
-    if (!await avisarTurnoAgendado(d.paciente_id)) return;
+    if (!await avisarTurnoAgendado(d.paciente_id, fechaHora.toISOString())) return;
 
     const { error } = await sb.from('turnos').insert(turno);
     if (error) {

@@ -380,6 +380,15 @@ function inyectarEstilosAgenda() {
     .turno-card { padding: 5px 9px; }
     .turno-card-nombre { line-height: 1.2; }
     .turno-card-detalle { line-height: 1.2; font-size: 10.5px; }
+    /* Columnas informativas (gris): profesional con turnos pero sin consultorio. */
+    .agenda-col-head-extra { background:#f3f4f7; }
+    .agenda-col-head-extra .agenda-col-prof { color:#7a7f8c; }
+    .agenda-col-extra-tag { display:inline-block; font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.3px; color:#9398a6; background:#e6e8ee; border-radius:5px; padding:1px 6px; margin-top:3px; }
+    .agenda-col-extra { background:repeating-linear-gradient(45deg, #fafafb, #fafafb 11px, #f3f4f6 11px, #f3f4f6 22px); }
+    .turno-extra { position:absolute; left:3px; right:3px; background:#ECEEF2; border:1px solid #D6D9E1; border-left:3px solid #b8bcc8; border-radius:7px; padding:4px 8px; cursor:pointer; overflow:hidden; z-index:3; transition:box-shadow .12s, background .12s; }
+    .turno-extra:hover { background:#E3E6EC; box-shadow:0 2px 8px -3px rgba(0,0,0,.2); }
+    .turno-extra-nom { font-size:11.5px; font-weight:600; color:#6b6f7d; line-height:1.2; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .turno-extra-sub { font-size:10px; color:#9398a6; line-height:1.2; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .turno-sobre-chip { font-size: 9px; padding: 1px 6px; bottom: 2px; right: 2px; max-width: calc(100% - 10px); }
   `;
   document.head.appendChild(st);
@@ -736,6 +745,23 @@ async function _dibujarAgendaInner() {
 
   const fechaStrSel = agendaFechaStr(agendaFechaActual);
   const seatedIds = columnas.filter(c => c && c.profesional).map(c => c.profesional.id);
+
+  // Columnas informativas (en gris) para profesionales que tienen turnos este
+  // día pero ya no tienen consultorio asignado (ej. tras reducir el plan). Son
+  // de solo lectura: sirven para ubicar al paciente y reprogramarlo desde su
+  // ficha con un profesional disponible. No aparecen si no tienen turnos.
+  const seatedSet = new Set(seatedIds);
+  let colsExtra = [];
+  if (!esProfesional && !esPasado) {
+    const huerfanosIds = Object.keys(turnosPorProf).filter(pid =>
+      !seatedSet.has(pid) && (turnosPorProf[pid] || []).some(t => t.estado !== 'cancelado'));
+    if (huerfanosIds.length) {
+      const { data: profsExtra } = await sb.from('profesionales')
+        .select('id, nombre, color, foto_url').in('id', huerfanosIds);
+      colsExtra = (profsExtra || []).map(p => ({ profesional: p, extra: true }));
+    }
+  }
+
   const mapaFranjas = (!esPasado && seatedIds.length)
     ? await mapaFranjasProfes(seatedIds, agendaFechaActual)
     : {};
@@ -761,7 +787,7 @@ async function _dibujarAgendaInner() {
   const altoTotal = slotsRegla.length * negocioSlot * ESCALA_AGENDA;
 
   let html = `<div class="agenda-grid-col ${esPasado ? 'es-pasado' : ''} ${esProfesional ? 'vista-consultorio' : 'vista-recepcion'}"
-    style="grid-template-columns: 56px repeat(${cantColumnas}, minmax(150px, 220px)); width:100%;">`;
+    style="grid-template-columns: 56px repeat(${cantColumnas + colsExtra.length}, minmax(150px, 220px)); width:100%;">`;
 
   // Encabezados. Con un solo consultorio, el número va en el cuadrado de la
   // esquina (arriba de los horarios). Con varios, va en cada columna.
@@ -791,6 +817,19 @@ async function _dibujarAgendaInner() {
         </div>
       `;
     }
+  });
+
+  // Headers de las columnas informativas (gris) — sin drag ni número.
+  colsExtra.forEach(col => {
+    const p = col.profesional;
+    html += `
+      <div class="agenda-col-head agenda-col-head-extra" title="Este profesional ya no tiene consultorio asignado">
+        <span class="agenda-col-prof">
+          <span class="agenda-col-dot" style="background:#b8bcc8;"></span>${p.nombre}
+        </span>
+        <span class="agenda-col-extra-tag">Sin consultorio</span>
+      </div>
+    `;
   });
 
   // Columna de horas (un renglón por slot de la duración del negocio)
@@ -917,6 +956,31 @@ async function _dibujarAgendaInner() {
         </div>
       `;
     }
+    html += `</div>`;
+  });
+
+  // Cuerpos de las columnas informativas (gris). Turnos de solo lectura: clic
+  // abre la ficha del paciente para reprogramarlo con un profesional disponible.
+  colsExtra.forEach(col => {
+    const p = col.profesional;
+    const susTurnos = (turnosPorProf[p.id] || []).filter(t => t.estado !== 'cancelado');
+    html += `<div class="agenda-consultorio-col agenda-col-extra" style="height:${altoTotal}px;">`;
+    slotsRegla.forEach(s => {
+      html += `<div class="agenda-linea-hora" style="top:${(s - inicioMin) * ESCALA_AGENDA}px; height:${negocioSlot * ESCALA_AGENDA}px;"></div>`;
+    });
+    susTurnos.forEach(t => {
+      const ti = turnoMinInicio(t);
+      const top = (ti - inicioMin) * ESCALA_AGENDA;
+      const alto = Math.max(34, (t.duracion_minutos || negocioSlot) * ESCALA_AGENDA);
+      const nom = t.pacientes ? `${t.pacientes.apellido}, ${(t.pacientes.nombre || '').split(' ')[0]}` : '—';
+      const tipo = t.es_sobreturno ? 'Sobreturno' : (t.tipos_atencion?.nombre || 'Turno');
+      html += `<div class="turno-extra" style="top:${top}px; height:${alto}px;"
+        title="${nom} · ${formatearHora(t.fecha_hora)} — clic para abrir la ficha y reprogramar"
+        onclick="verFichaPaciente('${t.paciente_id}')">
+        <div class="turno-extra-nom">${nom}</div>
+        <div class="turno-extra-sub">${formatearHora(t.fecha_hora)} · ${tipo}</div>
+      </div>`;
+    });
     html += `</div>`;
   });
 
@@ -1712,7 +1776,7 @@ async function abrirModalNuevoTurnoCasillero(profId, columna, fechaStr, startMin
       }
     }
 
-    if (!await avisarTurnoAgendado(pacienteId)) return;
+    if (!await avisarTurnoAgendado(pacienteId, fechaHora.toISOString())) return;
 
     const { error } = await sb.from('turnos').insert({
       negocio_id: usuarioActual.negocio_id,
@@ -2445,10 +2509,21 @@ async function agendarCargarDia() {
   const diaActivo = diasLab && diasLab.some(d => d.dia_semana === fecha.getDay() && d.activo);
   if (hayConfig && !diaActivo) { _agDiaCerrado('El negocio no atiende este día'); return; }
 
-  // Profesionales activos + franjas del día
-  const { data: profes } = await sb.from('profesionales')
-    .select('id, nombre, color, foto_url, activo').eq('activo', true).order('nombre');
-  const lista = profes || [];
+  // Profesionales SENTADOS en las columnas de este día. Respeta el plan
+  // (máximo = consultorios del plan) y usa el mismo criterio que la agenda
+  // principal, para no ofrecer profesionales que ese día no tienen consultorio.
+  const cantColumnas = await obtenerCantidadConsultorios();
+  const _hoy0 = new Date(); _hoy0.setHours(0, 0, 0, 0);
+  const esPasado = fecha < _hoy0;
+  const columnas = await obtenerDiaAgenda(fecha, cantColumnas, esPasado);
+  const lista = (columnas || [])
+    .filter(c => c && c.profesional)
+    .map(c => ({
+      id: c.profesional.id,
+      nombre: c.profesional.nombre,
+      color: c.profesional.color,
+      foto_url: c.profesional.foto_url
+    }));
   const ids = lista.map(p => p.id);
   const mapaFr = ids.length ? await mapaFranjasProfes(ids, fecha) : {};
 
@@ -2962,7 +3037,7 @@ async function agendarConfirmar(min, esSobre) {
     if ((count || 0) >= 1) { mostrarMensaje('Ya hay un sobreturno en ese horario.', 'advertencia'); return; }
   }
 
-  if (!await avisarTurnoAgendado(pacienteId)) return;
+  if (!await avisarTurnoAgendado(pacienteId, fechaHora.toISOString())) return;
 
   const { error } = await sb.from('turnos').insert({
     negocio_id: usuarioActual.negocio_id,
@@ -3094,10 +3169,11 @@ async function agendarFijoSlot(min) {
   });
   if (!ok) return;
 
-  // Aviso si el paciente ya tiene otros turnos agendados a futuro
-  if (!await avisarTurnoAgendado(fijo.pacienteId)) return;
-
   const fechaHora = new Date(`${fechaStr}T${minToHora(min)}:00`);
+
+  // Aviso / límite: el paciente ya tiene turnos ese día u otros agendados
+  if (!await avisarTurnoAgendado(fijo.pacienteId, fechaHora.toISOString())) return;
+
   const { data: nuevo, error } = await sb.from('turnos').insert({
     negocio_id: usuarioActual.negocio_id,
     paciente_id: fijo.pacienteId,
@@ -3313,10 +3389,58 @@ function pedirMotivoCancelacion() {
 
 // ===== Aviso: el paciente ya tiene turnos agendados a futuro =====
 // Devuelve true para seguir agendando, false para volver (cancelar el alta).
-async function avisarTurnoAgendado(pacienteId) {
+// Aviso de bloqueo (un botón) cuando se llega al límite de turnos por día.
+function _avisoLimiteDia() {
+  return new Promise((resolve) => {
+    const previo = document.getElementById('tl-layer');
+    if (previo) previo.remove();
+    const icAlert = `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m21.7 18-9-15a1.5 1.5 0 0 0-2.6 0l-9 15A1.5 1.5 0 0 0 2.4 20h18.2a1.5 1.5 0 0 0 1.3-2Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>`;
+    const layer = document.createElement('div');
+    layer.id = 'tl-layer';
+    layer.innerHTML = `
+      <div class="cm-overlay" style="z-index:340;">
+        <div style="background:#fff; border-radius:16px; max-width:430px; width:100%; box-shadow:0 16px 50px rgba(27,27,43,.28); padding:24px;">
+          <div style="display:flex; align-items:flex-start; gap:14px; margin-bottom:18px;">
+            <span style="flex:none; width:46px; height:46px; border-radius:50%; background:#FDECEC; color:#C7382F; display:flex; align-items:center; justify-content:center;">${icAlert}</span>
+            <div style="flex:1;">
+              <div style="font-size:18px; font-weight:700; color:#1f2330;">No se pueden dar más de 2 turnos por día</div>
+              <div style="font-size:13.5px; color:#8a90a2; margin-top:3px; line-height:1.5;">Este paciente ya tiene 2 turnos ese día. Si necesita otro horario, reprogramá alguno de los que ya tiene.</div>
+            </div>
+          </div>
+          <div style="display:flex; justify-content:flex-end;">
+            <button class="btn btn-primary-sm tl-ok">Entendido</button>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(layer);
+    const cerrar = () => { layer.remove(); resolve(); };
+    layer.querySelector('.tl-ok').onclick = cerrar;
+    layer.querySelector('.cm-overlay').onclick = (e) => { if (e.target.classList.contains('cm-overlay')) cerrar(); };
+  });
+}
+
+async function avisarTurnoAgendado(pacienteId, fechaTurno) {
   if (!pacienteId) return true;
-  // Desde el inicio del día de hoy (no la hora exacta): así entran todos los
-  // turnos agendados de hoy a cualquier hora, más los de días futuros.
+
+  // Límite duro: máximo 2 turnos por día por paciente. Si ya tiene 2 ese día
+  // (sin contar cancelados), bloquea la creación del tercero.
+  if (fechaTurno) {
+    const d = new Date(fechaTurno);
+    const di = new Date(d); di.setHours(0, 0, 0, 0);
+    const df = new Date(d); df.setHours(23, 59, 59, 999);
+    const { data: delDia } = await sb.from('turnos')
+      .select('id')
+      .eq('paciente_id', pacienteId)
+      .neq('estado', 'cancelado')
+      .gte('fecha_hora', di.toISOString())
+      .lte('fecha_hora', df.toISOString());
+    if ((delDia?.length || 0) >= 2) {
+      await _avisoLimiteDia();
+      return false;
+    }
+  }
+
+  // Aviso informativo (no bloquea): turnos agendados de hoy en adelante.
   const inicioHoy = new Date();
   inicioHoy.setHours(0, 0, 0, 0);
   const { data: turnos } = await sb.from('turnos')

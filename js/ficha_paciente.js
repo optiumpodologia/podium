@@ -246,10 +246,19 @@ async function fichaPacienteHTML(pacienteId, opts = {}) {
         </div>`;
 
   // --- Últimas consultas: 3 secciones (próximos / atenciones / no asistió) ---
-  // Tomamos el inicio del día de hoy: un turno agendado de hoy sigue vigente
-  // aunque ya haya pasado su hora; solo cuenta como ausente si es de un día anterior.
+  // Un turno agendado pasa a "ausente" recién 2 horas después del horario de
+  // cierre del negocio de ese día; hasta entonces sigue contando como vigente.
+  const { data: cfgFicha } = await sb.from('configuracion').select('hora_cierre')
+    .eq('negocio_id', usuarioActual.negocio_id).maybeSingle();
+  const _hc = parseInt((cfgFicha?.hora_cierre || '20:00').split(':')[0]);
+  const horaCierre = Number.isNaN(_hc) ? 20 : _hc;
   const ahoraTs = new Date();
-  ahoraTs.setHours(0, 0, 0, 0);
+  const esAusente = (t) => {
+    if (t.estado !== 'agendado') return false;
+    const corte = new Date(t.fecha_hora);
+    corte.setHours(horaCierre + 2, 0, 0, 0);  // cierre + 2 h del día del turno
+    return ahoraTs > corte;
+  };
   const fmtFecha = (f) => new Date(f).toLocaleDateString('es-AR');
   const durAtencion = (t) => {
     if (!t.hora_inicio_atencion || !t.hora_fin_atencion) return null;
@@ -262,11 +271,11 @@ async function fichaPacienteHTML(pacienteId, opts = {}) {
 
   const tlist = turnos || [];
   const proximos = tlist
-    .filter(t => t.estado === 'agendado' && new Date(t.fecha_hora) >= ahoraTs)
+    .filter(t => t.estado === 'agendado' && !esAusente(t))
     .sort((a, b) => new Date(a.fecha_hora) - new Date(b.fecha_hora));  // el más cercano arriba
   const atenciones = tlist.filter(t => ['finalizado', 'cobrado'].includes(t.estado));  // más reciente arriba
   const noAsistio = tlist.filter(t =>
-    t.estado === 'cancelado' || (t.estado === 'agendado' && new Date(t.fecha_hora) < ahoraTs));
+    t.estado === 'cancelado' || esAusente(t));
 
   const icSec = (p) => `<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#6D5BD0" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
   const icSecCal = icSec('<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>');
@@ -280,12 +289,17 @@ async function fichaPacienteHTML(pacienteId, opts = {}) {
       <span style="flex:1; height:6px; border-radius:3px; background:var(--fondo); margin-left:3px;"></span>
     </div>`;
 
-  const infoTurno = (t, extra = '') => `
+  const infoTurno = (t, extra = '') => {
+    const tipoTurno = t.es_sobreturno
+      ? '<span class="badge" style="background:#EDE9FB; color:#6D5BD0; margin-left:7px;">Sobreturno</span>'
+      : '<span class="badge" style="background:#EFEFF2; color:#8A8A98; margin-left:7px;">Turno</span>';
+    return `
     <div class="turno-row-hora">${fmtFecha(t.fecha_hora)}</div>
     <div class="turno-row-info">
-      <div class="turno-row-nombre">${t.tipos_atencion?.nombre || 'Atención'}</div>
+      <div class="turno-row-nombre">${t.tipos_atencion?.nombre || 'Atención'}${tipoTurno}</div>
       <div class="turno-row-tipo">${t.profesionales?.nombre || ''} · ${formatearHora(t.fecha_hora)}${extra}</div>
     </div>`;
+  };
 
   const btnIcono = 'background:transparent;';
 
