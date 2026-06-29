@@ -73,6 +73,7 @@ async function abrirCobro(turnoId) {
     lineasAt, lineasProd,
     metodo: 'Efectivo',
     pacienteId: turno.paciente_id,
+    profesionalId: turno.profesional_id,
     pacienteLabel: `${pac.apellido || ''}, ${(pac.nombre || '').split(' ')[0]}`.replace(/^,\s*/, '').replace(/,\s*$/, '') || 'el paciente',
     proxNota: fichaAt?.proxima_visita_nota || '',
     proxTurno: null,
@@ -449,14 +450,22 @@ async function confirmarCobro(turnoId) {
   }
 
   // 2) Registrar el cobro
-  const { error: eCobro } = await sb.from('cobros').insert({
+  const { data: cobroRow, error: eCobro } = await sb.from('cobros').insert({
     turno_id: turnoId,
     negocio_id: usuarioActual.negocio_id,
     total,
     metodo_pago: metodo,
     cobrado_por: usuarioActual.id
-  });
+  }).select('id').single();
   if (eCobro) { mostrarMensaje('Error al registrar el cobro: ' + eCobro.message, 'error'); if (btn) btn.disabled = false; return; }
+
+  // 2.b) Comisión del profesional (se congela acá para la liquidación).
+  // Si algo falla, el cobro igual queda registrado: no bloqueamos.
+  try {
+    await registrarComisionCobro(turnoId, cobroRow?.id);
+  } catch (err) {
+    console.error('No se pudo registrar la comisión:', err);
+  }
 
   // 3) Descontar stock de los productos vendidos
   for (const l of _cobro.lineasProd) {
@@ -480,4 +489,64 @@ async function confirmarCobro(turnoId) {
   const moduloActivo = document.querySelector('.nav-item.active')?.dataset.modulo;
   if (moduloActivo === 'agenda') dibujarAgenda();
   else if (moduloActivo === 'dashboard') renderDashboard(document.getElementById('main'));
+}
+
+// ============================================================
+// Comisión del cobro → ledger `comisiones`
+// ============================================================
+// Calcula la comisión del profesional para este cobro y la deja
+// CONGELADA (base, %, montos) para que la liquidación no dependa de
+// que después cambien las tasas. Atención: % global. Producto: % por
+// defecto, salvo que el producto tenga comisión propia (% o monto fijo).
+async function registrarComisionCobro(turnoId, cobroId) {
+  if (!_cobro) return;
+  const profesionalId = _cobro.profesionalId || null;
+
+  const r2 = n => Math.round((Number(n) || 0) * 100) / 100;
+  const baseAt = _cobro.lineasAt.reduce((s, l) => s + l.precio * l.cantidad, 0);
+  const baseProd = _cobro.lineasProd.reduce((s, l) => s + l.precio * l.cantidad, 0);
+
+  const { data: cfg } = await sb.from('configuracion')
+    .select('comision_atencion_pct, comision_producto_pct')
+    .eq('negocio_id', usuarioActual.negocio_id).maybeSingle();
+  const pctAt = Number(cfg?.comision_atencion_pct) || 0;
+  const pctProdDef = Number(cfg?.comision_producto_pct) || 0;
+
+  // Config de comisión de cada producto vendido en este cobro
+  const comMap = {};
+  const prodIds = [...new Set(_cobro.lineasProd.map(l => l.producto_id).filter(Boolean))];
+  if (prodIds.length) {
+    const { data: pcom } = await sb.from('productos')
+      .select('id, comision_modo, comision_valor').in('id', prodIds);
+    (pcom || []).forEach(p => { comMap[p.id] = p; });
+  }
+
+  const comisionAtencion = r2(baseAt * pctAt / 100);
+  let comisionProducto = 0;
+  for (const l of _cobro.lineasProd) {
+    const pc = comMap[l.producto_id] || {};
+    const modo = pc.comision_modo || 'default';
+    const valor = Number(pc.comision_valor) || 0;
+    const subtotal = l.precio * l.cantidad;
+    if (modo === 'fijo') comisionProducto += valor * l.cantidad;
+    else if (modo === 'porcentaje') comisionProducto += subtotal * valor / 100;
+    else comisionProducto += subtotal * pctProdDef / 100;
+  }
+  comisionProducto = r2(comisionProducto);
+  const comisionTotal = r2(comisionAtencion + comisionProducto);
+
+  const { error } = await sb.from('comisiones').insert({
+    negocio_id: usuarioActual.negocio_id,
+    turno_id: turnoId,
+    cobro_id: cobroId || null,
+    profesional_id: profesionalId,
+    base_atencion: r2(baseAt),
+    base_producto: r2(baseProd),
+    pct_atencion: pctAt,
+    comision_atencion: comisionAtencion,
+    comision_producto: comisionProducto,
+    comision_total: comisionTotal,
+    liquidacion_id: null
+  });
+  if (error) console.error('Comisión no registrada:', error.message);
 }
