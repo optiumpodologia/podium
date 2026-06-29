@@ -3315,12 +3315,15 @@ function pedirMotivoCancelacion() {
 // Devuelve true para seguir agendando, false para volver (cancelar el alta).
 async function avisarTurnoAgendado(pacienteId) {
   if (!pacienteId) return true;
-  const ahora = new Date().toISOString();
+  // Desde el inicio del día de hoy (no la hora exacta): así entran todos los
+  // turnos agendados de hoy a cualquier hora, más los de días futuros.
+  const inicioHoy = new Date();
+  inicioHoy.setHours(0, 0, 0, 0);
   const { data: turnos } = await sb.from('turnos')
     .select('fecha_hora, profesionales(nombre)')
     .eq('paciente_id', pacienteId)
     .eq('estado', 'agendado')
-    .gte('fecha_hora', ahora)
+    .gte('fecha_hora', inicioHoy.toISOString())
     .order('fecha_hora', { ascending: true });
   if (!turnos || turnos.length === 0) return true;
 
