@@ -246,7 +246,10 @@ async function fichaPacienteHTML(pacienteId, opts = {}) {
         </div>`;
 
   // --- Últimas consultas: 3 secciones (próximos / atenciones / no asistió) ---
+  // Tomamos el inicio del día de hoy: un turno agendado de hoy sigue vigente
+  // aunque ya haya pasado su hora; solo cuenta como ausente si es de un día anterior.
   const ahoraTs = new Date();
+  ahoraTs.setHours(0, 0, 0, 0);
   const fmtFecha = (f) => new Date(f).toLocaleDateString('es-AR');
   const durAtencion = (t) => {
     if (!t.hora_inicio_atencion || !t.hora_fin_atencion) return null;
