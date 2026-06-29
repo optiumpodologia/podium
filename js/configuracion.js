@@ -286,7 +286,7 @@ async function renderConfiguracion(container) {
     { id: 'documentos', titulo: 'Modelos de documentos', desc: 'Certificados y consentimientos para emitir.', tint: 'naranja', ico: _cfgIcoDocumentos, accion: 'abrirCfgDocumentos()', soloNegocio: false },
     { id: 'notificaciones', titulo: 'Notificaciones', desc: 'Recordatorios automáticos por email a los pacientes.', tint: 'celeste', ico: _cfgIcoNotif, accion: 'abrirCfgNotificaciones()', soloNegocio: true },
     { id: 'caja', titulo: 'Caja', desc: 'Medios de pago, moneda y opciones de caja.', tint: 'rosa', ico: _cfgIcoCaja, accion: "abrirCfgProximamente('Caja','Acá vas a poder configurar medios de pago, moneda y opciones de caja.')", soloNegocio: true, prox: true },
-    { id: 'comisiones', titulo: 'Comisiones', desc: 'Comisiones por profesional y por servicio.', tint: 'amarillo', ico: _cfgIcoComisiones, accion: "abrirCfgProximamente('Comisiones','Acá vas a poder configurar las comisiones de cada profesional.')", soloNegocio: true, prox: true }
+    { id: 'comisiones', titulo: 'Comisiones', desc: 'Comisión por atención y por producto.', tint: 'amarillo', ico: _cfgIcoComisiones, accion: 'abrirCfgComisiones()', soloNegocio: true }
   ].filter(t => !t.soloNegocio || esNegocio);
 
   const cards = tarjetas.map(t => {
@@ -461,6 +461,145 @@ async function subirLogo(e) {
   } finally {
     e.target.value = '';
   }
+}
+
+// ============================================================
+// TARJETA: Comisiones
+// ============================================================
+async function abrirCfgComisiones() {
+  const [{ data: config }, { data: productos }] = await Promise.all([
+    sb.from('configuracion')
+      .select('comision_atencion_pct, comision_producto_pct')
+      .eq('negocio_id', usuarioActual.negocio_id).maybeSingle(),
+    sb.from('productos')
+      .select('id, nombre, comision_modo, comision_valor')
+      .eq('activo', true).order('nombre')
+  ]);
+
+  const pAt = config?.comision_atencion_pct ?? 0;
+  const pProd = config?.comision_producto_pct ?? 0;
+
+  const filasProd = (productos || []).length
+    ? productos.map(p => {
+        const modo = p.comision_modo || 'default';
+        const valor = p.comision_valor ?? 0;
+        const esDefault = modo === 'default';
+        const prefijo = modo === 'fijo' ? '$' : '%';
+        return `
+          <div class="com-prod" data-prod-id="${p.id}">
+            <div class="com-prod-nom">${cfgEsc(p.nombre)}</div>
+            <select class="com-modo" onchange="cfgComModo(this)">
+              <option value="default" ${esDefault ? 'selected' : ''}>Usar % por defecto</option>
+              <option value="porcentaje" ${modo === 'porcentaje' ? 'selected' : ''}>% propio</option>
+              <option value="fijo" ${modo === 'fijo' ? 'selected' : ''}>Monto fijo</option>
+            </select>
+            <div class="com-valor-wrap${esDefault ? ' off' : ''}">
+              <span class="com-prefix">${prefijo}</span>
+              <input class="com-valor" type="number" step="0.01" min="0" value="${esDefault ? '' : valor}"${esDefault ? ' disabled' : ''}>
+            </div>
+          </div>`;
+      }).join('')
+    : `<div class="com-vacio">Todavía no hay productos cargados. Cuando agregues productos vas a poder ajustarles la comisión acá.</div>`;
+
+  abrirModal(`
+    <style>
+      .com-sec-tit{font-size:13px;font-weight:700;color:#6D5BD0;text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;}
+      .com-input-pct{display:flex;align-items:center;gap:6px;}
+      .com-input-pct input{flex:1;}
+      .com-input-pct>span{color:#6b7280;font-weight:600;}
+      .com-prod-lista{display:flex;flex-direction:column;gap:8px;margin-top:6px;}
+      .com-prod{display:grid;grid-template-columns:1fr 150px 130px;gap:10px;align-items:center;padding:8px 10px;border:1px solid #ece9f7;border-radius:10px;background:#faf9fe;}
+      .com-prod-nom{font-weight:600;color:#2b2b3a;font-size:14px;}
+      .com-modo{padding:6px 8px;}
+      .com-valor-wrap{display:flex;align-items:center;gap:4px;}
+      .com-valor-wrap.off{opacity:.45;}
+      .com-valor-wrap .com-prefix{color:#6b7280;font-weight:600;min-width:10px;}
+      .com-valor-wrap input{width:100%;}
+      .com-vacio{padding:16px;text-align:center;color:#8a8f9c;font-size:14px;background:#faf9fe;border-radius:10px;}
+    </style>
+    <div class="modal-header">
+      <div class="modal-titulo">Comisiones</div>
+      <button class="modal-cerrar" onclick="cerrarModal()">×</button>
+    </div>
+    <form id="form-comisiones">
+      <div class="modal-body">
+        <div class="com-sec-tit">Comisión general</div>
+        <div class="form-row">
+          <div class="input-group">
+            <label>Comisión por atención</label>
+            <div class="com-input-pct">
+              <input type="number" name="comision_atencion_pct" step="0.01" min="0" max="100" value="${pAt}">
+              <span>%</span>
+            </div>
+          </div>
+          <div class="input-group">
+            <label>Comisión por producto (por defecto)</label>
+            <div class="com-input-pct">
+              <input type="number" name="comision_producto_pct" step="0.01" min="0" max="100" value="${pProd}">
+              <span>%</span>
+            </div>
+          </div>
+        </div>
+        <small class="cfg-ayuda">El porcentaje de atención se aplica a todas las atenciones cobradas. El de producto se usa por defecto para los productos que no tengan una comisión propia.</small>
+
+        <div class="com-sec-tit" style="margin-top:22px;">Comisión por producto</div>
+        <small class="cfg-ayuda" style="display:block;margin-bottom:10px;">Dejá "Usar % por defecto", o asigná un porcentaje propio o un monto fijo a cada producto.</small>
+        <div class="com-prod-lista">${filasProd}</div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn" onclick="cerrarModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary-sm">Guardar cambios</button>
+      </div>
+    </form>
+  `);
+
+  document.getElementById('form-comisiones').addEventListener('submit', guardarComisiones);
+}
+
+function cfgComModo(sel) {
+  const row = sel.closest('.com-prod');
+  if (!row) return;
+  const wrap = row.querySelector('.com-valor-wrap');
+  const input = row.querySelector('.com-valor');
+  const prefix = row.querySelector('.com-prefix');
+  if (sel.value === 'default') {
+    wrap.classList.add('off');
+    input.disabled = true;
+    input.value = '';
+  } else {
+    wrap.classList.remove('off');
+    input.disabled = false;
+    prefix.textContent = sel.value === 'fijo' ? '$' : '%';
+  }
+}
+
+async function guardarComisiones(e) {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const d = Object.fromEntries(fd.entries());
+  const pAt = Math.max(0, parseFloat(d.comision_atencion_pct) || 0);
+  const pProd = Math.max(0, parseFloat(d.comision_producto_pct) || 0);
+
+  const { error } = await sb.from('configuracion').upsert({
+    negocio_id: usuarioActual.negocio_id,
+    comision_atencion_pct: pAt,
+    comision_producto_pct: pProd,
+    actualizado_en: new Date().toISOString()
+  }, { onConflict: 'negocio_id' });
+  if (error) { mostrarMensaje('Error: ' + error.message, 'error'); return; }
+
+  const filas = document.querySelectorAll('.com-prod[data-prod-id]');
+  for (const row of filas) {
+    const id = row.getAttribute('data-prod-id');
+    const modo = row.querySelector('.com-modo').value;
+    let valor = parseFloat(row.querySelector('.com-valor').value) || 0;
+    if (modo === 'default') valor = 0;
+    const r = await sb.from('productos').update({ comision_modo: modo, comision_valor: Math.max(0, valor) }).eq('id', id);
+    if (r.error) { mostrarMensaje('Error al guardar comisión de producto: ' + r.error.message, 'error'); return; }
+  }
+
+  mostrarMensaje('Comisiones guardadas', 'exito');
+  cerrarModal();
 }
 
 // ============================================================
