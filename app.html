@@ -133,6 +133,13 @@ const MODULOS = [
   usuarioActual = await protegerPagina();
   if (!usuarioActual) return;
 
+  // Si es profesional, sabemos si tiene la comisión habilitada (define si ve "Comisiones").
+  if (usuarioActual.rol === 'profesional') {
+    const { data: _prof } = await sb.from('profesionales')
+      .select('comision_habilitada').eq('usuario_id', usuarioActual.id).maybeSingle();
+    usuarioActual.comision_habilitada = _prof ? _prof.comision_habilitada !== false : true;
+  }
+
   document.getElementById('user-name').textContent = usuarioActual.nombre;
   document.getElementById('user-role').textContent =
     usuarioActual.rol === 'super_admin' ? 'Super Admin' :
