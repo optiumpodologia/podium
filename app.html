@@ -66,6 +66,7 @@
 <script src="js/productos.js"></script>
 <script src="js/ficha_paciente.js"></script>
 <script src="js/cobro.js"></script>
+<script src="js/liquidaciones.js"></script>
 <script src="js/configuracion.js"></script>
 <script src="js/usuarios.js"></script>
 <script src="js/negocios.js"></script>
@@ -101,7 +102,8 @@ const ICONS = {
   suscripciones:  svgIcon('<rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/>'),
   estadisticas:   svgIcon('<path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>'),
   salud:          svgIcon('<path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/>'),
-  notas:          svgIcon('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h5"/>')
+  notas:          svgIcon('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h5"/>'),
+  liquidaciones:  svgIcon('<line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>')
 };
 
 // Catálogo ÚNICO de módulos (id, etiqueta, ícono, función que lo dibuja).
@@ -123,6 +125,7 @@ const MODULOS = [
   { id: 'profesionales',  label: 'Mi equipo',       icon: ICONS.profesionales,  render: renderProfesionales },
   { id: 'tipos_atencion', label: 'Atenciones',      icon: ICONS.tipos_atencion, render: renderTiposAtencion },
   { id: 'productos',      label: 'Productos',        icon: ICONS.productos,      render: renderProductos },
+  { id: 'liquidaciones',  label: 'Liquidaciones',    icon: ICONS.liquidaciones,  render: renderLiquidaciones },
   { id: 'configuracion',  label: 'Configuración',    icon: ICONS.configuracion,  render: renderConfiguracion }
 ];
 

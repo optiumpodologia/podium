@@ -42,6 +42,7 @@ const MODULOS_ACCESO = {
   profesionales:  ['negocio', 'recepcion'],                 // pantalla "Mi equipo"
   tipos_atencion: ['negocio'],                              // Atenciones (catálogo)
   productos:      ['negocio'],
+  liquidaciones:  ['negocio', 'profesional'],               // negocio ve a todos; profesional, lo suyo
   configuracion:  ['negocio'],
 };
 
