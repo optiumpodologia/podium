@@ -61,12 +61,15 @@ async function renderLiquidaciones(container) {
       .liq-card-tit{padding:13px 16px;font-weight:700;color:#2b2b3a;border-bottom:1px solid #f1eefb;display:flex;align-items:center;gap:8px;}
       .liq-prof{border-bottom:1px solid #f4f2fb;}
       .liq-prof:last-child{border-bottom:none;}
-      .liq-prof-head{display:grid;grid-template-columns:1fr auto auto;gap:14px;align-items:center;padding:13px 16px;cursor:pointer;transition:background .12s;}
+      .liq-prof-head{display:grid;grid-template-columns:1fr auto auto auto;gap:14px;align-items:center;padding:13px 16px;cursor:pointer;transition:background .12s;}
       .liq-prof-head:hover{background:#faf9fe;}
       .liq-prof-nom{display:flex;align-items:center;gap:10px;font-weight:600;color:#2b2b3a;}
       .liq-prof-av{width:34px;height:34px;border-radius:50%;background:#efeafe;color:#6D5BD0;display:flex;align-items:center;justify-content:center;flex:none;}
       .liq-prof-cobros{font-size:12px;color:#8a8f9c;}
       .liq-prof-total{font-weight:800;color:#6D5BD0;font-size:17px;text-align:right;}
+      .liq-btn-liquidar{background:#6D5BD0;color:#fff;border:none;border-radius:9px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;}
+      .liq-btn-liquidar:hover{background:#5d4cc0;}
+      .liq-btn-liquidar:disabled{opacity:.6;cursor:default;}
       .liq-chev{color:#b6b2c8;transition:transform .15s;}
       .liq-prof.abierto .liq-chev{transform:rotate(180deg);}
       .liq-detalle{display:none;background:#faf9fe;border-top:1px solid #f1eefb;}
@@ -216,6 +219,9 @@ async function _liqRenderNegocio(main) {
                 </div>
               </div>
               <div class="liq-prof-total">${formatearPrecio(g.total)}</div>
+              ${k === '_sin'
+                ? '<span></span>'
+                : `<button class="liq-btn-liquidar" data-prof="${k}" data-nom="${_liqEscAttr(nom)}" data-total="${g.total}" onclick="event.stopPropagation(); _liqLiquidar(this)">Liquidar</button>`}
               <div class="liq-chev">${_liqSvg(_LIQ_ICOS.chevron, 18)}</div>
             </div>
             <div class="liq-detalle">
@@ -289,4 +295,49 @@ async function _liqHistorial(esNegocio, nombreDe) {
 function _liqToggle(i) {
   const el = document.getElementById('liq-prof-' + i);
   if (el) el.classList.toggle('abierto');
+}
+
+function _liqEscAttr(s) {
+  return String(s)
+    .replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// Liquida TODO lo pendiente del profesional al momento del corte.
+// La función SQL `liquidar_comisiones` hace el cierre en una sola
+// transacción (crea la liquidación + engancha las comisiones).
+async function _liqLiquidar(btn) {
+  const profId = btn.getAttribute('data-prof');
+  const nom = btn.getAttribute('data-nom') || 'el profesional';
+  const total = Number(btn.getAttribute('data-total')) || 0;
+
+  const ok = await confirmarModal({
+    titulo: 'Liquidar comisiones',
+    texto: `Vas a liquidar ${formatearPrecio(total)} a ${nom}. Esto cierra el período actual y reinicia su acumulado en cero. ¿Confirmás?`,
+    textoSi: 'Liquidar',
+    textoNo: 'Cancelar'
+  });
+  if (!ok) return;
+
+  btn.disabled = true;
+  const txtOrig = btn.textContent;
+  btn.textContent = 'Liquidando…';
+
+  const { data, error } = await sb.rpc('liquidar_comisiones', { p_profesional_id: profId });
+  if (error) {
+    mostrarMensaje('Error al liquidar: ' + error.message, 'error');
+    btn.disabled = false;
+    btn.textContent = txtOrig;
+    return;
+  }
+
+  const cant = data?.cantidad ?? 0;
+  if (!cant) {
+    mostrarMensaje('No había comisiones pendientes para liquidar', 'advertencia');
+  } else {
+    mostrarMensaje('Liquidación registrada por ' + formatearPrecio(_liqNum(data.total)), 'exito');
+  }
+
+  const cont = document.getElementById('main');
+  if (cont) renderLiquidaciones(cont);
 }
