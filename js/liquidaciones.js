@@ -29,6 +29,7 @@ function _liqSvg(p, w = 18) {
 
 const _LIQ_ICOS = {
   money: '<line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
+  bill: '<rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01"/><path d="M18 12h.01"/>',
   user: '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
   receipt: '<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M8 7h8"/><path d="M8 11h8"/><path d="M8 15h5"/>',
   chevron: '<path d="m6 9 6 6 6-6"/>'
@@ -41,9 +42,9 @@ async function renderLiquidaciones(container) {
   }
 
   const esProfesional = usuarioActual.rol === 'profesional';
-  const titulo = esProfesional ? 'Mi liquidación' : 'Liquidaciones';
+  const titulo = esProfesional ? 'Mis comisiones' : 'Comisiones';
   const subt = esProfesional
-    ? 'Tus comisiones acumuladas hasta la próxima liquidación.'
+    ? 'Tus comisiones por día, hasta la próxima liquidación.'
     : 'Comisiones acumuladas por profesional, pendientes de liquidar.';
 
   container.innerHTML = `
@@ -51,6 +52,7 @@ async function renderLiquidaciones(container) {
       .liq-strip{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:18px;}
       .liq-hero{flex:1;min-width:240px;background:linear-gradient(135deg,#6D5BD0,#574bb0);color:#fff;border-radius:16px;padding:18px 20px;display:flex;align-items:center;gap:16px;box-shadow:0 8px 24px rgba(109,91,208,.25);}
       .liq-hero-ico{width:46px;height:46px;border-radius:12px;background:rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;flex:none;}
+      .liq-hero-ico svg{transform:rotate(-18deg);}
       .liq-hero-lbl{font-size:13px;opacity:.85;}
       .liq-hero-val{font-size:28px;font-weight:800;line-height:1.1;margin-top:2px;}
       .liq-hero-sub{font-size:12px;opacity:.8;margin-top:4px;}
@@ -86,6 +88,26 @@ async function renderLiquidaciones(container) {
       .liq-badge{font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;}
       .liq-badge.pagada{background:#e6f7ee;color:#1f9d57;}
       .liq-badge.pendiente{background:#fff4e0;color:#c98a13;}
+      .liq-tabs{display:flex;gap:6px;margin-bottom:16px;background:#f4f2fb;padding:4px;border-radius:11px;width:fit-content;}
+      .liq-tab{border:none;background:transparent;color:#6b6880;font-weight:600;font-size:14px;padding:8px 18px;border-radius:8px;cursor:pointer;}
+      .liq-tab.activo{background:#fff;color:#6D5BD0;box-shadow:0 1px 3px rgba(0,0,0,.08);}
+      .liq-dia, .liq-periodo{border-bottom:1px solid #f4f2fb;}
+      .liq-dia:last-child, .liq-periodo:last-child{border-bottom:none;}
+      .liq-dia-head{display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:center;padding:13px 16px;cursor:pointer;transition:background .12s;}
+      .liq-dia-head:hover{background:#faf9fe;}
+      .liq-dia-fecha{font-weight:600;color:#2b2b3a;}
+      .liq-dia-total{font-weight:700;color:#6D5BD0;}
+      .liq-dia-det{display:none;background:#faf9fe;border-top:1px solid #f1eefb;}
+      .liq-dia.abierto > .liq-dia-head, .liq-periodo.abierto > .liq-dia-head{background:#f6f4fd;}
+      .liq-dia.abierto > .liq-dia-det{display:block;}
+      .liq-dia .liq-chev, .liq-periodo .liq-chev{color:#b6b2c8;transition:transform .15s;}
+      .liq-dia.abierto > .liq-dia-head .liq-chev, .liq-periodo.abierto > .liq-dia-head .liq-chev{transform:rotate(180deg);}
+      .liq-periodo-det{display:none;border-top:1px solid #f1eefb;}
+      .liq-periodo.abierto > .liq-periodo-det{display:block;}
+      .liq-periodo .liq-dia-det{background:#fff;}
+      .liq-mov .nom{color:#3a3a48;}
+      .liq-mov .sub{color:#9a9aa8;}
+      .liq-tot-dia td{font-weight:700;color:#2b2b3a;background:#f3f0fb;}
     </style>
     <div class="page-header">
       <div>
@@ -110,37 +132,66 @@ async function renderLiquidaciones(container) {
 // ---------- Vista PROFESIONAL ----------
 async function _liqRenderProfesional(main) {
   // La RLS devuelve solo las comisiones del profesional logueado.
-  const { data: rows, error } = await sb.from('comisiones')
-    .select('id, comision_total, comision_atencion, comision_producto, base_atencion, base_producto, creado_en')
-    .is('liquidacion_id', null)
-    .order('creado_en', { ascending: false });
+  const [{ data: rows, error }, { data: liqs }] = await Promise.all([
+    sb.from('comisiones')
+      .select('id, turno_id, liquidacion_id, comision_total, comision_atencion, comision_producto, creado_en')
+      .order('creado_en', { ascending: false }),
+    sb.from('liquidaciones')
+      .select('id, desde, hasta, total_comision, estado, pagada_en, creado_en')
+      .order('creado_en', { ascending: false })
+  ]);
   if (error) throw error;
 
   const items = rows || [];
-  const total = items.reduce((s, r) => s + _liqNum(r.comision_total), 0);
-  const totAt = items.reduce((s, r) => s + _liqNum(r.comision_atencion), 0);
-  const totProd = items.reduce((s, r) => s + _liqNum(r.comision_producto), 0);
+  const pendientes = items.filter(r => !r.liquidacion_id);
 
-  const filas = items.length
-    ? items.map(r => `
-        <tr>
-          <td>${_liqFecha(r.creado_en)}</td>
-          <td class="num">${formatearPrecio(_liqNum(r.comision_atencion))}</td>
-          <td class="num">${formatearPrecio(_liqNum(r.comision_producto))}</td>
-          <td class="num tot">${formatearPrecio(_liqNum(r.comision_total))}</td>
-        </tr>`).join('')
-    : `<tr><td colspan="4" class="liq-vacio">Todavía no tenés comisiones pendientes.</td></tr>`;
+  // Nombres de atención/producto por turno (catálogo actual; tolerante a fallos).
+  const detalleTurno = await _liqCargarDetalleTurnos(items.map(r => r.turno_id));
 
-  const hist = await _liqHistorial(false);
+  const total = pendientes.reduce((s, r) => s + _liqNum(r.comision_total), 0);
+  const totAt = pendientes.reduce((s, r) => s + _liqNum(r.comision_atencion), 0);
+  const totProd = pendientes.reduce((s, r) => s + _liqNum(r.comision_producto), 0);
+
+  // --- Pestaña Pendientes: días desplegables ---
+  const dias = _liqAgruparPorDia(pendientes);
+  const panePend = dias.length
+    ? dias.map(d => _liqBloqueDia(d, detalleTurno)).join('')
+    : `<div class="liq-vacio">Todavía no tenés comisiones pendientes.</div>`;
+
+  // --- Pestaña Liquidados: períodos → días → movimientos ---
+  const paneLiq = (liqs && liqs.length)
+    ? liqs.map(l => {
+        const rowsLiq = items.filter(r => r.liquidacion_id === l.id);
+        const diasLiq = _liqAgruparPorDia(rowsLiq);
+        const periodo = (l.desde || l.hasta)
+          ? `${l.desde ? _liqFecha(l.desde) : '—'} al ${l.hasta ? _liqFecha(l.hasta) : '—'}`
+          : `Liquidación del ${_liqFecha(l.creado_en)}`;
+        const cuerpo = diasLiq.length
+          ? diasLiq.map(d => _liqBloqueDia(d, detalleTurno)).join('')
+          : `<div class="liq-vacio">Sin movimientos.</div>`;
+        return `
+          <div class="liq-periodo">
+            <div class="liq-dia-head" onclick="this.closest('.liq-periodo').classList.toggle('abierto')">
+              <div>
+                <div class="liq-dia-fecha">${periodo}</div>
+                <div class="liq-prof-cobros">Pagada el ${_liqFecha(l.pagada_en || l.creado_en)}</div>
+              </div>
+              <div class="liq-dia-total">${formatearPrecio(_liqNum(l.total_comision))}</div>
+              <div class="liq-chev">${_liqSvg(_LIQ_ICOS.chevron, 18)}</div>
+            </div>
+            <div class="liq-periodo-det">${cuerpo}</div>
+          </div>`;
+      }).join('')
+    : `<div class="liq-vacio">Todavía no hay comisiones liquidadas.</div>`;
 
   main.innerHTML = `
     <div class="liq-strip">
       <div class="liq-hero">
-        <div class="liq-hero-ico">${_liqSvg(_LIQ_ICOS.money, 24)}</div>
+        <div class="liq-hero-ico">${_liqSvg(_LIQ_ICOS.bill, 24)}</div>
         <div>
           <div class="liq-hero-lbl">Acumulado pendiente de liquidar</div>
           <div class="liq-hero-val">${formatearPrecio(total)}</div>
-          <div class="liq-hero-sub">${items.length} ${items.length === 1 ? 'cobro' : 'cobros'}</div>
+          <div class="liq-hero-sub">${pendientes.length} ${pendientes.length === 1 ? 'cobro' : 'cobros'}</div>
         </div>
       </div>
       <div class="liq-mini">
@@ -153,19 +204,103 @@ async function _liqRenderProfesional(main) {
       </div>
     </div>
 
-    <div class="liq-card">
-      <div class="liq-card-tit">${_liqSvg(_LIQ_ICOS.receipt, 16)} Detalle de comisiones pendientes</div>
-      <table class="liq-tabla">
-        <thead><tr><th>Fecha</th><th class="num">Atención</th><th class="num">Producto</th><th class="num">Comisión</th></tr></thead>
-        <tbody>${filas}</tbody>
-      </table>
+    <div class="liq-tabs">
+      <button class="liq-tab activo" data-pane="pend" onclick="_liqTab(this)">Pendientes</button>
+      <button class="liq-tab" data-pane="liq" onclick="_liqTab(this)">Liquidados</button>
     </div>
 
-    <div class="liq-card">
-      <div class="liq-card-tit">${_liqSvg(_LIQ_ICOS.receipt, 16)} Historial de liquidaciones</div>
-      ${hist}
-    </div>
+    <div class="liq-card" id="liq-pane-pend">${panePend}</div>
+    <div class="liq-card" id="liq-pane-liq" style="display:none;">${paneLiq}</div>
   `;
+}
+
+// Carga los nombres de atención/producto de cada turno. Tolerante: si algo
+// no se puede leer, devuelve lo que tenga (la vista cae a nombres genéricos).
+async function _liqCargarDetalleTurnos(turnoIds) {
+  const ids = [...new Set((turnoIds || []).filter(Boolean))];
+  const mapa = {};
+  if (!ids.length) return mapa;
+  ids.forEach(id => { mapa[id] = { atenciones: [], productos: [] }; });
+
+  try {
+    const [{ data: tas }, { data: tipos }, { data: tps }, { data: prods }] = await Promise.all([
+      sb.from('turno_atenciones').select('turno_id, tipo_atencion_id').in('turno_id', ids),
+      sb.from('tipos_atencion').select('id, nombre'),
+      sb.from('turno_productos').select('turno_id, producto_id').in('turno_id', ids),
+      sb.from('productos').select('id, nombre')
+    ]);
+    const nomTipo = {}; (tipos || []).forEach(t => { nomTipo[t.id] = t.nombre; });
+    const nomProd = {}; (prods || []).forEach(p => { nomProd[p.id] = p.nombre; });
+    (tas || []).forEach(a => {
+      if (mapa[a.turno_id]) mapa[a.turno_id].atenciones.push(nomTipo[a.tipo_atencion_id] || 'Atención');
+    });
+    (tps || []).forEach(p => {
+      if (mapa[p.turno_id]) mapa[p.turno_id].productos.push(nomProd[p.producto_id] || 'Producto');
+    });
+  } catch (err) {
+    console.warn('No se pudieron cargar los nombres de atención/producto:', err);
+  }
+  return mapa;
+}
+
+// Agrupa filas de comisión por día (clave YYYY-MM-DD), más nuevo primero.
+function _liqAgruparPorDia(rows) {
+  const dias = {};
+  (rows || []).forEach(r => {
+    const k = (r.creado_en || '').slice(0, 10);
+    if (!dias[k]) dias[k] = { key: k, total: 0, items: [] };
+    dias[k].total += _liqNum(r.comision_total);
+    dias[k].items.push(r);
+  });
+  return Object.values(dias).sort((a, b) => b.key.localeCompare(a.key));
+}
+
+// Un día desplegable: header con fecha + comisión del día; detalle con los
+// movimientos (atención / producto con su nombre y comisión) + total del día.
+function _liqBloqueDia(dia, detalleTurno) {
+  const fecha = dia.key ? _liqFecha(dia.key) : '';
+  const movs = dia.items.map(r => {
+    const det = detalleTurno[r.turno_id] || { atenciones: [], productos: [] };
+    const nomAt = det.atenciones.length ? det.atenciones.join(', ') : 'Atención';
+    const nomProd = det.productos.length ? det.productos.join(', ') : '';
+    const cAt = _liqNum(r.comision_atencion);
+    const cProd = _liqNum(r.comision_producto);
+    return `
+      <tr class="liq-mov">
+        <td class="nom">${nomAt}</td>
+        <td class="num">${cAt ? formatearPrecio(cAt) : '—'}</td>
+        <td class="nom">${nomProd || '<span class="sub">—</span>'}</td>
+        <td class="num">${nomProd && cProd ? formatearPrecio(cProd) : '—'}</td>
+        <td class="num tot">${formatearPrecio(_liqNum(r.comision_total))}</td>
+      </tr>`;
+  }).join('');
+
+  return `
+    <div class="liq-dia">
+      <div class="liq-dia-head" onclick="this.closest('.liq-dia').classList.toggle('abierto')">
+        <div class="liq-dia-fecha">${fecha}</div>
+        <div class="liq-dia-total">Comisión del día ${formatearPrecio(dia.total)}</div>
+        <div class="liq-chev">${_liqSvg(_LIQ_ICOS.chevron, 18)}</div>
+      </div>
+      <div class="liq-dia-det">
+        <table class="liq-tabla">
+          <thead><tr><th>Atención</th><th class="num">Comisión</th><th>Producto</th><th class="num">Comisión</th><th class="num">Total</th></tr></thead>
+          <tbody>
+            ${movs}
+            <tr class="liq-tot-dia"><td colspan="4">Total del día</td><td class="num">${formatearPrecio(dia.total)}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+function _liqTab(btn) {
+  const pane = btn.getAttribute('data-pane');
+  document.querySelectorAll('.liq-tab').forEach(b => b.classList.toggle('activo', b === btn));
+  const pend = document.getElementById('liq-pane-pend');
+  const liq = document.getElementById('liq-pane-liq');
+  if (pend) pend.style.display = pane === 'pend' ? '' : 'none';
+  if (liq) liq.style.display = pane === 'liq' ? '' : 'none';
 }
 
 // ---------- Vista NEGOCIO ----------
@@ -239,7 +374,7 @@ async function _liqRenderNegocio(main) {
   main.innerHTML = `
     <div class="liq-strip">
       <div class="liq-hero">
-        <div class="liq-hero-ico">${_liqSvg(_LIQ_ICOS.money, 24)}</div>
+        <div class="liq-hero-ico">${_liqSvg(_LIQ_ICOS.bill, 24)}</div>
         <div>
           <div class="liq-hero-lbl">Total pendiente de liquidar</div>
           <div class="liq-hero-val">${formatearPrecio(totalNegocio)}</div>
