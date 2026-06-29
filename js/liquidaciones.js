@@ -105,6 +105,7 @@ async function renderLiquidaciones(container) {
       .liq-periodo-det{display:none;border-top:1px solid #f1eefb;}
       .liq-periodo.abierto > .liq-periodo-det{display:block;}
       .liq-periodo .liq-dia-det{background:#fff;}
+      .liq-detalle .liq-dia-det{background:#fff;}
       .liq-mov .nom{color:#3a3a48;}
       .liq-mov .sub{color:#9a9aa8;}
       .liq-tot-dia td{font-weight:700;color:#2b2b3a;background:#f3f0fb;}
@@ -307,7 +308,7 @@ function _liqTab(btn) {
 async function _liqRenderNegocio(main) {
   const [{ data: rows, error }, { data: profs }] = await Promise.all([
     sb.from('comisiones')
-      .select('id, profesional_id, comision_total, comision_atencion, comision_producto, creado_en')
+      .select('id, turno_id, profesional_id, comision_total, comision_atencion, comision_producto, creado_en')
       .is('liquidacion_id', null)
       .order('creado_en', { ascending: false }),
     sb.from('profesionales').select('id, nombre')
@@ -316,6 +317,9 @@ async function _liqRenderNegocio(main) {
 
   const nombreDe = {};
   (profs || []).forEach(p => { nombreDe[p.id] = p.nombre; });
+
+  // Nombres de atención/producto por turno (para el detalle de cada día)
+  const detalleTurno = await _liqCargarDetalleTurnos((rows || []).map(r => r.turno_id));
 
   // Agrupar por profesional
   const grupos = {};
@@ -336,13 +340,8 @@ async function _liqRenderNegocio(main) {
         const g = grupos[k];
         const nom = k === '_sin' ? 'Sin profesional asignado' : (nombreDe[k] || 'Profesional');
         const inic = (nom.trim()[0] || '?').toUpperCase();
-        const det = g.items.map(r => `
-          <tr>
-            <td>${_liqFecha(r.creado_en)}</td>
-            <td class="num">${formatearPrecio(_liqNum(r.comision_atencion))}</td>
-            <td class="num">${formatearPrecio(_liqNum(r.comision_producto))}</td>
-            <td class="num tot">${formatearPrecio(_liqNum(r.comision_total))}</td>
-          </tr>`).join('');
+        const dias = _liqAgruparPorDia(g.items);
+        const det = dias.map(d => _liqBloqueDia(d, detalleTurno)).join('');
         return `
           <div class="liq-prof" id="liq-prof-${i}">
             <div class="liq-prof-head" onclick="_liqToggle(${i})">
@@ -359,12 +358,7 @@ async function _liqRenderNegocio(main) {
                 : `<button class="liq-btn-liquidar" data-prof="${k}" data-nom="${_liqEscAttr(nom)}" data-total="${g.total}" onclick="event.stopPropagation(); _liqLiquidar(this)">Liquidar</button>`}
               <div class="liq-chev">${_liqSvg(_LIQ_ICOS.chevron, 18)}</div>
             </div>
-            <div class="liq-detalle">
-              <table class="liq-tabla">
-                <thead><tr><th>Fecha</th><th class="num">Atención</th><th class="num">Producto</th><th class="num">Comisión</th></tr></thead>
-                <tbody>${det}</tbody>
-              </table>
-            </div>
+            <div class="liq-detalle">${det}</div>
           </div>`;
       }).join('')
     : `<div class="liq-vacio">Todavía no hay comisiones registradas.<br><small>Cobrá un turno finalizado y va a aparecer acá.</small></div>`;
