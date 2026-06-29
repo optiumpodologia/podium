@@ -1733,6 +1733,15 @@ async function abrirModalNuevoTurnoCasillero(profId, columna, fechaStr, startMin
 
     if (!pacienteId) { mostrarMensaje('Elegí un paciente de la lista.', 'advertencia'); return; }
 
+    // Salvaguarda anti-cruce: el paciente guardado debe coincidir con lo que
+    // muestra el buscador. Si no coincide, pedimos reconfirmar (evita guardar
+    // un paciente distinto al que se ve por un re-dibujo del typeahead).
+    const inputPac = document.getElementById('tt-paciente-input');
+    const pSel = _ttPacientes.find(x => x.id === pacienteId);
+    if (pSel && inputPac && inputPac.value.trim() !== `${pSel.apellido}, ${pSel.nombre}`.trim()) {
+      mostrarMensaje('Reconfirmá el paciente seleccionándolo de la lista.', 'advertencia'); return;
+    }
+
     const ini = startMin;
     const fin = ini + dur;
 
@@ -1814,7 +1823,7 @@ function ttFiltrarPacientes(q) {
   cont.innerHTML = res.length === 0
     ? `<div class="tt-item tt-vacio">Sin resultados</div>`
     : res.map(p => `
-        <div class="tt-item" onclick="ttElegirPaciente('${p.id}')">
+        <div class="tt-item" onmousedown="event.preventDefault(); ttElegirPaciente('${p.id}')">
           <strong>${p.apellido}, ${p.nombre}</strong>
           ${p.dni ? `<span style="color:var(--texto-secundario);"> &middot; ${p.dni}</span>` : ''}
         </div>
@@ -3390,10 +3399,11 @@ function pedirMotivoCancelacion() {
 // ===== Aviso: el paciente ya tiene turnos agendados a futuro =====
 // Devuelve true para seguir agendando, false para volver (cancelar el alta).
 // Aviso de bloqueo (un botón) cuando se llega al límite de turnos por día.
-function _avisoLimiteDia() {
+function _avisoLimiteDia(nombrePac) {
   return new Promise((resolve) => {
     const previo = document.getElementById('tl-layer');
     if (previo) previo.remove();
+    const quien = nombrePac || 'Este paciente';
     const icAlert = `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m21.7 18-9-15a1.5 1.5 0 0 0-2.6 0l-9 15A1.5 1.5 0 0 0 2.4 20h18.2a1.5 1.5 0 0 0 1.3-2Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>`;
     const layer = document.createElement('div');
     layer.id = 'tl-layer';
@@ -3404,7 +3414,7 @@ function _avisoLimiteDia() {
             <span style="flex:none; width:46px; height:46px; border-radius:50%; background:#FDECEC; color:#C7382F; display:flex; align-items:center; justify-content:center;">${icAlert}</span>
             <div style="flex:1;">
               <div style="font-size:18px; font-weight:700; color:#1f2330;">No se pueden dar más de 2 turnos por día</div>
-              <div style="font-size:13.5px; color:#8a90a2; margin-top:3px; line-height:1.5;">Este paciente ya tiene 2 turnos ese día. Si necesita otro horario, reprogramá alguno de los que ya tiene.</div>
+              <div style="font-size:13.5px; color:#8a90a2; margin-top:3px; line-height:1.5;"><strong>${quien}</strong> ya tiene 2 turnos ese día. Si necesita otro horario, reprogramá alguno de los que ya tiene.</div>
             </div>
           </div>
           <div style="display:flex; justify-content:flex-end;">
@@ -3422,6 +3432,12 @@ function _avisoLimiteDia() {
 async function avisarTurnoAgendado(pacienteId, fechaTurno) {
   if (!pacienteId) return true;
 
+  // Nombre del paciente: clave para ver con claridad a quién se le está
+  // agendando (evita cruzar pacientes por error al elegir en el buscador).
+  const { data: pac } = await sb.from('pacientes')
+    .select('nombre, apellido').eq('id', pacienteId).maybeSingle();
+  const nombrePac = pac ? `${pac.apellido}, ${(pac.nombre || '').split(' ')[0]}` : 'Este paciente';
+
   // Límite duro: máximo 2 turnos por día por paciente. Si ya tiene 2 ese día
   // (sin contar cancelados), bloquea la creación del tercero.
   if (fechaTurno) {
@@ -3435,7 +3451,7 @@ async function avisarTurnoAgendado(pacienteId, fechaTurno) {
       .gte('fecha_hora', di.toISOString())
       .lte('fecha_hora', df.toISOString());
     if ((delDia?.length || 0) >= 2) {
-      await _avisoLimiteDia();
+      await _avisoLimiteDia(nombrePac);
       return false;
     }
   }
@@ -3481,8 +3497,8 @@ async function avisarTurnoAgendado(pacienteId, fechaTurno) {
           <div style="display:flex; align-items:flex-start; gap:14px; margin-bottom:16px;">
             <span style="flex:none; width:46px; height:46px; border-radius:50%; background:#fdf6e3; color:#c79a1e; display:flex; align-items:center; justify-content:center;">${icAlert}</span>
             <div style="flex:1;">
-              <div style="font-size:18px; font-weight:700; color:#1f2330;">Este paciente ya tiene ${plural ? 'turnos agendados' : 'un turno agendado'}</div>
-              <div style="font-size:13.5px; color:#8a90a2; margin-top:3px; line-height:1.5;">Revisá que no estés agendando un turno repetido por error.</div>
+              <div style="font-size:18px; font-weight:700; color:#1f2330;">${nombrePac} ya tiene ${plural ? 'turnos agendados' : 'un turno agendado'}</div>
+              <div style="font-size:13.5px; color:#8a90a2; margin-top:3px; line-height:1.5;">Confirmá que estás agendando al paciente correcto y que no es un turno repetido.</div>
             </div>
           </div>
           <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:18px;">${filas}</div>
