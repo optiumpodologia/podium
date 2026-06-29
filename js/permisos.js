@@ -81,7 +81,12 @@ const ACCIONES = {
 function puedeVerModulo(usuario, moduloId) {
   if (!usuario) return false;
   const roles = MODULOS_ACCESO[moduloId] || [];
-  return roles.includes(usuario.rol);
+  if (!roles.includes(usuario.rol)) return false;
+  // Comisiones: si al profesional se le deshabilitó la comisión, no ve la sección.
+  if (moduloId === 'liquidaciones' && usuario.rol === 'profesional' && usuario.comision_habilitada === false) {
+    return false;
+  }
+  return true;
 }
 
 // ¿Este usuario puede hacer esta acción?

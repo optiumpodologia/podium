@@ -467,17 +467,34 @@ async function subirLogo(e) {
 // TARJETA: Comisiones
 // ============================================================
 async function abrirCfgComisiones() {
-  const [{ data: config }, { data: productos }] = await Promise.all([
+  const [{ data: config }, { data: productos }, { data: profesionales }] = await Promise.all([
     sb.from('configuracion')
       .select('comision_atencion_pct, comision_producto_pct')
       .eq('negocio_id', usuarioActual.negocio_id).maybeSingle(),
     sb.from('productos')
       .select('id, nombre, comision_modo, comision_valor')
+      .eq('activo', true).order('nombre'),
+    sb.from('profesionales')
+      .select('id, nombre, comision_habilitada')
       .eq('activo', true).order('nombre')
   ]);
 
   const pAt = config?.comision_atencion_pct ?? 0;
   const pProd = config?.comision_producto_pct ?? 0;
+
+  const filasProf = (profesionales || []).length
+    ? profesionales.map(p => {
+        const on = p.comision_habilitada !== false;
+        return `
+          <div class="com-prof" data-prof-id="${p.id}">
+            <div class="com-prod-nom">${cfgEsc(p.nombre)}</div>
+            <label class="com-switch">
+              <input type="checkbox" class="com-prof-chk" ${on ? 'checked' : ''}>
+              <span class="com-switch-track"></span>
+            </label>
+          </div>`;
+      }).join('')
+    : `<div class="com-vacio">Todavía no hay profesionales cargados.</div>`;
 
   const filasProd = (productos || []).length
     ? productos.map(p => {
@@ -516,6 +533,13 @@ async function abrirCfgComisiones() {
       .com-valor-wrap .com-prefix{color:#6b7280;font-weight:600;min-width:10px;}
       .com-valor-wrap input{width:100%;}
       .com-vacio{padding:16px;text-align:center;color:#8a8f9c;font-size:14px;background:#faf9fe;border-radius:10px;}
+      .com-prof{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:9px 12px;border:1px solid #ece9f7;border-radius:10px;background:#faf9fe;}
+      .com-switch{position:relative;display:inline-block;width:42px;height:24px;cursor:pointer;}
+      .com-switch input{opacity:0;width:0;height:0;position:absolute;}
+      .com-switch-track{position:absolute;inset:0;background:#cfcadf;border-radius:999px;transition:background .15s;}
+      .com-switch-track::before{content:"";position:absolute;width:18px;height:18px;left:3px;top:3px;background:#fff;border-radius:50%;transition:transform .15s;box-shadow:0 1px 2px rgba(0,0,0,.2);}
+      .com-switch input:checked + .com-switch-track{background:#6D5BD0;}
+      .com-switch input:checked + .com-switch-track::before{transform:translateX(18px);}
     </style>
     <div class="modal-header">
       <div class="modal-titulo">Comisiones</div>
@@ -541,6 +565,10 @@ async function abrirCfgComisiones() {
           </div>
         </div>
         <small class="cfg-ayuda">El porcentaje de atención se aplica a todas las atenciones cobradas. El de producto se usa por defecto para los productos que no tengan una comisión propia.</small>
+
+        <div class="com-sec-tit" style="margin-top:22px;">Comisión por profesional</div>
+        <small class="cfg-ayuda" style="display:block;margin-bottom:10px;">Si apagás un profesional, deja de generar comisiones y no ve la sección Comisiones.</small>
+        <div class="com-prod-lista">${filasProf}</div>
 
         <div class="com-sec-tit" style="margin-top:22px;">Comisión por producto</div>
         <small class="cfg-ayuda" style="display:block;margin-bottom:10px;">Dejá "Usar % por defecto", o asigná un porcentaje propio o un monto fijo a cada producto.</small>
@@ -596,6 +624,14 @@ async function guardarComisiones(e) {
     if (modo === 'default') valor = 0;
     const r = await sb.from('productos').update({ comision_modo: modo, comision_valor: Math.max(0, valor) }).eq('id', id);
     if (r.error) { mostrarMensaje('Error al guardar comisión de producto: ' + r.error.message, 'error'); return; }
+  }
+
+  const filasProf = document.querySelectorAll('.com-prof[data-prof-id]');
+  for (const row of filasProf) {
+    const id = row.getAttribute('data-prof-id');
+    const on = row.querySelector('.com-prof-chk').checked;
+    const r = await sb.from('profesionales').update({ comision_habilitada: on }).eq('id', id);
+    if (r.error) { mostrarMensaje('Error al guardar comisión de profesional: ' + r.error.message, 'error'); return; }
   }
 
   mostrarMensaje('Comisiones guardadas', 'exito');

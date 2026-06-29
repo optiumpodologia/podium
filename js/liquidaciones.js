@@ -115,6 +115,8 @@ async function renderLiquidaciones(container) {
       .liq-cel-vacio{color:#c2c2cc;}
       .liq-layout{display:grid;grid-template-columns:264px 1fr;gap:18px;align-items:start;}
       .liq-side{background:#fff;border:1px solid #ece9f7;border-radius:14px;padding:12px;position:sticky;top:12px;}
+      .liq-side-tit{font-size:12px;font-weight:700;color:#8a8f9c;text-transform:uppercase;letter-spacing:.04em;padding:2px 8px 8px;}
+      .liq-aviso-off{background:#fff4e0;border:1px solid #ffe2b0;color:#8a6d1f;border-radius:12px;padding:11px 14px;font-size:13px;margin-bottom:16px;}
       .liq-buscar{width:100%;padding:9px 12px;border:1px solid #e6e3f2;border-radius:10px;font-size:14px;margin-bottom:10px;box-sizing:border-box;outline:none;}
       .liq-buscar:focus{border-color:#6D5BD0;}
       .liq-side-lista{display:flex;flex-direction:column;gap:3px;max-height:62vh;overflow:auto;}
@@ -338,12 +340,13 @@ async function _liqRenderNegocio(main) {
     sb.from('liquidaciones')
       .select('id, profesional_id, desde, hasta, total_comision, estado, pagada_en, creado_en')
       .order('creado_en', { ascending: false }),
-    sb.from('profesionales').select('id, nombre')
+    sb.from('profesionales').select('id, nombre, activo, comision_habilitada')
   ]);
   if (error) throw error;
 
   const nombreDe = {};
-  (profs || []).forEach(p => { nombreDe[p.id] = p.nombre; });
+  const habilDe = {};
+  (profs || []).forEach(p => { nombreDe[p.id] = p.nombre; habilDe[p.id] = p.comision_habilitada !== false; });
 
   const detalleTurno = await _liqCargarDetalleTurnos((rows || []).map(r => r.turno_id));
 
@@ -369,27 +372,29 @@ async function _liqRenderNegocio(main) {
     liqsDe[k].push(l);
   });
 
-  // Profesionales a listar: los que tienen comisiones o historial
+  // Listamos TODOS los profesionales activos, más cualquiera que tenga
+  // comisiones o historial (aunque esté inactivo). Orden alfabético.
   const set = {};
+  (profs || []).forEach(p => { if (p.activo !== false) set[p.id] = true; });
   Object.keys(porProf).forEach(k => { set[k] = true; });
   Object.keys(liqsDe).forEach(k => { set[k] = true; });
   const claves = Object.keys(set).sort((a, b) => {
-    const ta = porProf[a]?.totalPend || 0, tb = porProf[b]?.totalPend || 0;
-    if (tb !== ta) return tb - ta;
+    if (a === '_sin') return 1;
+    if (b === '_sin') return -1;
     return (nombreDe[a] || '').localeCompare(nombreDe[b] || '');
   });
 
   const totalNegocio = claves.reduce((s, k) => s + (porProf[k]?.totalPend || 0), 0);
   const conPend = claves.filter(k => (porProf[k]?.totalPend || 0) > 0).length;
 
-  window._liqNeg = { porProf, liqsDe, nombreDe, detalleTurno };
+  window._liqNeg = { porProf, liqsDe, nombreDe, habilDe, detalleTurno };
 
   const itemsHtml = claves.map(k => {
     const nom = k === '_sin' ? 'Sin asignar' : (nombreDe[k] || 'Profesional');
     const inic = (nom.trim()[0] || '?').toUpperCase();
     const tot = porProf[k]?.totalPend || 0;
     return `
-      <div class="liq-side-item" data-prof="${k}" data-nom="${_liqEscAttr(nom.toLowerCase())}" onclick="_liqSelProf(this.getAttribute('data-prof'))">
+      <div class="liq-side-item" data-prof="${k}" onclick="_liqSelProf(this.getAttribute('data-prof'))">
         <div class="liq-side-av">${inic}</div>
         <div class="liq-side-info">
           <div class="n">${nom}</div>
@@ -412,9 +417,9 @@ async function _liqRenderNegocio(main) {
 
     <div class="liq-layout">
       <aside class="liq-side">
-        <input class="liq-buscar" type="text" placeholder="Buscar profesional…" oninput="_liqBuscarProf(this.value)">
+        <div class="liq-side-tit">Profesionales</div>
         <div class="liq-side-lista" id="liq-side-lista">
-          ${itemsHtml || '<div class="liq-side-vacio">Sin profesionales con comisiones.</div>'}
+          ${itemsHtml || '<div class="liq-side-vacio">No hay profesionales.</div>'}
         </div>
       </aside>
       <section class="liq-panel" id="liq-panel"></section>
@@ -447,6 +452,7 @@ function _liqPanelProfesional(k) {
   const g = (st.porProf && st.porProf[k]) || { all: [], pend: [], totalPend: 0, atPend: 0, prodPend: 0 };
   const nom = k === '_sin' ? 'Sin profesional asignado' : (st.nombreDe[k] || 'Profesional');
   const inic = (nom.trim()[0] || '?').toUpperCase();
+  const habil = !st.habilDe || st.habilDe[k] !== false;
 
   const dias = _liqAgruparPorDia(g.pend);
   const panePend = dias.length
@@ -479,9 +485,13 @@ function _liqPanelProfesional(k) {
       }).join('')
     : '<div class="liq-vacio">Todavía no hay comisiones liquidadas.</div>';
 
-  const puedeLiq = k !== '_sin' && g.totalPend > 0;
+  const puedeLiq = habil && k !== '_sin' && g.totalPend > 0;
   const btnLiq = puedeLiq
     ? `<button class="liq-btn-liquidar" data-prof="${k}" data-nom="${_liqEscAttr(nom)}" data-total="${g.totalPend}" onclick="_liqLiquidar(this)">Liquidar</button>`
+    : '';
+
+  const avisoOff = !habil
+    ? `<div class="liq-aviso-off">La comisión está deshabilitada para este profesional. No se le registran comisiones nuevas.</div>`
     : '';
 
   return `
@@ -494,6 +504,7 @@ function _liqPanelProfesional(k) {
       <div class="liq-panel-total">${formatearPrecio(g.totalPend)}</div>
       ${btnLiq}
     </div>
+    ${avisoOff}
 
     <div class="liq-tabs">
       <button class="liq-tab activo" data-pane="pend" onclick="_liqTab(this)">Pendientes</button>
@@ -503,14 +514,6 @@ function _liqPanelProfesional(k) {
     <div class="liq-card" id="liq-pane-pend">${panePend}</div>
     <div class="liq-card" id="liq-pane-liq" style="display:none;">${paneLiq}</div>
   `;
-}
-
-function _liqBuscarProf(q) {
-  const t = (q || '').trim().toLowerCase();
-  document.querySelectorAll('#liq-side-lista .liq-side-item').forEach(el => {
-    const nom = el.getAttribute('data-nom') || '';
-    el.style.display = (!t || nom.indexOf(t) !== -1) ? '' : 'none';
-  });
 }
 
 function _liqToggle(i) {

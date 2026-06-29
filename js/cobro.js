@@ -502,6 +502,13 @@ async function registrarComisionCobro(turnoId, cobroId) {
   if (!_cobro) return;
   const profesionalId = _cobro.profesionalId || null;
 
+  // Si el profesional tiene la comisión deshabilitada, no se le registra nada.
+  if (profesionalId) {
+    const { data: prof } = await sb.from('profesionales')
+      .select('comision_habilitada').eq('id', profesionalId).maybeSingle();
+    if (prof && prof.comision_habilitada === false) return;
+  }
+
   const r2 = n => Math.round((Number(n) || 0) * 100) / 100;
   const baseAt = _cobro.lineasAt.reduce((s, l) => s + l.precio * l.cantidad, 0);
   const baseProd = _cobro.lineasProd.reduce((s, l) => s + l.precio * l.cantidad, 0);
