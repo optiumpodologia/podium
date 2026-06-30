@@ -440,7 +440,7 @@ async function abrirModalPago(turnoId) {
   ov.innerHTML = `
     <style>
       .pg-ov{position:fixed;inset:0;background:rgba(20,18,40,.45);display:flex;align-items:center;justify-content:center;z-index:200;padding:20px;}
-      .pg-modal{background:#fff;border-radius:20px;width:min(760px,96vw);max-height:92vh;overflow:auto;box-shadow:0 24px 70px rgba(0,0,0,.32);}
+      .pg-modal{background:#fff;border-radius:20px;width:760px;max-width:96vw;max-height:92vh;overflow:auto;box-shadow:0 24px 70px rgba(0,0,0,.32);}
       .pg-head{display:flex;align-items:center;gap:14px;padding:18px 22px;border-bottom:1px solid #f1eefb;}
       .pg-head-ico{width:48px;height:48px;border-radius:14px;background:#efeafe;color:#6D5BD0;display:flex;align-items:center;justify-content:center;flex:none;}
       .pg-head-tit{flex:1;}
@@ -480,17 +480,18 @@ async function abrirModalPago(turnoId) {
       .pg-cards-vacio{padding:18px;text-align:center;color:#a7abb6;font-size:13px;border:1px dashed #e6e3f2;border-radius:12px;}
       .pg-status{display:flex;align-items:center;gap:12px;border-radius:14px;padding:14px 16px;margin-bottom:16px;}
       .pg-status.ok{background:#e9f9f0;}
-      .pg-status.warn{background:#fff6e6;}
+      .pg-status.warn{background:#fff3ea;}
       .pg-status.over{background:#fdeaea;}
       .pg-status-ico{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex:none;color:#fff;}
       .pg-status.ok .pg-status-ico{background:#1f9d57;}
-      .pg-status.warn .pg-status-ico{background:#e0a020;}
+      .pg-status.warn .pg-status-ico{background:#fb923c;}
       .pg-status.over .pg-status-ico{background:#d35;}
       .pg-status-body{flex:1;}
       .pg-status-lbl{font-size:12px;color:#6b6880;}
       .pg-status-val{font-size:22px;font-weight:800;}
       .pg-status.ok .pg-status-val{color:#1f9d57;}
-      .pg-status.warn .pg-status-val{color:#b9851a;}
+      .pg-status.warn .pg-status-val{color:#e07b2e;}
+      .pg-status.warn .pg-status-pill{color:#b45309;}
       .pg-status.over .pg-status-val{color:#d35;}
       .pg-status-pill{font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;background:rgba(255,255,255,.75);color:#2b2b3a;}
       .pg-bd{display:flex;flex-direction:column;gap:10px;margin-bottom:16px;}
@@ -501,7 +502,6 @@ async function abrirModalPago(turnoId) {
       .pg-total-row .v{font-weight:800;font-size:20px;color:#6D5BD0;}
       .pg-foot{display:flex;justify-content:space-between;align-items:center;padding:16px 22px;border-top:1px solid #f1eefb;}
       .pg-foot .btn-primary-sm{display:inline-flex;align-items:center;gap:7px;}
-      @media (max-width:640px){ .pg-body{grid-template-columns:1fr;} .pg-col-r{border-left:none;border-top:1px solid #f1eefb;} }
     </style>
     <div class="pg-modal">
       <div class="pg-head">
@@ -514,7 +514,7 @@ async function abrirModalPago(turnoId) {
       </div>
       <div class="pg-body">
         <div class="pg-col pg-col-l">
-          <div class="pg-step">${_pagoIco('tarjeta', 15)} 1. Seleccioná el método de pago</div>
+          <div class="pg-step">${_pagoIco('tarjeta', 15)} Seleccioná el método de pago</div>
           <div class="pg-carga">
             <div class="pg-f">
               <label>Forma de pago</label>
@@ -533,7 +533,7 @@ async function abrirModalPago(turnoId) {
           <input type="text" class="pg-ref" id="pago-ref" placeholder="Cupón / N° de operación (opcional)">
           <button type="button" class="pg-agregar" onclick="_pagoAgregar()">+ Agregar método</button>
 
-          <div class="pg-step" style="margin-top:22px;">${listIco} 2. Métodos agregados</div>
+          <div class="pg-step" style="margin-top:22px;">${listIco} Métodos agregados</div>
           <div id="pago-lista" class="pg-cards"></div>
         </div>
 
