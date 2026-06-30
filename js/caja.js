@@ -87,7 +87,7 @@ async function renderCaja(cont) {
   }
   cont.innerHTML = `
     <style>
-      .caja-wrap{padding:22px 26px;max-width:1280px;margin:0 auto;color:#2b2b3a;}
+      .caja-wrap{padding:22px 30px;color:#2b2b3a;}
       .cj-loading{padding:40px;text-align:center;color:#8a8f9c;}
       .cj-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:24px;}
       .cj-titulo{font-size:24px;font-weight:700;}
@@ -401,15 +401,10 @@ function cajaRender() {
         <div class="cj-bc"><a onclick="navegar('dashboard')">Inicio</a> / Caja</div>
       </div>
       <div class="cj-head-act">
-        <button class="cj-btn-tool" onclick="cajaContarBilletes()">${cashIco} Contar billetes</button>
         <div class="cj-dia">
           <button class="cj-dia-nav" title="Día anterior" onclick="cajaCambiarDia(-1)">‹</button>
           <span class="cj-dia-lbl">${_cjFechaLarga(st.fecha)}</span>
           <button class="cj-dia-nav" title="Día siguiente" onclick="cajaCambiarDia(1)">›</button>
-        </div>
-        <div class="cj-saldo">
-          <label>Saldo anterior</label>
-          ${_cjMoney('cj-saldo', saldo, 'onchange="cajaSaldo()"')}
         </div>
       </div>
     </div>
@@ -426,14 +421,12 @@ function cajaRender() {
           <div class="cj-card">
             <div class="cj-card-head">
               <div class="cj-card-tit"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M8 7h8"/><path d="M8 11h8"/></svg> Gastos</div>
-              <button class="cj-add" onclick="cajaNuevoMov('gasto')">+ Gasto</button>
             </div>
             ${gastos.length ? gastos.map(m => filaMov(m, true)).join('') : '<div class="cj-vacio">Sin gastos cargados.</div>'}
           </div>
           <div class="cj-card">
             <div class="cj-card-head">
               <div class="cj-card-tit"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><rect width="18" height="6" x="3" y="17" rx="2"/></svg> Retiros a banco</div>
-              <button class="cj-add" onclick="cajaNuevoMov('retiro')">+ Retiro</button>
             </div>
             ${retiros.length ? retiros.map(m => filaMov(m, false)).join('') : '<div class="cj-vacio">Sin retiros cargados.</div>'}
             <div class="cj-hint">Tip: usá "Contar billetes" para contar un retiro y cargarlo acá.</div>
@@ -443,7 +436,7 @@ function cajaRender() {
         <div class="cj-sec-lbl">${cashIco} Efectivo en caja</div>
         <div class="cj-cierre">
           <div>
-            <div class="cj-cierre-row"><span class="lbl">Saldo anterior</span><span>${formatearPrecio(saldo)}</span></div>
+            <div class="cj-cierre-row"><span class="lbl">Saldo anterior</span>${_cjMoney('cj-saldo', saldo, 'onchange="cajaSaldo()"')}</div>
             <div class="cj-cierre-row sep"><span class="lbl">Efectivo cobrado</span><span>+ ${formatearPrecio(st.efectivoCobrado)}</span></div>
             <div class="cj-cierre-row sep"><span class="lbl">Gastos en efectivo</span><span>− ${formatearPrecio(gastosEf)}</span></div>
             <div class="cj-cierre-row sep"><span class="lbl">Retiros a banco</span><span>− ${formatearPrecio(totRetiros)}</span></div>
@@ -722,30 +715,67 @@ function cajaCalcUsarRetiro() {
 }
 
 // ------------------------------------------------------------
-// Historial de caja (otros días cargados)
+// Historial de caja: calendario para elegir la fecha a ver
 // ------------------------------------------------------------
-async function cajaHistorial() {
-  const { data } = await sb.from('caja_dia').select('fecha, saldo_anterior')
-    .eq('negocio_id', usuarioActual.negocio_id).order('fecha', { ascending: false }).limit(30);
-  const dias = data || [];
-  const filas = dias.length
-    ? dias.map(d => `<button class="cjh-row" onclick="cajaIrDia('${d.fecha}')"><span>${_cjFechaLarga(d.fecha)}</span><span class="cjh-saldo">Saldo: ${formatearPrecio(d.saldo_anterior || 0)}</span></button>`).join('')
-    : '<div class="cjh-vacio">Todavía no hay días cargados.</div>';
+function cajaHistorial() {
+  const base = new Date(window._caja.fecha + 'T00:00:00');
+  window._cjCal = { y: base.getFullYear(), m: base.getMonth() };
   abrirModal(`
     <style>
-      .modal{max-width:460px;}
-      .cjh-body{padding:14px 18px;max-height:60vh;overflow:auto;}
-      .cjh-row{display:flex;justify-content:space-between;align-items:center;width:100%;background:none;border:none;border-top:1px solid #f1eefb;padding:12px 6px;cursor:pointer;font-size:14px;text-align:left;}
-      .cjh-row:first-child{border-top:none;}
-      .cjh-row:hover{background:#f6f5fb;}
-      .cjh-saldo{color:#8a8f9c;font-size:13px;}
-      .cjh-vacio{padding:22px;text-align:center;color:#a7abb6;font-size:13px;}
+      .modal{max-width:380px;}
+      .cjcal-body{padding:18px 22px;}
+      .cjcal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;}
+      .cjcal-tit{font-weight:700;color:#2b2b3a;font-size:15px;}
+      .cjcal-nav{width:32px;height:32px;border:1px solid #e6e3f2;background:#fff;border-radius:8px;cursor:pointer;color:#6D5BD0;font-size:17px;}
+      .cjcal-nav:hover{background:#f6f5fb;}
+      .cjcal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;}
+      .cjcal-dow{text-align:center;font-size:11px;color:#9398a6;font-weight:600;padding:4px 0;}
+      .cjcal-cell{height:38px;border:none;background:none;border-radius:9px;cursor:pointer;font-size:13px;color:#2b2b3a;}
+      .cjcal-cell:hover{background:#f0edfb;}
+      .cjcal-cell.empty{visibility:hidden;cursor:default;}
+      .cjcal-cell.hoy{outline:1.5px solid #c9c2e8;}
+      .cjcal-cell.sel{background:#6D5BD0;color:#fff;}
+      .cjcal-cell.sel:hover{background:#5d4cc0;}
     </style>
     <div class="modal-header">
-      <div class="modal-titulo">Historial de caja</div>
+      <div class="modal-titulo">Elegí una fecha</div>
       <button class="modal-cerrar" onclick="cerrarModal()">&times;</button>
     </div>
-    <div class="modal-body cjh-body">${filas}</div>
-    <div class="modal-footer"><button class="btn" onclick="cerrarModal()">Cerrar</button></div>`);
+    <div class="modal-body cjcal-body" id="cj-cal-body">${_cjCalHTML()}</div>
+    <div class="modal-footer"><button class="btn" onclick="cajaIrDia('${_cjFechaISO(new Date())}')">Hoy</button><button class="btn" onclick="cerrarModal()">Cerrar</button></div>`);
+}
+function _cjCalHTML() {
+  const { y, m } = window._cjCal;
+  const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+  const startDow = (new Date(y, m, 1).getDay() + 6) % 7; // lunes = 0
+  const diasMes = new Date(y, m + 1, 0).getDate();
+  const hoyISO = _cjFechaISO(new Date());
+  const selISO = window._caja.fecha;
+  const dows = ['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sá', 'Do'].map(x => `<div class="cjcal-dow">${x}</div>`).join('');
+  let celdas = '';
+  for (let i = 0; i < startDow; i++) celdas += '<div class="cjcal-cell empty"></div>';
+  for (let d = 1; d <= diasMes; d++) {
+    const iso = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const cls = ['cjcal-cell'];
+    if (iso === hoyISO) cls.push('hoy');
+    if (iso === selISO) cls.push('sel');
+    celdas += `<button class="${cls.join(' ')}" onclick="cajaIrDia('${iso}')">${d}</button>`;
+  }
+  return `
+    <div class="cjcal-head">
+      <button class="cjcal-nav" onclick="_cjCalNav(-1)">‹</button>
+      <span class="cjcal-tit">${meses[m]} ${y}</span>
+      <button class="cjcal-nav" onclick="_cjCalNav(1)">›</button>
+    </div>
+    <div class="cjcal-grid">${dows}${celdas}</div>`;
+}
+function _cjCalNav(delta) {
+  let { y, m } = window._cjCal;
+  m += delta;
+  if (m < 0) { m = 11; y--; }
+  if (m > 11) { m = 0; y++; }
+  window._cjCal = { y, m };
+  const body = document.getElementById('cj-cal-body');
+  if (body) body.innerHTML = _cjCalHTML();
 }
 function cajaIrDia(fecha) { cerrarModal(); cajaCargar(fecha); }
