@@ -641,115 +641,183 @@ async function guardarComisiones(e) {
 // ============================================================
 // TARJETA: Caja — medios de pago
 // ============================================================
-function _cfgCajaFila(m) {
-  const pide = !!m?.pide_referencia;
-  return `
-    <div class="cja-met" data-id="${m?.id || ''}">
-      <div class="cja-met-top">
-        <input class="cja-nom" type="text" value="${cfgEsc(m?.nombre || '')}" placeholder="Nombre del medio (ej. Efectivo)">
-        <label class="cja-chk"><input type="checkbox" class="cja-efvo"${m?.afecta_caja ? ' checked' : ''}> Es efectivo</label>
-        <label class="cja-chk"><input type="checkbox" class="cja-ref"${pide ? ' checked' : ''} onchange="cfgCajaToggleRef(this)"> Pide referencia</label>
-        <button type="button" class="cja-del" title="Quitar" onclick="this.closest('.cja-met').remove()">×</button>
-      </div>
-      <div class="cja-met-ref"${pide ? '' : ' style="display:none;"'}>
-        <input class="cja-ref-lbl" type="text" value="${cfgEsc(m?.etiqueta_referencia || '')}" placeholder="Cómo se llama el dato (ej. N° de operación, N° de cupón)">
-      </div>
-    </div>`;
+const _CAJA_ICOS = {
+  efectivo: '<rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01"/><path d="M18 12h.01"/>',
+  tarjeta: '<rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/>',
+  transferencia: '<line x1="3" x2="21" y1="22" y2="22"/><line x1="6" x2="6" y1="18" y2="11"/><line x1="10" x2="10" y1="18" y2="11"/><line x1="14" x2="14" y1="18" y2="11"/><line x1="18" x2="18" y1="18" y2="11"/><polygon points="12 2 20 7 4 7"/>',
+  qr: '<rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/><path d="M14 14h3v3h-3z"/><path d="M20 14v7"/><path d="M14 21h7"/>',
+  mercadopago: '<rect width="18" height="13" x="3" y="6" rx="2"/><path d="M3 11h18"/><circle cx="16.5" cy="14.5" r="1.5"/>',
+  generico: '<path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 1 1 0 10h-2"/><line x1="8" x2="16" y1="12" y2="12"/>'
+};
+
+function _cajaSvg(slug, w = 20) {
+  const p = _CAJA_ICOS[slug] || _CAJA_ICOS.generico;
+  return `<svg viewBox="0 0 24 24" width="${w}" height="${w}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
 }
 
 async function abrirCfgCaja() {
-  const { data: metodos } = await sb.from('metodos_pago')
-    .select('id, nombre, afecta_caja, pide_referencia, etiqueta_referencia, orden, creado_en')
-    .eq('negocio_id', usuarioActual.negocio_id)
-    .order('orden').order('creado_en');
-
-  const lista = (metodos || []);
-  const filas = lista.length ? lista.map(_cfgCajaFila).join('') : _cfgCajaFila(null);
-  const idsOrig = lista.map(m => m.id).join(',');
-
   abrirModal(`
     <style>
-      .com-sec-tit{font-size:13px;font-weight:700;color:#6D5BD0;text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;}
-      .cja-lista{display:flex;flex-direction:column;gap:8px;}
-      .cja-met{display:flex;flex-direction:column;gap:8px;padding:9px 10px;border:1px solid #ece9f7;border-radius:10px;background:#faf9fe;}
-      .cja-met-top{display:grid;grid-template-columns:1fr auto auto auto;gap:12px;align-items:center;}
-      .cja-nom{width:100%;}
-      .cja-chk{display:flex;align-items:center;gap:6px;font-size:13px;color:#555;white-space:nowrap;cursor:pointer;}
-      .cja-met-ref .cja-ref-lbl{width:100%;}
-      .cja-del{border:none;background:#f1eefb;color:#9398a6;width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:18px;line-height:1;}
-      .cja-del:hover{background:#ffe1e1;color:#d35;}
+      .cja-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:14px;}
+      .cja-head h3{margin:0;font-size:16px;color:#2b2b3a;}
+      .cja-head small{color:#8a8f9c;}
+      .cja-lista{display:flex;flex-direction:column;gap:9px;}
+      .cja-card{display:flex;align-items:center;gap:12px;padding:11px 13px;border:1px solid #ece9f7;border-radius:12px;background:#fff;}
+      .cja-card-ico{width:40px;height:40px;border-radius:10px;background:#f3f0fb;color:#6D5BD0;display:flex;align-items:center;justify-content:center;flex:none;}
+      .cja-card-info{flex:1;min-width:0;display:flex;align-items:center;gap:8px;}
+      .cja-card-nom{font-weight:600;color:#2b2b3a;}
+      .cja-card-badge{font-size:11px;font-weight:700;color:#1f9d57;background:#e6f7ee;border-radius:999px;padding:2px 9px;}
+      .cja-card-btn{border:none;background:#f6f5fb;color:#8a8f9c;width:34px;height:34px;border-radius:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+      .cja-card-btn:hover{background:#efeafe;color:#6D5BD0;}
+      .cja-card-btn.del:hover{background:#ffe1e1;color:#d35;}
+      .cja-vacio{padding:22px;text-align:center;color:#8a8f9c;}
+      .cja-form{border:1px solid #d9d2f3;background:#faf9fe;border-radius:12px;padding:14px;margin-bottom:14px;}
+      .cja-form-tit{font-weight:700;color:#6D5BD0;margin-bottom:10px;}
+      .cja-f-nom{width:100%;margin-bottom:12px;box-sizing:border-box;}
+      .cja-ico-pick{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
+      .cja-ico-op{width:42px;height:42px;border-radius:10px;border:1px solid #e6e3f2;background:#fff;color:#8a8f9c;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+      .cja-ico-op:hover{border-color:#b9a9ee;}
+      .cja-ico-op.sel{border-color:#6D5BD0;background:#efeafe;color:#6D5BD0;}
+      .cja-chk{display:flex;align-items:center;gap:7px;font-size:13px;color:#555;cursor:pointer;}
+      .cja-form-acc{display:flex;justify-content:flex-end;gap:8px;margin-top:14px;}
     </style>
     <div class="modal-header">
       <div class="modal-titulo">Caja · Medios de pago</div>
       <button class="modal-cerrar" onclick="cerrarModal()">×</button>
     </div>
-    <form id="form-caja" data-orig="${idsOrig}">
-      <div class="modal-body">
-        <div class="com-sec-tit">Medios de pago</div>
-        <small class="cfg-ayuda" style="display:block;margin-bottom:12px;">Creá los medios de pago que usás en el cobro. Marcá "Es efectivo" en el o los que cuentan para el arqueo de la caja física.</small>
-        <div id="caja-metodos" class="cja-lista">${filas}</div>
-        <button type="button" class="btn" style="margin-top:10px;" onclick="cfgCajaAgregarMetodo()">+ Agregar medio de pago</button>
+    <div class="modal-body">
+      <div class="cja-head">
+        <div>
+          <h3>Medios de pago</h3>
+          <small>Los que aparecen al cobrar. Marcá cuál es efectivo para el arqueo de caja.</small>
+        </div>
+        <button type="button" class="btn btn-primary-sm" onclick="cfgCajaNuevo()">+ Nuevo medio</button>
       </div>
-      <div class="modal-footer">
-        <button type="button" class="btn" onclick="cerrarModal()">Cancelar</button>
-        <button type="submit" class="btn btn-primary-sm">Guardar cambios</button>
-      </div>
-    </form>
+      <div id="cja-form" style="display:none;"></div>
+      <div id="cja-lista" class="cja-lista"><div class="cja-vacio">Cargando…</div></div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn" onclick="cerrarModal()">Cerrar</button>
+    </div>
   `);
-
-  document.getElementById('form-caja').addEventListener('submit', guardarCaja);
+  cfgCajaCargar();
 }
 
-function cfgCajaAgregarMetodo() {
-  const cont = document.getElementById('caja-metodos');
+async function cfgCajaCargar() {
+  const sel = 'id, nombre, icono, afecta_caja, orden, creado_en';
+  let { data } = await sb.from('metodos_pago').select(sel)
+    .eq('negocio_id', usuarioActual.negocio_id).order('orden').order('creado_en');
+
+  // Primera vez: sembramos los medios más comunes.
+  if (!data || !data.length) {
+    const seed = [
+      { nombre: 'Efectivo', icono: 'efectivo', afecta_caja: true },
+      { nombre: 'Transferencia', icono: 'transferencia', afecta_caja: false },
+      { nombre: 'QR', icono: 'qr', afecta_caja: false },
+      { nombre: 'Tarjeta', icono: 'tarjeta', afecta_caja: false },
+      { nombre: 'Mercadopago', icono: 'mercadopago', afecta_caja: false }
+    ].map((s, i) => ({ negocio_id: usuarioActual.negocio_id, ...s, orden: i }));
+    await sb.from('metodos_pago').insert(seed);
+    const r2 = await sb.from('metodos_pago').select(sel)
+      .eq('negocio_id', usuarioActual.negocio_id).order('orden').order('creado_en');
+    data = r2.data || [];
+  }
+
+  window._cajaMet = data;
+  cfgCajaRenderLista();
+}
+
+function cfgCajaRenderLista() {
+  const cont = document.getElementById('cja-lista');
   if (!cont) return;
-  const tmp = document.createElement('div');
-  tmp.innerHTML = _cfgCajaFila(null).trim();
-  cont.appendChild(tmp.firstElementChild);
+  const ms = window._cajaMet || [];
+  if (!ms.length) { cont.innerHTML = '<div class="cja-vacio">Todavía no hay medios de pago. Agregá uno con "+ Nuevo medio".</div>'; return; }
+  const pencil = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
+  const trash = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+  cont.innerHTML = ms.map(m => `
+    <div class="cja-card">
+      <div class="cja-card-ico">${_cajaSvg(m.icono || 'generico', 22)}</div>
+      <div class="cja-card-info">
+        <div class="cja-card-nom">${cfgEsc(m.nombre)}</div>
+        ${m.afecta_caja ? '<span class="cja-card-badge">Efectivo</span>' : ''}
+      </div>
+      <button type="button" class="cja-card-btn" title="Editar" onclick="cfgCajaEditar('${m.id}')">${pencil}</button>
+      <button type="button" class="cja-card-btn del" title="Quitar" onclick="cfgCajaBorrar('${m.id}')">${trash}</button>
+    </div>`).join('');
 }
 
-function cfgCajaToggleRef(chk) {
-  const row = chk.closest('.cja-met');
-  if (!row) return;
-  const ref = row.querySelector('.cja-met-ref');
-  if (ref) ref.style.display = chk.checked ? '' : 'none';
+function cfgCajaNuevo() { cfgCajaForm(null); }
+
+function cfgCajaEditar(id) {
+  const m = (window._cajaMet || []).find(x => x.id === id);
+  if (m) cfgCajaForm(m);
 }
 
-async function guardarCaja(e) {
-  e.preventDefault();
-  const form = e.target;
-  const orig = (form.getAttribute('data-orig') || '').split(',').filter(Boolean);
-  const filas = Array.from(document.querySelectorAll('#caja-metodos .cja-met'));
+function cfgCajaForm(m) {
+  window._cajaEditId = m?.id || null;
+  window._cajaIcoSel = m?.icono || 'generico';
+  const cont = document.getElementById('cja-form');
+  if (!cont) return;
+  const icos = Object.keys(_CAJA_ICOS).map(slug =>
+    `<button type="button" class="cja-ico-op${slug === window._cajaIcoSel ? ' sel' : ''}" data-ico="${slug}" onclick="cfgCajaIconoSel('${slug}')">${_cajaSvg(slug, 20)}</button>`
+  ).join('');
+  cont.innerHTML = `
+    <div class="cja-form">
+      <div class="cja-form-tit">${m ? 'Editar medio' : 'Nuevo medio'}</div>
+      <input id="cja-f-nom" type="text" class="cja-f-nom" placeholder="Nombre del medio (ej. Efectivo)" value="${cfgEsc(m?.nombre || '')}">
+      <div class="cja-ico-pick">${icos}</div>
+      <label class="cja-chk"><input type="checkbox" id="cja-f-efvo"${m?.afecta_caja ? ' checked' : ''}> Es efectivo (cuenta para el arqueo)</label>
+      <div class="cja-form-acc">
+        <button type="button" class="btn" onclick="cfgCajaCancelarForm()">Cancelar</button>
+        <button type="button" class="btn btn-primary-sm" onclick="cfgCajaGuardarMetodo()">Guardar</button>
+      </div>
+    </div>`;
+  cont.style.display = 'block';
+  const inp = document.getElementById('cja-f-nom');
+  if (inp) inp.focus();
+}
 
-  const vistos = [];
-  let orden = 0;
-  for (const f of filas) {
-    const id = f.getAttribute('data-id') || '';
-    const nombre = f.querySelector('.cja-nom').value.trim();
-    const efvo = f.querySelector('.cja-efvo').checked;
-    const pideRef = f.querySelector('.cja-ref').checked;
-    const etiqueta = pideRef ? (f.querySelector('.cja-ref-lbl').value.trim() || 'Referencia') : null;
-    if (!nombre) continue;
-    orden++;
-    const fila = { nombre, afecta_caja: efvo, pide_referencia: pideRef, etiqueta_referencia: etiqueta, orden };
-    if (id) {
-      vistos.push(id);
-      const r = await sb.from('metodos_pago').update(fila).eq('id', id);
-      if (r.error) { mostrarMensaje('Error: ' + r.error.message, 'error'); return; }
-    } else {
-      const r = await sb.from('metodos_pago').insert({ negocio_id: usuarioActual.negocio_id, ...fila });
-      if (r.error) { mostrarMensaje('Error: ' + r.error.message, 'error'); return; }
-    }
+function cfgCajaIconoSel(slug) {
+  window._cajaIcoSel = slug;
+  document.querySelectorAll('.cja-ico-op').forEach(b => b.classList.toggle('sel', b.getAttribute('data-ico') === slug));
+}
+
+function cfgCajaCancelarForm() {
+  const cont = document.getElementById('cja-form');
+  if (cont) { cont.style.display = 'none'; cont.innerHTML = ''; }
+}
+
+async function cfgCajaGuardarMetodo() {
+  const nombre = (document.getElementById('cja-f-nom')?.value || '').trim();
+  if (!nombre) { mostrarMensaje('Poné un nombre para el medio de pago', 'advertencia'); return; }
+  const efvo = !!document.getElementById('cja-f-efvo')?.checked;
+  const icono = window._cajaIcoSel || 'generico';
+  const id = window._cajaEditId;
+
+  if (id) {
+    const r = await sb.from('metodos_pago').update({ nombre, icono, afecta_caja: efvo }).eq('id', id);
+    if (r.error) { mostrarMensaje('Error: ' + r.error.message, 'error'); return; }
+  } else {
+    const orden = (window._cajaMet || []).length;
+    const r = await sb.from('metodos_pago').insert({ negocio_id: usuarioActual.negocio_id, nombre, icono, afecta_caja: efvo, orden });
+    if (r.error) { mostrarMensaje('Error: ' + r.error.message, 'error'); return; }
   }
 
-  const borrar = orig.filter(id => !vistos.includes(id));
-  for (const id of borrar) {
-    const r = await sb.from('metodos_pago').delete().eq('id', id);
-    if (r.error) { mostrarMensaje('Error al quitar un medio: ' + r.error.message, 'error'); return; }
-  }
+  cfgCajaCancelarForm();
+  await cfgCajaCargar();
+}
 
-  mostrarMensaje('Medios de pago guardados', 'exito');
-  cerrarModal();
+async function cfgCajaBorrar(id) {
+  const m = (window._cajaMet || []).find(x => x.id === id);
+  const ok = await confirmarModal({
+    titulo: 'Quitar medio de pago',
+    texto: `¿Quitar "${m?.nombre || 'este medio'}"? Los cobros ya registrados no se modifican.`,
+    textoSi: 'Quitar', textoNo: 'Cancelar', peligro: true
+  });
+  if (!ok) return;
+  const r = await sb.from('metodos_pago').delete().eq('id', id);
+  if (r.error) { mostrarMensaje('Error al quitar: ' + r.error.message, 'error'); return; }
+  await cfgCajaCargar();
 }
 
 // ============================================================
