@@ -43,6 +43,7 @@ const MODULOS_ACCESO = {
   tipos_atencion: ['negocio'],                              // Atenciones (catálogo)
   productos:      ['negocio'],
   liquidaciones:  ['negocio', 'profesional'],               // negocio ve a todos; profesional, lo suyo
+  caja:           ['negocio', 'recepcion'],                 // caja del día: cargan ambos
   configuracion:  ['negocio'],
 };
 
