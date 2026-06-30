@@ -391,6 +391,24 @@ async function abrirCobro(turnoId) {
 // ============================================================
 // Modal de pago (al apretar Cobrar)
 // ============================================================
+const _PAGO_ICOS = {
+  efectivo: '<rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01"/><path d="M18 12h.01"/>',
+  tarjeta: '<rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/>',
+  transferencia: '<line x1="3" x2="21" y1="22" y2="22"/><line x1="6" x2="6" y1="18" y2="11"/><line x1="10" x2="10" y1="18" y2="11"/><line x1="14" x2="14" y1="18" y2="11"/><line x1="18" x2="18" y1="18" y2="11"/><polygon points="12 2 20 7 4 7"/>',
+  qr: '<rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/><path d="M14 14h3v3h-3z"/><path d="M20 14v7"/><path d="M14 21h7"/>',
+  mercadopago: '<rect width="18" height="13" x="3" y="6" rx="2"/><path d="M3 11h18"/><circle cx="16.5" cy="14.5" r="1.5"/>',
+  generico: '<path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 1 1 0 10h-2"/><line x1="8" x2="16" y1="12" y2="12"/>'
+};
+function _pagoIco(slug, w = 18) {
+  const p = _PAGO_ICOS[slug] || _PAGO_ICOS.generico;
+  return `<svg viewBox="0 0 24 24" width="${w}" height="${w}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+}
+function _pagoIcoClase(slug) {
+  if (slug === 'efectivo') return 'green';
+  if (slug === 'mercadopago') return 'cyan';
+  return '';
+}
+
 async function abrirModalPago(turnoId) {
   if (!_cobro || _cobro.lineasAt.length === 0) {
     mostrarMensaje('Tiene que haber al menos una atención para cobrar', 'advertencia');
@@ -411,6 +429,10 @@ async function abrirModalPago(turnoId) {
 
   window._pago = { turnoId, total, metodos, agregados: [] };
 
+  const wallet = '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0 0 4h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5"/><path d="M16 14h.01"/></svg>';
+  const lock = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>';
+  const listIco = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/></svg>';
+
   const ov = document.createElement('div');
   ov.id = 'pago-ov';
   ov.className = 'pg-ov';
@@ -418,77 +440,113 @@ async function abrirModalPago(turnoId) {
   ov.innerHTML = `
     <style>
       .pg-ov{position:fixed;inset:0;background:rgba(20,18,40,.45);display:flex;align-items:center;justify-content:center;z-index:200;padding:20px;}
-      .pg-modal{background:#fff;border-radius:18px;width:min(620px,96vw);max-height:92vh;overflow:auto;box-shadow:0 24px 70px rgba(0,0,0,.32);}
-      .pg-head{display:flex;justify-content:space-between;align-items:center;padding:18px 20px;border-bottom:1px solid #f1eefb;}
-      .pg-head .t{font-weight:700;font-size:17px;color:#2b2b3a;}
-      .pg-head .x{border:none;background:transparent;font-size:24px;color:#9398a6;cursor:pointer;line-height:1;}
-      .pg-body{padding:18px 20px;}
-      .pg-carga{display:grid;grid-template-columns:1fr 170px;gap:12px;align-items:end;}
+      .pg-modal{background:#fff;border-radius:20px;width:min(760px,96vw);max-height:92vh;overflow:auto;box-shadow:0 24px 70px rgba(0,0,0,.32);}
+      .pg-head{display:flex;align-items:center;gap:14px;padding:18px 22px;border-bottom:1px solid #f1eefb;}
+      .pg-head-ico{width:48px;height:48px;border-radius:14px;background:#efeafe;color:#6D5BD0;display:flex;align-items:center;justify-content:center;flex:none;}
+      .pg-head-tit{flex:1;}
+      .pg-head-tit .t{font-weight:700;font-size:18px;color:#2b2b3a;}
+      .pg-head-tit .s{font-size:13px;color:#8a8f9c;margin-top:1px;}
+      .pg-head .x{border:none;background:#f6f5fb;width:32px;height:32px;border-radius:9px;font-size:18px;color:#9398a6;cursor:pointer;}
+      .pg-body{display:grid;grid-template-columns:1.35fr 1fr;}
+      .pg-col{padding:20px 22px;}
+      .pg-col-r{border-left:1px solid #f1eefb;background:#fcfbff;}
+      .pg-step{font-size:13px;font-weight:700;color:#6D5BD0;margin-bottom:12px;display:flex;align-items:center;gap:7px;}
+      .pg-carga{display:grid;grid-template-columns:1fr 130px;gap:12px;}
       .pg-f{display:flex;flex-direction:column;gap:5px;}
       .pg-f label{font-size:12px;font-weight:600;color:#8a8f9c;}
-      .pg-met,.pg-ref,.pg-imp-in{padding:10px 11px;border:1px solid #e6e3f2;border-radius:10px;font-size:14px;outline:none;background:#fff;width:100%;box-sizing:border-box;}
-      .pg-met:focus,.pg-ref:focus{border-color:#6D5BD0;}
+      .pg-met-box{display:flex;align-items:center;gap:8px;border:1px solid #e6e3f2;border-radius:10px;padding:0 11px;}
+      .pg-met-box:focus-within{border-color:#6D5BD0;}
+      .pg-met-ico{color:#6D5BD0;display:flex;flex:none;}
+      .pg-met{border:none;background:transparent;flex:1;padding:10px 0;outline:none;font-size:14px;color:#2b2b3a;}
       .pg-imp{display:flex;align-items:center;gap:5px;border:1px solid #e6e3f2;border-radius:10px;padding:0 10px;}
       .pg-imp:focus-within{border-color:#6D5BD0;}
       .pg-imp>span{color:#9398a6;font-weight:600;}
-      .pg-imp-in{border:none;padding:10px 0;text-align:right;}
-      .pg-ref-row{margin-top:12px;}
-      .pg-agregar{margin-top:12px;background:#6D5BD0;color:#fff;border:none;border-radius:10px;padding:10px 18px;font-weight:600;cursor:pointer;}
-      .pg-agregar:hover{background:#5d4cc0;}
-      .pg-lista{margin-top:18px;border:1px solid #ece9f7;border-radius:12px;overflow:hidden;}
-      .pg-lista-head,.pg-lista-row{display:grid;grid-template-columns:1fr 130px 34px;gap:10px;align-items:center;padding:10px 14px;}
-      .pg-lista-head{background:#f3f0fb;font-size:11px;font-weight:700;color:#6b6880;text-transform:uppercase;letter-spacing:.03em;}
-      .pg-lista-row{border-top:1px solid #f1eefb;}
-      .pg-lista-row .met{font-weight:600;color:#2b2b3a;}
-      .pg-lista-row .met small{display:block;font-weight:400;color:#9398a6;font-size:12px;}
-      .pg-lista-row .imp{text-align:right;font-weight:600;color:#2b2b3a;}
-      .pg-lista-row .x{border:none;background:#f6f5fb;color:#9398a6;width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:16px;}
-      .pg-lista-row .x:hover{background:#ffe1e1;color:#d35;}
-      .pg-lista-vacio{padding:18px 14px;text-align:center;color:#a7abb6;font-size:13px;}
-      .pg-cont{display:flex;justify-content:space-between;align-items:center;margin-top:16px;padding:12px 14px;border-radius:11px;font-size:14px;}
-      .pg-cont.ok{background:#e6f7ee;color:#1f9d57;}
-      .pg-cont.warn{background:#fff4e0;color:#c98a13;}
-      .pg-cont.over{background:#fdeaea;color:#d35;}
-      .pg-cont .v{font-weight:800;}
-      .pg-foot{display:flex;justify-content:space-between;align-items:center;gap:9px;padding:16px 20px;border-top:1px solid #f1eefb;}
-      .pg-foot-total{font-size:13px;color:#8a8f9c;}
-      .pg-foot-total b{display:block;font-size:20px;color:#2b2b3a;}
-      .pg-foot-acc{display:flex;gap:9px;}
+      .pg-imp-in{border:none;padding:10px 0;text-align:right;width:100%;outline:none;font-size:14px;}
+      .pg-ref{margin-top:12px;width:100%;box-sizing:border-box;padding:10px 11px;border:1px solid #e6e3f2;border-radius:10px;font-size:14px;outline:none;}
+      .pg-ref:focus{border-color:#6D5BD0;}
+      .pg-agregar{margin-top:12px;background:#fff;color:#6D5BD0;border:1px solid #c9c2e8;border-radius:10px;padding:10px 18px;font-weight:600;cursor:pointer;width:100%;}
+      .pg-agregar:hover{background:#faf9fe;}
+      .pg-cards{display:flex;flex-direction:column;gap:9px;}
+      .pg-card{display:flex;align-items:center;gap:11px;border:1px solid #ece9f7;border-radius:12px;padding:10px 12px;}
+      .pg-card-ico{width:38px;height:38px;border-radius:10px;background:#efeafe;color:#6D5BD0;display:flex;align-items:center;justify-content:center;flex:none;}
+      .pg-card-ico.green{background:#e6f7ee;color:#1f9d57;}
+      .pg-card-ico.cyan{background:#e3f5fb;color:#1593b8;}
+      .pg-card-info{flex:1;min-width:0;}
+      .pg-card-nom{font-weight:600;color:#2b2b3a;}
+      .pg-card-ref{font-size:12px;color:#9398a6;}
+      .pg-card-imp{font-weight:700;color:#2b2b3a;white-space:nowrap;}
+      .pg-card-x{border:none;background:#f6f5fb;color:#9398a6;width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:16px;flex:none;}
+      .pg-card-x:hover{background:#ffe1e1;color:#d35;}
+      .pg-cards-vacio{padding:18px;text-align:center;color:#a7abb6;font-size:13px;border:1px dashed #e6e3f2;border-radius:12px;}
+      .pg-status{display:flex;align-items:center;gap:12px;border-radius:14px;padding:14px 16px;margin-bottom:16px;}
+      .pg-status.ok{background:#e9f9f0;}
+      .pg-status.warn{background:#fff6e6;}
+      .pg-status.over{background:#fdeaea;}
+      .pg-status-ico{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex:none;color:#fff;}
+      .pg-status.ok .pg-status-ico{background:#1f9d57;}
+      .pg-status.warn .pg-status-ico{background:#e0a020;}
+      .pg-status.over .pg-status-ico{background:#d35;}
+      .pg-status-body{flex:1;}
+      .pg-status-lbl{font-size:12px;color:#6b6880;}
+      .pg-status-val{font-size:22px;font-weight:800;}
+      .pg-status.ok .pg-status-val{color:#1f9d57;}
+      .pg-status.warn .pg-status-val{color:#b9851a;}
+      .pg-status.over .pg-status-val{color:#d35;}
+      .pg-status-pill{font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;background:rgba(255,255,255,.75);color:#2b2b3a;}
+      .pg-bd{display:flex;flex-direction:column;gap:10px;margin-bottom:16px;}
+      .pg-bd-row{display:flex;justify-content:space-between;font-size:14px;color:#3a3a48;}
+      .pg-bd-row .m{font-weight:600;}
+      .pg-total-row{display:flex;justify-content:space-between;align-items:center;border-top:1px solid #ece9f7;padding-top:14px;}
+      .pg-total-row span:first-child{color:#6b6880;font-size:14px;}
+      .pg-total-row .v{font-weight:800;font-size:20px;color:#6D5BD0;}
+      .pg-foot{display:flex;justify-content:space-between;align-items:center;padding:16px 22px;border-top:1px solid #f1eefb;}
+      .pg-foot .btn-primary-sm{display:inline-flex;align-items:center;gap:7px;}
+      @media (max-width:640px){ .pg-body{grid-template-columns:1fr;} .pg-col-r{border-left:none;border-top:1px solid #f1eefb;} }
     </style>
     <div class="pg-modal">
       <div class="pg-head">
-        <span class="t">Cobrar · Método de pago</span>
+        <div class="pg-head-ico">${wallet}</div>
+        <div class="pg-head-tit">
+          <div class="t">Cobrar · Método de pago</div>
+          <div class="s">Seleccioná la forma de pago y el importe a cobrar.</div>
+        </div>
         <button type="button" class="x" onclick="_pagoCerrar()">×</button>
       </div>
       <div class="pg-body">
-        <div class="pg-carga">
-          <div class="pg-f">
-            <label>Forma de pago</label>
-            <select class="pg-met" id="pago-met">${metodos.map(m => `<option value="${m.id}">${_pagoEsc(m.nombre)}</option>`).join('')}</select>
+        <div class="pg-col pg-col-l">
+          <div class="pg-step">${_pagoIco('tarjeta', 15)} 1. Seleccioná el método de pago</div>
+          <div class="pg-carga">
+            <div class="pg-f">
+              <label>Forma de pago</label>
+              <div class="pg-met-box">
+                <span class="pg-met-ico" id="pago-met-ico">${_pagoIco(metodos[0].icono || 'generico')}</span>
+                <select class="pg-met" id="pago-met" onchange="_pagoMetIco()">
+                  ${metodos.map(m => `<option value="${m.id}" data-ico="${m.icono || 'generico'}">${_pagoEsc(m.nombre)}</option>`).join('')}
+                </select>
+              </div>
+            </div>
+            <div class="pg-f">
+              <label>Importe</label>
+              <div class="pg-imp"><span>$</span><input type="number" class="pg-imp-in" id="pago-imp" min="0" step="0.01" value="${total}"></div>
+            </div>
           </div>
-          <div class="pg-f">
-            <label>Importe</label>
-            <div class="pg-imp"><span>$</span><input type="number" class="pg-imp-in" id="pago-imp" min="0" step="0.01" value="${total}"></div>
-          </div>
-        </div>
-        <div class="pg-ref-row">
           <input type="text" class="pg-ref" id="pago-ref" placeholder="Cupón / N° de operación (opcional)">
-        </div>
-        <button type="button" class="pg-agregar" onclick="_pagoAgregar()">+ Agregar</button>
+          <button type="button" class="pg-agregar" onclick="_pagoAgregar()">+ Agregar método</button>
 
-        <div class="pg-lista">
-          <div class="pg-lista-head"><span>Forma de pago</span><span style="text-align:right;">Importe</span><span></span></div>
-          <div id="pago-lista"></div>
+          <div class="pg-step" style="margin-top:22px;">${listIco} 2. Métodos agregados</div>
+          <div id="pago-lista" class="pg-cards"></div>
         </div>
 
-        <div class="pg-cont" id="pago-cont"></div>
+        <div class="pg-col pg-col-r">
+          <div class="pg-step">${wallet.replace('width="24" height="24"', 'width="15" height="15"')} Resumen del cobro</div>
+          <div id="pago-status"></div>
+          <div id="pago-breakdown" class="pg-bd"></div>
+          <div class="pg-total-row"><span>Total a cobrar</span><span class="v">${formatearPrecio(total)}</span></div>
+        </div>
       </div>
       <div class="pg-foot">
-        <div class="pg-foot-total">Total a cobrar<b>${formatearPrecio(total)}</b></div>
-        <div class="pg-foot-acc">
-          <button type="button" class="btn" onclick="_pagoCerrar()">Cancelar</button>
-          <button type="button" id="pago-confirmar" class="btn btn-primary-sm" onclick="finalizarCobro()">Confirmar cobro</button>
-        </div>
+        <button type="button" class="btn" onclick="_pagoCerrar()">Cancelar</button>
+        <button type="button" id="pago-confirmar" class="btn btn-primary-sm" onclick="finalizarCobro()">${lock} Confirmar cobro</button>
       </div>
     </div>`;
   document.body.appendChild(ov);
@@ -502,6 +560,14 @@ function _pagoCerrar() {
 }
 
 function _pagoEsc(s) { return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+function _pagoMetIco() {
+  const sel = document.getElementById('pago-met');
+  if (!sel) return;
+  const ico = sel.options[sel.selectedIndex]?.getAttribute('data-ico') || 'generico';
+  const el = document.getElementById('pago-met-ico');
+  if (el) el.innerHTML = _pagoIco(ico);
+}
 
 function _pagoResto() {
   const st = window._pago;
@@ -517,7 +583,7 @@ function _pagoAgregar() {
   const ref = (document.getElementById('pago-ref').value || '').trim();
   if (imp <= 0) { mostrarMensaje('Poné un importe mayor a cero', 'advertencia'); return; }
   const m = st.metodos.find(x => x.id === metId) || {};
-  st.agregados.push({ metodoId: metId, metodo_nombre: m.nombre || 'Pago', monto: imp, ref: ref || null });
+  st.agregados.push({ metodoId: metId, metodo_nombre: m.nombre || 'Pago', icono: m.icono || 'generico', monto: imp, ref: ref || null });
 
   document.getElementById('pago-ref').value = '';
   _pagoRenderLista();
@@ -541,14 +607,18 @@ function _pagoRenderLista() {
   const cont = document.getElementById('pago-lista');
   if (!cont) return;
   if (!st.agregados.length) {
-    cont.innerHTML = '<div class="pg-lista-vacio">Todavía no agregaste pagos. Elegí forma de pago e importe y tocá Agregar.</div>';
+    cont.innerHTML = '<div class="pg-cards-vacio">Todavía no agregaste pagos. Elegí forma de pago e importe y tocá Agregar.</div>';
     return;
   }
   cont.innerHTML = st.agregados.map((p, i) => `
-    <div class="pg-lista-row">
-      <div class="met">${_pagoEsc(p.metodo_nombre)}${p.ref ? `<small>${_pagoEsc(p.ref)}</small>` : ''}</div>
-      <div class="imp">${formatearPrecio(p.monto)}</div>
-      <button type="button" class="x" title="Quitar" onclick="_pagoQuitar(${i})">×</button>
+    <div class="pg-card">
+      <div class="pg-card-ico ${_pagoIcoClase(p.icono)}">${_pagoIco(p.icono, 20)}</div>
+      <div class="pg-card-info">
+        <div class="pg-card-nom">${_pagoEsc(p.metodo_nombre)}</div>
+        ${p.ref ? `<div class="pg-card-ref">${_pagoEsc(p.ref)}</div>` : ''}
+      </div>
+      <div class="pg-card-imp">${formatearPrecio(p.monto)}</div>
+      <button type="button" class="pg-card-x" title="Quitar" onclick="_pagoQuitar(${i})">×</button>
     </div>`).join('');
 }
 
@@ -557,23 +627,37 @@ function _pagoRecompute() {
   if (!st) return;
   const asignado = st.agregados.reduce((s, p) => s + p.monto, 0);
   const dif = Math.round((st.total - asignado) * 100) / 100;
-  const cont = document.getElementById('pago-cont');
-  const btn = document.getElementById('pago-confirmar');
-  if (cont) {
-    if (!st.agregados.length) {
-      cont.className = 'pg-cont warn';
-      cont.innerHTML = `<span>Sin pagos cargados</span><span class="v">Falta ${formatearPrecio(st.total)}</span>`;
-    } else if (Math.abs(dif) < 0.5) {
-      cont.className = 'pg-cont ok';
-      cont.innerHTML = `<span>Asignado ${formatearPrecio(asignado)}</span><span class="v">✓ Listo</span>`;
-    } else if (dif > 0) {
-      cont.className = 'pg-cont warn';
-      cont.innerHTML = `<span>Asignado ${formatearPrecio(asignado)}</span><span class="v">Falta ${formatearPrecio(dif)}</span>`;
-    } else {
-      cont.className = 'pg-cont over';
-      cont.innerHTML = `<span>Asignado ${formatearPrecio(asignado)}</span><span class="v">Te pasaste ${formatearPrecio(-dif)}</span>`;
-    }
+
+  const checkSvg = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+  const bang = '<span style="font-weight:800;font-size:19px;">!</span>';
+
+  let cls, pill;
+  if (st.agregados.length && Math.abs(dif) < 0.5) { cls = 'ok'; pill = '✓ Listo'; }
+  else if (dif < 0) { cls = 'over'; pill = 'De más ' + formatearPrecio(-dif); }
+  else { cls = 'warn'; pill = 'Falta ' + formatearPrecio(dif); }
+
+  const status = document.getElementById('pago-status');
+  if (status) {
+    status.className = 'pg-status ' + cls;
+    status.innerHTML = `
+      <span class="pg-status-ico">${cls === 'ok' ? checkSvg : bang}</span>
+      <div class="pg-status-body">
+        <div class="pg-status-lbl">Asignado</div>
+        <div class="pg-status-val">${formatearPrecio(asignado)}</div>
+      </div>
+      <span class="pg-status-pill">${pill}</span>`;
   }
+
+  const bd = document.getElementById('pago-breakdown');
+  if (bd) {
+    const byMet = {};
+    st.agregados.forEach(p => { byMet[p.metodo_nombre] = (byMet[p.metodo_nombre] || 0) + p.monto; });
+    bd.innerHTML = Object.keys(byMet).map(n =>
+      `<div class="pg-bd-row"><span class="m">${_pagoEsc(n)}</span><span>${formatearPrecio(byMet[n])}</span></div>`
+    ).join('');
+  }
+
+  const btn = document.getElementById('pago-confirmar');
   if (btn) btn.disabled = (!st.agregados.length) || Math.abs(dif) >= 0.5;
 }
 
