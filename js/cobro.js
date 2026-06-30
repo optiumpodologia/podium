@@ -10,8 +10,6 @@
 // la columna en DB.)
 // ============================================================
 
-const COBRO_METODOS = ['Efectivo', 'Débito', 'Crédito', 'Transferencia', 'Otro'];
-
 async function abrirCobro(turnoId) {
   if (!['negocio', 'recepcion'].includes(usuarioActual.rol)) {
     mostrarMensaje('Solo recepción o el dueño pueden cobrar', 'advertencia');
@@ -61,17 +59,8 @@ async function abrirCobro(turnoId) {
     check: sv('<polyline points="20 6 9 17 4 12"/>'),
     finok: sv('<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>', 14)
   };
-  const METODOS = [
-    { k: 'Efectivo', ico: I.efvo },
-    { k: 'Débito', ico: I.card },
-    { k: 'Crédito', ico: I.card },
-    { k: 'Transferencia', ico: I.transf },
-    { k: 'Obra social / Prepaga', ico: I.shield, full: true }
-  ];
-
   window._cobro = {
     lineasAt, lineasProd,
-    metodo: 'Efectivo',
     pacienteId: turno.paciente_id,
     profesionalId: turno.profesional_id,
     pacienteLabel: `${pac.apellido || ''}, ${(pac.nombre || '').split(' ')[0]}`.replace(/^,\s*/, '').replace(/,\s*$/, '') || 'el paciente',
@@ -164,7 +153,7 @@ async function abrirCobro(turnoId) {
       set('cobro-total', formatearPrecio(total));
       set('cobro-hero-total', formatearPrecio(total));
       const btn = document.getElementById('cobro-btn-txt');
-      if (btn) btn.textContent = 'Registrar pago ' + formatearPrecio(total);
+      if (btn) btn.textContent = 'Cobrar ' + formatearPrecio(total);
       this.renderBanner();
     },
     renderBanner() {
@@ -172,12 +161,6 @@ async function abrirCobro(turnoId) {
       const set = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
       set('cobro-ban-at', `${na} ${na === 1 ? 'atención' : 'atenciones'}`);
       set('cobro-ban-prod', `${np} ${np === 1 ? 'producto' : 'productos'}`);
-      set('cobro-ban-metodo', 'Método: ' + this.metodo);
-    },
-    setMetodo(m) {
-      this.metodo = m;
-      document.querySelectorAll('.cb-metodo').forEach(b => b.classList.toggle('on', b.dataset.metodo === m));
-      this.renderBanner();
     },
 
     abrirPicker(tipo) {
@@ -365,14 +348,6 @@ async function abrirCobro(turnoId) {
         </div>
 
         <div>
-          <div class="cb-sec-lbl" style="margin-bottom:10px;">${I.pago} Método de pago</div>
-          <div class="cb-metodos">
-            ${METODOS.map(m => `<button type="button" class="cb-metodo${m.full ? ' full' : ''}${m.k === 'Efectivo' ? ' on' : ''}" data-metodo="${m.k}" onclick="_cobro.setMetodo('${m.k}')">
-              ${m.ico} <span>${m.k}</span>
-              <span class="cb-metodo-check">${sv('<polyline points="20 6 9 17 4 12"/>', 11)}</span>
-            </button>`).join('')}
-          </div>
-
           <div class="cb-resumen">
             <div class="cb-resumen-tit">Resumen del cobro</div>
             <div class="cb-resumen-fila"><span>Subtotal por atenciones</span><span id="cobro-sub-at">${formatearPrecio(0)}</span></div>
@@ -391,7 +366,6 @@ async function abrirCobro(turnoId) {
           <div class="cb-listo-meta">
             <span>${I.at} <b id="cobro-ban-at"></b></span>
             <span>${I.prod} <b id="cobro-ban-prod"></b></span>
-            <span>${I.pago} <b id="cobro-ban-metodo"></b></span>
           </div>
         </div>
       </div>
@@ -400,7 +374,7 @@ async function abrirCobro(turnoId) {
     <div class="modal-footer">
       <button type="button" class="btn" onclick="cerrarModal()">Cancelar</button>
       <div class="cb-footer-right">
-        <button type="button" id="cobro-btn" class="btn btn-primary-sm cb-registrar" onclick="confirmarCobro('${turnoId}')">${I.check} <span id="cobro-btn-txt">Registrar pago</span></button>
+        <button type="button" id="cobro-btn" class="btn btn-primary-sm cb-registrar" onclick="abrirModalPago('${turnoId}')">${I.check} <span id="cobro-btn-txt">Cobrar</span></button>
       </div>
     </div>
   `);
@@ -408,24 +382,196 @@ async function abrirCobro(turnoId) {
   _cobro.renderAt();
   _cobro.renderProd();
   _cobro.renderProx();
-  _cobro.setMetodo('Efectivo');
 }
 
-async function confirmarCobro(turnoId) {
+// ============================================================
+// Modal de pago (al apretar Cobrar)
+// ============================================================
+async function abrirModalPago(turnoId) {
   if (!_cobro || _cobro.lineasAt.length === 0) {
     mostrarMensaje('Tiene que haber al menos una atención para cobrar', 'advertencia');
     return;
   }
-
-  const btn = document.getElementById('cobro-btn');
-  const btnTxt = document.getElementById('cobro-btn-txt');
-  if (btn) btn.disabled = true;
-  if (btnTxt) btnTxt.textContent = 'Cobrando…';
-
-  const metodo = _cobro.metodo || null;
   const total = _cobro.lineasAt.reduce((s, l) => s + l.precio * l.cantidad, 0)
               + _cobro.lineasProd.reduce((s, l) => s + l.precio * l.cantidad, 0);
 
+  const { data: metodos } = await sb.from('metodos_pago')
+    .select('id, nombre, icono')
+    .eq('negocio_id', usuarioActual.negocio_id)
+    .order('orden').order('creado_en');
+
+  if (!metodos || !metodos.length) {
+    mostrarMensaje('Primero configurá los medios de pago en Configuración → Caja', 'advertencia');
+    return;
+  }
+
+  window._pago = {
+    turnoId, total, metodos,
+    filas: [{ metodoId: metodos[0].id, monto: total, ref: '' }]
+  };
+
+  const ov = document.createElement('div');
+  ov.id = 'pago-ov';
+  ov.className = 'pg-ov';
+  ov.onclick = (e) => { if (e.target === ov) _pagoCerrar(); };
+  ov.innerHTML = `
+    <style>
+      .pg-ov{position:fixed;inset:0;background:rgba(20,18,40,.45);display:flex;align-items:center;justify-content:center;z-index:200;padding:20px;}
+      .pg-modal{background:#fff;border-radius:18px;width:min(560px,95vw);max-height:90vh;overflow:auto;box-shadow:0 24px 70px rgba(0,0,0,.32);}
+      .pg-head{display:flex;justify-content:space-between;align-items:center;padding:18px 20px;border-bottom:1px solid #f1eefb;}
+      .pg-head .t{font-weight:700;font-size:17px;color:#2b2b3a;}
+      .pg-head .x{border:none;background:transparent;font-size:24px;color:#9398a6;cursor:pointer;line-height:1;}
+      .pg-body{padding:18px 20px;}
+      .pg-total{display:flex;justify-content:space-between;align-items:center;background:#f3f0fb;border-radius:12px;padding:13px 16px;margin-bottom:16px;}
+      .pg-total .l{color:#6b6880;font-size:14px;}
+      .pg-total .v{font-weight:800;font-size:22px;color:#6D5BD0;}
+      .pg-filas{display:flex;flex-direction:column;gap:12px;}
+      .pg-fila{display:grid;grid-template-columns:1fr 140px auto;gap:9px;align-items:center;}
+      .pg-fila .pg-ref{grid-column:1 / -1;width:100%;box-sizing:border-box;}
+      .pg-met,.pg-ref{padding:9px 11px;border:1px solid #e6e3f2;border-radius:10px;font-size:14px;outline:none;background:#fff;}
+      .pg-met:focus,.pg-ref:focus{border-color:#6D5BD0;}
+      .pg-monto{display:flex;align-items:center;gap:5px;border:1px solid #e6e3f2;border-radius:10px;padding:0 10px;}
+      .pg-monto:focus-within{border-color:#6D5BD0;}
+      .pg-monto>span{color:#9398a6;font-weight:600;}
+      .pg-monto-in{border:none;padding:9px 0;width:100%;text-align:right;font-size:14px;outline:none;}
+      .pg-del{border:none;background:#f6f5fb;color:#9398a6;width:34px;height:34px;border-radius:9px;cursor:pointer;font-size:18px;line-height:1;}
+      .pg-del:hover{background:#ffe1e1;color:#d35;}
+      .pg-del-sp{width:34px;}
+      .pg-dividir{margin-top:12px;background:none;border:1px dashed #c9c2e8;color:#6D5BD0;border-radius:10px;padding:9px;width:100%;cursor:pointer;font-weight:600;font-size:13px;}
+      .pg-dividir:hover{background:#faf9fe;}
+      .pg-cont{display:flex;justify-content:space-between;align-items:center;margin-top:16px;padding:12px 14px;border-radius:11px;font-size:14px;}
+      .pg-cont.ok{background:#e6f7ee;color:#1f9d57;}
+      .pg-cont.warn{background:#fff4e0;color:#c98a13;}
+      .pg-cont.over{background:#fdeaea;color:#d35;}
+      .pg-cont .v{font-weight:800;}
+      .pg-foot{display:flex;justify-content:flex-end;gap:9px;padding:16px 20px;border-top:1px solid #f1eefb;}
+    </style>
+    <div class="pg-modal">
+      <div class="pg-head">
+        <span class="t">Cobrar</span>
+        <button type="button" class="x" onclick="_pagoCerrar()">×</button>
+      </div>
+      <div class="pg-body">
+        <div class="pg-total"><span class="l">Total a cobrar</span><span class="v">${formatearPrecio(total)}</span></div>
+        <div class="pg-filas" id="pago-filas"></div>
+        <button type="button" class="pg-dividir" onclick="_pagoAddFila()">+ Dividir en otro medio de pago</button>
+        <div class="pg-cont" id="pago-cont"></div>
+      </div>
+      <div class="pg-foot">
+        <button type="button" class="btn" onclick="_pagoCerrar()">Cancelar</button>
+        <button type="button" id="pago-confirmar" class="btn btn-primary-sm" onclick="finalizarCobro()">Confirmar cobro</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  _pagoRender();
+}
+
+function _pagoCerrar() {
+  const ov = document.getElementById('pago-ov');
+  if (ov) ov.remove();
+}
+
+function _pagoEsc(s) { return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+function _pagoFila(f, i, varias) {
+  const st = window._pago;
+  const opts = st.metodos.map(m => `<option value="${m.id}"${m.id === f.metodoId ? ' selected' : ''}>${_pagoEsc(m.nombre)}</option>`).join('');
+  return `
+    <div class="pg-fila" data-i="${i}">
+      <select class="pg-met" onchange="_pagoRecompute()">${opts}</select>
+      <div class="pg-monto"><span>$</span><input type="number" class="pg-monto-in" min="0" step="0.01" value="${f.monto}" oninput="_pagoRecompute()"></div>
+      ${varias ? `<button type="button" class="pg-del" title="Quitar" onclick="_pagoDelFila(${i})">×</button>` : '<span class="pg-del-sp"></span>'}
+      <input type="text" class="pg-ref" placeholder="Cupón / N° de operación (opcional)" value="${_pagoEsc(f.ref || '')}">
+    </div>`;
+}
+
+function _pagoLeerDOM() {
+  const st = window._pago;
+  if (!st) return;
+  const filas = Array.from(document.querySelectorAll('#pago-filas .pg-fila'));
+  st.filas = filas.map(row => ({
+    metodoId: row.querySelector('.pg-met').value,
+    monto: parseFloat(row.querySelector('.pg-monto-in').value) || 0,
+    ref: row.querySelector('.pg-ref').value
+  }));
+}
+
+function _pagoRender() {
+  const st = window._pago;
+  const cont = document.getElementById('pago-filas');
+  if (!cont) return;
+  const varias = st.filas.length > 1;
+  cont.innerHTML = st.filas.map((f, i) => _pagoFila(f, i, varias)).join('');
+  _pagoRecompute();
+}
+
+function _pagoAddFila() {
+  const st = window._pago;
+  _pagoLeerDOM();
+  const asignado = st.filas.reduce((s, f) => s + (Number(f.monto) || 0), 0);
+  const resto = Math.max(0, Math.round((st.total - asignado) * 100) / 100);
+  st.filas.push({ metodoId: st.metodos[0].id, monto: resto, ref: '' });
+  _pagoRender();
+}
+
+function _pagoDelFila(i) {
+  const st = window._pago;
+  _pagoLeerDOM();
+  st.filas.splice(i, 1);
+  _pagoRender();
+}
+
+function _pagoRecompute() {
+  const st = window._pago;
+  if (!st) return;
+  const montos = Array.from(document.querySelectorAll('#pago-filas .pg-monto-in'));
+  const asignado = montos.reduce((s, el) => s + (parseFloat(el.value) || 0), 0);
+  const dif = Math.round((st.total - asignado) * 100) / 100;
+  const cont = document.getElementById('pago-cont');
+  const btn = document.getElementById('pago-confirmar');
+  if (cont) {
+    if (Math.abs(dif) < 0.5) {
+      cont.className = 'pg-cont ok';
+      cont.innerHTML = `<span>Asignado ${formatearPrecio(asignado)}</span><span class="v">✓ Listo</span>`;
+    } else if (dif > 0) {
+      cont.className = 'pg-cont warn';
+      cont.innerHTML = `<span>Asignado ${formatearPrecio(asignado)}</span><span class="v">Falta ${formatearPrecio(dif)}</span>`;
+    } else {
+      cont.className = 'pg-cont over';
+      cont.innerHTML = `<span>Asignado ${formatearPrecio(asignado)}</span><span class="v">Te pasaste ${formatearPrecio(-dif)}</span>`;
+    }
+  }
+  if (btn) btn.disabled = Math.abs(dif) >= 0.5;
+}
+
+async function finalizarCobro() {
+  const st = window._pago;
+  if (!st) return;
+  _pagoLeerDOM();
+  const asignado = st.filas.reduce((s, f) => s + (Number(f.monto) || 0), 0);
+  if (Math.abs(st.total - asignado) > 0.5) { mostrarMensaje('El pago tiene que sumar el total', 'advertencia'); return; }
+
+  const pagos = st.filas
+    .filter(f => (Number(f.monto) || 0) > 0)
+    .map(f => {
+      const m = st.metodos.find(x => x.id === f.metodoId) || {};
+      return { metodo_id: f.metodoId || null, metodo_nombre: m.nombre || 'Pago', monto: Number(f.monto) || 0, referencia: (f.ref || '').trim() || null };
+    });
+  if (!pagos.length) { mostrarMensaje('Cargá al menos un medio de pago', 'advertencia'); return; }
+
+  const btn = document.getElementById('pago-confirmar');
+  if (btn) { btn.disabled = true; btn.textContent = 'Cobrando…'; }
+
+  await ejecutarCobro(st.turnoId, st.total, pagos);
+}
+
+function _pagoReactivar() {
+  const btn = document.getElementById('pago-confirmar');
+  if (btn) { btn.disabled = false; btn.textContent = 'Confirmar cobro'; }
+}
+
+// Ejecuta el cobro real: guarda líneas, cobro, pagos, comisión, stock y estado.
+async function ejecutarCobro(turnoId, total, pagos) {
   // 1) Persistir las líneas finales (recepción pudo haberlas ajustado)
   await sb.from('turno_atenciones').delete().eq('turno_id', turnoId);
   await sb.from('turno_productos').delete().eq('turno_id', turnoId);
@@ -437,7 +583,7 @@ async function confirmarCobro(turnoId) {
       negocio_id: usuarioActual.negocio_id
     }));
     const r = await sb.from('turno_atenciones').insert(filas);
-    if (r.error) { mostrarMensaje('Error en atenciones: ' + r.error.message, 'error'); if (btn) btn.disabled = false; return; }
+    if (r.error) { mostrarMensaje('Error en atenciones: ' + r.error.message, 'error'); _pagoReactivar(); return; }
   }
   if (_cobro.lineasProd.length) {
     const filas = _cobro.lineasProd.map(l => ({
@@ -446,21 +592,30 @@ async function confirmarCobro(turnoId) {
       negocio_id: usuarioActual.negocio_id
     }));
     const r = await sb.from('turno_productos').insert(filas);
-    if (r.error) { mostrarMensaje('Error en productos: ' + r.error.message, 'error'); if (btn) btn.disabled = false; return; }
+    if (r.error) { mostrarMensaje('Error en productos: ' + r.error.message, 'error'); _pagoReactivar(); return; }
   }
 
-  // 2) Registrar el cobro
+  // 2) Registrar el cobro. metodo_pago: el medio si fue uno, "Combinado" si fueron varios.
+  const metodoResumen = pagos.length === 1 ? pagos[0].metodo_nombre : 'Combinado';
   const { data: cobroRow, error: eCobro } = await sb.from('cobros').insert({
     turno_id: turnoId,
     negocio_id: usuarioActual.negocio_id,
     total,
-    metodo_pago: metodo,
+    metodo_pago: metodoResumen,
     cobrado_por: usuarioActual.id
   }).select('id').single();
-  if (eCobro) { mostrarMensaje('Error al registrar el cobro: ' + eCobro.message, 'error'); if (btn) btn.disabled = false; return; }
+  if (eCobro) { mostrarMensaje('Error al registrar el cobro: ' + eCobro.message, 'error'); _pagoReactivar(); return; }
 
-  // 2.b) Comisión del profesional (se congela acá para la liquidación).
-  // Si algo falla, el cobro igual queda registrado: no bloqueamos.
+  // 2.b) Detalle de pagos (un cobro → uno o varios medios)
+  const filasPago = pagos.map(p => ({
+    cobro_id: cobroRow.id, negocio_id: usuarioActual.negocio_id,
+    metodo_id: p.metodo_id, metodo_nombre: p.metodo_nombre,
+    monto: p.monto, referencia: p.referencia
+  }));
+  const { error: ePagos } = await sb.from('cobro_pagos').insert(filasPago);
+  if (ePagos) console.error('No se pudo guardar el detalle de pagos:', ePagos.message);
+
+  // 2.c) Comisión del profesional (congelada). No bloquea el cobro.
   try {
     await registrarComisionCobro(turnoId, cobroRow?.id);
   } catch (err) {
@@ -478,12 +633,11 @@ async function confirmarCobro(turnoId) {
   const { error: eEstado } = await sb.from('turnos').update({ estado: 'cobrado' }).eq('id', turnoId);
   if (eEstado) {
     mostrarMensaje('El pago se registró pero el turno no pasó a cobrado: ' + eEstado.message, 'error');
-    if (btn) btn.disabled = false;
-    if (btnTxt) btnTxt.textContent = 'Registrar pago';
-    return;
+    _pagoReactivar(); return;
   }
 
   mostrarMensaje('Cobro registrado por ' + formatearPrecio(total), 'exito');
+  _pagoCerrar();
   cerrarModal();
 
   const moduloActivo = document.querySelector('.nav-item.active')?.dataset.modulo;
