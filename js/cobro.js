@@ -448,8 +448,8 @@ async function abrirModalPago(turnoId) {
       .pg-head-tit .s{font-size:13px;color:#8a8f9c;margin-top:1px;}
       .pg-head .x{border:none;background:#f6f5fb;width:32px;height:32px;border-radius:9px;font-size:18px;color:#9398a6;cursor:pointer;}
       .pg-body{display:grid;grid-template-columns:1.35fr 1fr;}
-      .pg-col{padding:20px 22px;}
-      .pg-col-r{border-left:1px solid #f1eefb;background:#fcfbff;}
+      .pg-col{padding:20px 22px;min-height:0;}
+      .pg-col-r{border-left:1px solid #f1eefb;background:#fcfbff;display:flex;flex-direction:column;}
       .pg-step{font-size:13px;font-weight:700;color:#6D5BD0;margin-bottom:12px;display:flex;align-items:center;gap:7px;}
       .pg-carga{display:grid;grid-template-columns:1fr 130px;gap:12px;}
       .pg-f{display:flex;flex-direction:column;gap:5px;}
@@ -466,7 +466,7 @@ async function abrirModalPago(turnoId) {
       .pg-ref:focus{border-color:#6D5BD0;}
       .pg-agregar{margin-top:12px;background:#fff;color:#6D5BD0;border:1px solid #c9c2e8;border-radius:10px;padding:10px 18px;font-weight:600;cursor:pointer;width:100%;}
       .pg-agregar:hover{background:#faf9fe;}
-      .pg-cards{display:flex;flex-direction:column;gap:9px;}
+      .pg-cards{display:flex;flex-direction:column;gap:9px;height:264px;overflow-y:auto;padding-right:2px;}
       .pg-card{display:flex;align-items:center;gap:11px;border:1px solid #ece9f7;border-radius:12px;padding:10px 12px;}
       .pg-card-ico{width:38px;height:38px;border-radius:10px;background:#efeafe;color:#6D5BD0;display:flex;align-items:center;justify-content:center;flex:none;}
       .pg-card-ico.green{background:#e6f7ee;color:#1f9d57;}
@@ -494,7 +494,7 @@ async function abrirModalPago(turnoId) {
       .pg-status.warn .pg-status-pill{color:#b45309;}
       .pg-status.over .pg-status-val{color:#d35;}
       .pg-status-pill{font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;background:rgba(255,255,255,.75);color:#2b2b3a;}
-      .pg-bd{display:flex;flex-direction:column;gap:10px;margin-bottom:16px;}
+      .pg-bd{display:flex;flex-direction:column;gap:10px;margin-bottom:16px;flex:1;overflow-y:auto;min-height:0;}
       .pg-bd-row{display:flex;justify-content:space-between;font-size:14px;color:#3a3a48;}
       .pg-bd-row .m{font-weight:600;}
       .pg-total-row{display:flex;justify-content:space-between;align-items:center;border-top:1px solid #ece9f7;padding-top:14px;}
