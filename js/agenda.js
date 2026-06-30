@@ -968,13 +968,42 @@ async function _dibujarAgendaInner() {
     slotsRegla.forEach(s => {
       html += `<div class="agenda-linea-hora" style="top:${(s - inicioMin) * ESCALA_AGENDA}px; height:${negocioSlot * ESCALA_AGENDA}px;"></div>`;
     });
-    susTurnos.forEach(t => {
-      const ti = turnoMinInicio(t);
-      const top = (ti - inicioMin) * ESCALA_AGENDA;
+    // Layout lado a lado: si dos turnos huérfanos se solapan en horario,
+    // se reparten el ancho de la columna en vez de taparse.
+    const evs = susTurnos.map(t => {
+      const start = turnoMinInicio(t);
+      const dur = Math.max(t.duracion_minutos || negocioSlot, 1);
+      return { t, start, end: start + dur };
+    }).sort((a, b) => a.start - b.start || a.end - b.end);
+
+    const clusters = [];
+    let cluster = [];
+    let clusterEnd = -Infinity;
+    evs.forEach(e => {
+      if (cluster.length && e.start >= clusterEnd) { clusters.push(cluster); cluster = []; clusterEnd = -Infinity; }
+      let lane = 0;
+      const ocupados = cluster.filter(x => x.end > e.start).map(x => x.lane);
+      while (ocupados.includes(lane)) lane++;
+      e.lane = lane;
+      cluster.push(e);
+      clusterEnd = Math.max(clusterEnd, e.end);
+    });
+    if (cluster.length) clusters.push(cluster);
+    clusters.forEach(cl => {
+      const cols = Math.max.apply(null, cl.map(x => x.lane)) + 1;
+      cl.forEach(x => { x.cols = cols; });
+    });
+
+    evs.forEach(e => {
+      const t = e.t;
+      const top = (e.start - inicioMin) * ESCALA_AGENDA;
       const alto = Math.max(34, (t.duracion_minutos || negocioSlot) * ESCALA_AGENDA);
+      const cols = e.cols || 1;
+      const wPct = 100 / cols;
+      const leftPct = e.lane * wPct;
       const nom = t.pacientes ? `${t.pacientes.apellido}, ${(t.pacientes.nombre || '').split(' ')[0]}` : '—';
       const tipo = t.es_sobreturno ? 'Sobreturno' : (t.tipos_atencion?.nombre || 'Turno');
-      html += `<div class="turno-extra" style="top:${top}px; height:${alto}px;"
+      html += `<div class="turno-extra" style="top:${top}px; height:${alto}px; left:calc(${leftPct}% + 3px); width:calc(${wPct}% - 6px); right:auto;"
         title="${nom} · ${formatearHora(t.fecha_hora)} — clic para abrir la ficha y reprogramar"
         onclick="verFichaPaciente('${t.paciente_id}')">
         <div class="turno-extra-nom">${nom}</div>
