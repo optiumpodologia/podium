@@ -51,6 +51,28 @@ function _cjParse(v) {
   const n = parseFloat(s.replace(/[^\d.-]/g, ''));
   return isNaN(n) ? 0 : n;
 }
+function _cjColorMetodo(slug) {
+  const map = {
+    efectivo:      { bg: '#e9f9f0', fg: '#1f9d57' },
+    tarjeta:       { bg: '#efeafe', fg: '#6D5BD0' },
+    qr:            { bg: '#fdf0e1', fg: '#d4881c' },
+    transferencia: { bg: '#e6f0fb', fg: '#2b7cc4' },
+    mercadopago:   { bg: '#e3f5fb', fg: '#1593b8' },
+    generico:      { bg: '#f2f1f7', fg: '#6b6880' }
+  };
+  return map[slug] || map.generico;
+}
+function _cjAvatar(nombre) {
+  const parts = String(nombre || '').replace(',', ' ').split(/\s+/).filter(Boolean);
+  const ini = ((parts[0]?.[0] || '') + (parts[1]?.[0] || '')).toUpperCase() || '?';
+  const palette = [
+    ['#efeafe', '#6D5BD0'], ['#e6f7ee', '#1f9d57'], ['#e3f5fb', '#1593b8'],
+    ['#fdf0e1', '#d4881c'], ['#fbeaf0', '#c44d77'], ['#e6f0fb', '#2b7cc4']
+  ];
+  let h = 0; for (const c of String(nombre || '')) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  const [bg, fg] = palette[h % palette.length];
+  return { ini, bg, fg };
+}
 
 // ------------------------------------------------------------
 // Shell + carga
@@ -78,9 +100,9 @@ async function renderCaja(cont) {
       .cj-saldo input:focus{border-color:#6D5BD0;}
       .cj-btn-tool{display:flex;align-items:center;gap:7px;background:#fff;border:1px solid #c9c2e8;color:#6D5BD0;border-radius:10px;padding:9px 14px;font-size:13px;font-weight:600;cursor:pointer;}
       .cj-btn-tool:hover{background:#faf9fe;}
-      .cj-sec-lbl{font-size:13px;color:#8a8f9c;margin:0 0 11px;display:flex;align-items:center;gap:7px;font-weight:600;}
-      .cj-mapa{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:13px;margin-bottom:26px;}
-      .cj-mcard{background:#fff;border:1px solid #ece9f7;border-radius:12px;padding:13px 15px;}
+      .cj-sec-lbl{font-size:14px;color:#6b6880;margin:0 0 14px;display:flex;align-items:center;gap:7px;font-weight:600;}
+      .cj-mapa{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:14px;margin-bottom:38px;}
+      .cj-mcard{border:1px solid transparent;border-radius:13px;padding:15px 17px;}
       .cj-mcard.total{background:#efeafe;border-color:#ddd3f7;}
       .cj-mcard-top{display:flex;align-items:center;gap:8px;font-size:13px;color:#6b6880;}
       .cj-mcard.total .cj-mcard-top{color:#5d4cc0;}
@@ -89,7 +111,7 @@ async function renderCaja(cont) {
       .cj-mcard-val{font-size:20px;font-weight:700;margin-top:6px;}
       .cj-mcard.total .cj-mcard-val{color:#5d4cc0;}
       .cj-mcard-ops{font-size:12px;color:#a7abb6;margin-top:1px;}
-      .cj-tabla-wrap{border:1px solid #ece9f7;border-radius:12px;overflow:auto;margin-bottom:26px;background:#fff;}
+      .cj-tabla-wrap{border:1px solid #ece9f7;border-radius:13px;overflow:auto;margin-bottom:38px;background:#fff;}
       .cj-tabla{width:100%;border-collapse:collapse;font-size:13.5px;min-width:560px;}
       .cj-tabla th{background:#faf9fe;font-weight:600;color:#6b6880;padding:11px 12px;text-align:right;white-space:nowrap;}
       .cj-tabla th.l{text-align:left;}
@@ -103,7 +125,7 @@ async function renderCaja(cont) {
       .cj-tr-tot{border-top:2px solid #ece9f7;background:#faf9fe;}
       .cj-tr-tot td{font-weight:700;padding:12px;}
       .cj-tabla-vacia{padding:26px;text-align:center;color:#a7abb6;font-size:13px;}
-      .cj-cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:26px;}
+      .cj-cols{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:38px;}
       .cj-card{background:#fff;border:1px solid #ece9f7;border-radius:14px;padding:15px 17px;}
       .cj-card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
       .cj-card-tit{font-weight:700;display:flex;align-items:center;gap:8px;color:#2b2b3a;}
@@ -245,12 +267,15 @@ function cajaRender() {
   const cashIco = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>';
 
   // --- mapa (estadísticas) ---
-  const mapaCards = Object.values(st.mapa).map(m => `
-    <div class="cj-mcard">
-      <div class="cj-mcard-top"><span class="cj-mcard-ico ${_cjIcoClase(m.icono)}">${_cjIco(m.icono, 17)}</span> ${_cjEsc(m.nombre)}</div>
-      <div class="cj-mcard-val">${formatearPrecio(m.monto)}</div>
-      <div class="cj-mcard-ops">${m.count} ${m.count === 1 ? 'operación' : 'operaciones'}</div>
-    </div>`).join('');
+  const mapaCards = Object.values(st.mapa).map(m => {
+    const c = _cjColorMetodo(m.icono);
+    return `
+    <div class="cj-mcard" style="background:${c.bg};">
+      <div class="cj-mcard-top" style="color:${c.fg};"><span class="cj-mcard-ico" style="color:${c.fg};">${_cjIco(m.icono, 17)}</span> ${_cjEsc(m.nombre)}</div>
+      <div class="cj-mcard-val" style="color:${c.fg};">${formatearPrecio(m.monto)}</div>
+      <div class="cj-mcard-ops" style="color:${c.fg};opacity:.72;">${m.count} ${m.count === 1 ? 'operación' : 'operaciones'}</div>
+    </div>`;
+  }).join('');
   const totalCard = `
     <div class="cj-mcard total">
       <div class="cj-mcard-top">Total cobrado</div>
@@ -398,36 +423,82 @@ async function cajaVerProfesional(profId) {
     (prPorTurno[p.turno_id] = prPorTurno[p.turno_id] || []).push(txt);
   });
 
-  let totalGen = 0;
+  const metIco = {}; st.metodos.forEach(m => { metIco[m.nombre] = m.icono || 'generico'; });
+
+  let totalGen = 0, ops = 0;
   const filas = items.map(it => {
-    totalGen += it.total;
+    totalGen += it.total; ops += it.pagos.length;
+    const av = _cjAvatar(it.pacienteNombre);
     const at = (atPorTurno[it.turnoId] || []).join(', ') || '—';
     const pr = (prPorTurno[it.turnoId] || []).join(', ') || '—';
-    const pagos = it.pagos.map(pg => `${_cjEsc(pg.metodo)} ${formatearPrecio(pg.monto)}`).join('<br>') || '—';
+    const pagos = (it.pagos.length ? it.pagos : [{ metodo: '—', monto: it.total }]).map(pg => {
+      const slug = metIco[pg.metodo] || 'generico';
+      const col = _cjColorMetodo(slug);
+      return `<div class="cjm-pago">
+        <span class="cjm-pago-ico" style="background:${col.bg};color:${col.fg};">${_cjIco(slug, 14)}</span>
+        <span class="cjm-pago-nom">${_cjEsc(pg.metodo)}</span>
+        <span class="cjm-pago-monto">${formatearPrecio(pg.monto)}</span>
+      </div>`;
+    }).join('');
     return `<tr>
-      <td>${_cjEsc(it.pacienteNombre)}</td>
-      <td>${_cjEsc(at)}</td>
-      <td>${_cjEsc(pr)}</td>
-      <td class="n">${formatearPrecio(it.total)}</td>
-      <td>${pagos}</td>
+      <td><div class="cjm-pac"><span class="cjm-av" style="background:${av.bg};color:${av.fg};">${av.ini}</span><span class="cjm-pac-nom">${_cjEsc(it.pacienteNombre)}</span></div></td>
+      <td class="cjm-at">${_cjEsc(at)}</td>
+      <td class="cjm-pr">${_cjEsc(pr)}</td>
+      <td class="cjm-tot">${formatearPrecio(it.total)}</td>
+      <td class="cjm-pagos">${pagos}</td>
     </tr>`;
   }).join('');
 
   abrirModal(`
-    <div class="modal-header">
-      <div class="modal-titulo">${_cjEsc(profNombre)} · ${_cjFechaLarga(st.fecha)}</div>
-      <button class="modal-cerrar" onclick="cerrarModal()">&times;</button>
+    <style>
+      .modal{max-width:880px;}
+      .cjm-head{padding:20px 24px;}
+      .cjm-tit{font-size:19px;font-weight:700;color:#2b2b3a;letter-spacing:-.01em;}
+      .cjm-sub{font-size:13px;color:#8a8f9c;margin-top:2px;}
+      .cjm-x{border:none;background:#f6f5fb;width:34px;height:34px;border-radius:10px;font-size:19px;color:#9398a6;cursor:pointer;line-height:1;}
+      .cjm-x:hover{background:#eee;}
+      .cjm-body{padding:8px 14px 6px;max-height:62vh;overflow:auto;}
+      .cjm-tabla{width:100%;border-collapse:separate;border-spacing:0;font-size:13.5px;}
+      .cjm-tabla th{position:sticky;top:0;background:#faf9fe;color:#8a8f9c;font-weight:600;text-align:left;padding:11px 14px;font-size:12px;text-transform:uppercase;letter-spacing:.03em;z-index:1;}
+      .cjm-tabla th.n,.cjm-tot{text-align:right;}
+      .cjm-tabla td{padding:14px;border-top:1px solid #f1eefb;vertical-align:middle;}
+      .cjm-tabla tbody tr:first-child td{border-top:none;}
+      .cjm-pac{display:flex;align-items:center;gap:11px;}
+      .cjm-av{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex:none;}
+      .cjm-pac-nom{font-weight:600;color:#2b2b3a;}
+      .cjm-at{color:#4a4a58;}
+      .cjm-pr{color:#6b6880;}
+      .cjm-tot{font-weight:700;color:#2b2b3a;white-space:nowrap;}
+      .cjm-pagos{min-width:190px;}
+      .cjm-pago{display:flex;align-items:center;gap:9px;padding:3px 0;}
+      .cjm-pago-ico{width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;flex:none;}
+      .cjm-pago-nom{color:#3a3a48;flex:1;}
+      .cjm-pago-monto{font-weight:600;color:#2b2b3a;white-space:nowrap;}
+      .cjm-foot{padding:16px 24px;display:flex;justify-content:space-between;align-items:center;}
+      .cjm-foot-tot{display:flex;align-items:center;gap:12px;}
+      .cjm-foot-tot .l{font-size:13px;color:#8a8f9c;}
+      .cjm-foot-tot .v{font-size:22px;font-weight:800;color:#6D5BD0;}
+      .cjm-badge{font-size:12px;font-weight:600;color:#6D5BD0;background:#efeafe;border-radius:999px;padding:4px 12px;}
+    </style>
+    <div class="modal-header cjm-head">
+      <div>
+        <div class="cjm-tit">${_cjEsc(profNombre)}</div>
+        <div class="cjm-sub">Cobros del día · ${_cjFechaLarga(st.fecha)}</div>
+      </div>
+      <button class="cjm-x" onclick="cerrarModal()">&times;</button>
     </div>
-    <div class="modal-body" style="max-height:60vh;overflow:auto;">
-      <table class="cj-dt">
+    <div class="modal-body cjm-body">
+      <table class="cjm-tabla">
         <thead><tr><th>Paciente</th><th>Atención</th><th>Productos</th><th class="n">Total</th><th>Pagó con</th></tr></thead>
-        <tbody>
-          ${filas}
-          <tr class="tot"><td colspan="3">Total del día</td><td class="n">${formatearPrecio(totalGen)}</td><td></td></tr>
-        </tbody>
+        <tbody>${filas}</tbody>
       </table>
     </div>
-    <div class="modal-footer">
+    <div class="modal-footer cjm-foot">
+      <div class="cjm-foot-tot">
+        <span class="l">Total cobrado</span>
+        <span class="v">${formatearPrecio(totalGen)}</span>
+        <span class="cjm-badge">${ops} ${ops === 1 ? 'operación' : 'operaciones'}</span>
+      </div>
       <button class="btn" onclick="cerrarModal()">Cerrar</button>
     </div>`);
 }
