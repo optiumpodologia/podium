@@ -285,7 +285,7 @@ async function renderConfiguracion(container) {
     { id: 'agenda', titulo: 'Agenda y turnos', desc: 'Duración de turnos, días laborales y feriados.', tint: 'verde', ico: _cfgIcoAgenda, accion: 'abrirCfgAgenda()', soloNegocio: false },
     { id: 'documentos', titulo: 'Modelos de documentos', desc: 'Certificados y consentimientos para emitir.', tint: 'naranja', ico: _cfgIcoDocumentos, accion: 'abrirCfgDocumentos()', soloNegocio: false },
     { id: 'notificaciones', titulo: 'Notificaciones', desc: 'Recordatorios automáticos por email a los pacientes.', tint: 'celeste', ico: _cfgIcoNotif, accion: 'abrirCfgNotificaciones()', soloNegocio: true },
-    { id: 'caja', titulo: 'Caja', desc: 'Medios de pago, moneda y opciones de caja.', tint: 'rosa', ico: _cfgIcoCaja, accion: "abrirCfgProximamente('Caja','Acá vas a poder configurar medios de pago, moneda y opciones de caja.')", soloNegocio: true, prox: true },
+    { id: 'caja', titulo: 'Caja', desc: 'Medios de pago para cobros y arqueo.', tint: 'rosa', ico: _cfgIcoCaja, accion: 'abrirCfgCaja()', soloNegocio: true },
     { id: 'comisiones', titulo: 'Comisiones', desc: 'Comisión por atención y por producto.', tint: 'amarillo', ico: _cfgIcoComisiones, accion: 'abrirCfgComisiones()', soloNegocio: true }
   ].filter(t => !t.soloNegocio || esNegocio);
 
@@ -635,6 +635,101 @@ async function guardarComisiones(e) {
   }
 
   mostrarMensaje('Comisiones guardadas', 'exito');
+  cerrarModal();
+}
+
+// ============================================================
+// TARJETA: Caja — medios de pago
+// ============================================================
+function _cfgCajaFila(m) {
+  return `
+    <div class="cja-met" data-id="${m?.id || ''}">
+      <input class="cja-nom" type="text" value="${cfgEsc(m?.nombre || '')}" placeholder="Nombre del medio (ej. Efectivo)">
+      <label class="cja-chk"><input type="checkbox" class="cja-efvo"${m?.afecta_caja ? ' checked' : ''}> Es efectivo</label>
+      <button type="button" class="cja-del" title="Quitar" onclick="this.closest('.cja-met').remove()">×</button>
+    </div>`;
+}
+
+async function abrirCfgCaja() {
+  const { data: metodos } = await sb.from('metodos_pago')
+    .select('id, nombre, afecta_caja, orden, creado_en')
+    .eq('negocio_id', usuarioActual.negocio_id)
+    .order('orden').order('creado_en');
+
+  const lista = (metodos || []);
+  const filas = lista.length ? lista.map(_cfgCajaFila).join('') : _cfgCajaFila(null);
+  const idsOrig = lista.map(m => m.id).join(',');
+
+  abrirModal(`
+    <style>
+      .com-sec-tit{font-size:13px;font-weight:700;color:#6D5BD0;text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;}
+      .cja-lista{display:flex;flex-direction:column;gap:8px;}
+      .cja-met{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;padding:8px 10px;border:1px solid #ece9f7;border-radius:10px;background:#faf9fe;}
+      .cja-nom{width:100%;}
+      .cja-chk{display:flex;align-items:center;gap:6px;font-size:13px;color:#555;white-space:nowrap;cursor:pointer;}
+      .cja-del{border:none;background:#f1eefb;color:#9398a6;width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:18px;line-height:1;}
+      .cja-del:hover{background:#ffe1e1;color:#d35;}
+    </style>
+    <div class="modal-header">
+      <div class="modal-titulo">Caja · Medios de pago</div>
+      <button class="modal-cerrar" onclick="cerrarModal()">×</button>
+    </div>
+    <form id="form-caja" data-orig="${idsOrig}">
+      <div class="modal-body">
+        <div class="com-sec-tit">Medios de pago</div>
+        <small class="cfg-ayuda" style="display:block;margin-bottom:12px;">Creá los medios de pago que usás en el cobro. Marcá "Es efectivo" en el o los que cuentan para el arqueo de la caja física.</small>
+        <div id="caja-metodos" class="cja-lista">${filas}</div>
+        <button type="button" class="btn" style="margin-top:10px;" onclick="cfgCajaAgregarMetodo()">+ Agregar medio de pago</button>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn" onclick="cerrarModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary-sm">Guardar cambios</button>
+      </div>
+    </form>
+  `);
+
+  document.getElementById('form-caja').addEventListener('submit', guardarCaja);
+}
+
+function cfgCajaAgregarMetodo() {
+  const cont = document.getElementById('caja-metodos');
+  if (!cont) return;
+  const tmp = document.createElement('div');
+  tmp.innerHTML = _cfgCajaFila(null).trim();
+  cont.appendChild(tmp.firstElementChild);
+}
+
+async function guardarCaja(e) {
+  e.preventDefault();
+  const form = e.target;
+  const orig = (form.getAttribute('data-orig') || '').split(',').filter(Boolean);
+  const filas = Array.from(document.querySelectorAll('#caja-metodos .cja-met'));
+
+  const vistos = [];
+  let orden = 0;
+  for (const f of filas) {
+    const id = f.getAttribute('data-id') || '';
+    const nombre = f.querySelector('.cja-nom').value.trim();
+    const efvo = f.querySelector('.cja-efvo').checked;
+    if (!nombre) continue;
+    orden++;
+    if (id) {
+      vistos.push(id);
+      const r = await sb.from('metodos_pago').update({ nombre, afecta_caja: efvo, orden }).eq('id', id);
+      if (r.error) { mostrarMensaje('Error: ' + r.error.message, 'error'); return; }
+    } else {
+      const r = await sb.from('metodos_pago').insert({ negocio_id: usuarioActual.negocio_id, nombre, afecta_caja: efvo, orden });
+      if (r.error) { mostrarMensaje('Error: ' + r.error.message, 'error'); return; }
+    }
+  }
+
+  const borrar = orig.filter(id => !vistos.includes(id));
+  for (const id of borrar) {
+    const r = await sb.from('metodos_pago').delete().eq('id', id);
+    if (r.error) { mostrarMensaje('Error al quitar un medio: ' + r.error.message, 'error'); return; }
+  }
+
+  mostrarMensaje('Medios de pago guardados', 'exito');
   cerrarModal();
 }
 
