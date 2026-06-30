@@ -1,18 +1,15 @@
 // ============================================================
 // caja.js — Caja del día (recepción y negocio)
 // ============================================================
-// - Estadísticas del día por método (mapa del día).
-// - Detalle: matriz profesional × método. Click en una fila abre el
-//   detalle de los cobros de ese profesional (pacientes, atención,
-//   productos, total y cómo pagó).
-// - Gastos y Retiros a banco.
-// - "Contar billetes": herramienta tipo calculadora (sirve para contar
-//   un retiro y plasmarlo en Retiros). NO es el arqueo.
-// - Cierre = "efectivo en caja" calculado:
-//       saldo anterior + efectivo cobrado − gastos en efectivo − retiros
+// Dashboard de caja: estadísticas por método (con color), detalle
+// profesional × método (click → modal del profesional), panel lateral
+// con acciones rápidas, dona de métodos y resumen del día; gastos y
+// retiros; "efectivo en caja" calculado.
+//
+// "Contar billetes" es una herramienta (calculadora) para contar un
+// retiro y plasmarlo en Retiros. No es el arqueo.
 //
 // Cargan recepción y negocio. El profesional no ve este módulo.
-// El "es efectivo" de cada método es interno (metodos_pago.afecta_caja).
 // ============================================================
 
 const _CJ_DENOMS = [20000, 10000, 5000, 2000, 1000, 500, 200, 100];
@@ -28,28 +25,6 @@ const _CJ_ICOS = {
 function _cjIco(slug, w = 18) {
   const p = _CJ_ICOS[slug] || _CJ_ICOS.generico;
   return `<svg viewBox="0 0 24 24" width="${w}" height="${w}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
-}
-function _cjIcoClase(slug) {
-  if (slug === 'efectivo') return 'green';
-  if (slug === 'mercadopago') return 'cyan';
-  return '';
-}
-function _cjEsc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
-function _cjFechaISO(d) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-function _cjFechaLarga(iso) {
-  const d = new Date(iso + 'T00:00:00');
-  let s = d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}
-function _cjParse(v) {
-  if (typeof v === 'number') return v;
-  let s = String(v == null ? '' : v).trim().replace(/\$/g, '').replace(/\s/g, '');
-  s = s.replace(/\.(?=\d{3}(\D|$))/g, '');
-  s = s.replace(',', '.');
-  const n = parseFloat(s.replace(/[^\d.-]/g, ''));
-  return isNaN(n) ? 0 : n;
 }
 function _cjColorMetodo(slug) {
   const map = {
@@ -73,6 +48,34 @@ function _cjAvatar(nombre) {
   const [bg, fg] = palette[h % palette.length];
   return { ini, bg, fg };
 }
+function _cjEsc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function _cjFechaISO(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function _cjFechaLarga(iso) {
+  const d = new Date(iso + 'T00:00:00');
+  let s = d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+function _cjParse(v) {
+  if (typeof v === 'number') return v;
+  const raw = String(v == null ? '' : v).replace(/[^\d]/g, '');
+  return raw === '' ? 0 : parseInt(raw, 10);
+}
+
+// --- Campo de dinero: signo $ fijo + miles automáticos, sin flechas ---
+function _cjMoney(id, valor, extra) {
+  const v = valor ? Number(valor).toLocaleString('es-AR') : '';
+  return `<div class="cj-money">
+    <span class="cj-money-sign">$</span>
+    <input type="text" inputmode="numeric" id="${id}" class="cj-money-in" value="${v}" oninput="_cjMoneyFmt(this)" ${extra || ''}>
+  </div>`;
+}
+function _cjMoneyFmt(inp) {
+  const raw = inp.value.replace(/[^\d]/g, '');
+  inp.value = raw === '' ? '' : Number(raw).toLocaleString('es-AR');
+}
+function _cjMoneyVal(id) { const e = document.getElementById(id); return e ? _cjParse(e.value) : 0; }
 
 // ------------------------------------------------------------
 // Shell + carga
@@ -84,34 +87,42 @@ async function renderCaja(cont) {
   }
   cont.innerHTML = `
     <style>
-      .caja-wrap{padding:22px 26px;max-width:1120px;margin:0 auto;color:#2b2b3a;}
+      .caja-wrap{padding:22px 26px;max-width:1280px;margin:0 auto;color:#2b2b3a;}
       .cj-loading{padding:40px;text-align:center;color:#8a8f9c;}
-      .cj-top{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:20px;}
-      .cj-titulo{font-size:22px;font-weight:700;}
-      .cj-dia-hoy{font-size:12px;color:#6D5BD0;cursor:pointer;background:none;border:none;text-decoration:underline;padding:0;}
-      .cj-top-r{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
-      .cj-dia{display:flex;align-items:center;gap:8px;}
-      .cj-dia-nav{width:34px;height:34px;border:1px solid #e6e3f2;background:#fff;border-radius:9px;cursor:pointer;color:#6D5BD0;display:flex;align-items:center;justify-content:center;font-size:18px;}
-      .cj-dia-nav:hover{background:#f6f5fb;}
-      .cj-dia-lbl{font-size:16px;font-weight:600;min-width:190px;text-align:center;}
-      .cj-saldo{display:flex;align-items:center;gap:9px;background:#fff;border:1px solid #ece9f7;border-radius:11px;padding:8px 12px;}
-      .cj-saldo label{font-size:13px;color:#8a8f9c;}
-      .cj-saldo input{width:110px;text-align:right;border:1px solid #e6e3f2;border-radius:8px;padding:7px 9px;font-size:14px;outline:none;}
-      .cj-saldo input:focus{border-color:#6D5BD0;}
+      .cj-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:24px;}
+      .cj-titulo{font-size:24px;font-weight:700;}
+      .cj-bc{font-size:13px;color:#a7abb6;margin-top:3px;}
+      .cj-bc a{color:#a7abb6;cursor:pointer;text-decoration:none;}
+      .cj-bc a:hover{color:#6D5BD0;}
+      .cj-head-act{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
       .cj-btn-tool{display:flex;align-items:center;gap:7px;background:#fff;border:1px solid #c9c2e8;color:#6D5BD0;border-radius:10px;padding:9px 14px;font-size:13px;font-weight:600;cursor:pointer;}
       .cj-btn-tool:hover{background:#faf9fe;}
-      .cj-sec-lbl{font-size:14px;color:#6b6880;margin:0 0 14px;display:flex;align-items:center;gap:7px;font-weight:600;}
-      .cj-mapa{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:14px;margin-bottom:38px;}
-      .cj-mcard{border:1px solid transparent;border-radius:13px;padding:15px 17px;}
-      .cj-mcard.total{background:#efeafe;border-color:#ddd3f7;}
-      .cj-mcard-top{display:flex;align-items:center;gap:8px;font-size:13px;color:#6b6880;}
-      .cj-mcard.total .cj-mcard-top{color:#5d4cc0;}
-      .cj-mcard-ico{color:#6D5BD0;display:flex;}
-      .cj-mcard-ico.green{color:#1f9d57;} .cj-mcard-ico.cyan{color:#1593b8;}
+      .cj-dia{display:flex;align-items:center;gap:6px;}
+      .cj-dia-nav{width:34px;height:34px;border:1px solid #e6e3f2;background:#fff;border-radius:9px;cursor:pointer;color:#6D5BD0;display:flex;align-items:center;justify-content:center;font-size:18px;}
+      .cj-dia-nav:hover{background:#f6f5fb;}
+      .cj-dia-lbl{font-size:14px;font-weight:600;min-width:150px;text-align:center;}
+      .cj-saldo{display:flex;align-items:center;gap:9px;background:#fff;border:1px solid #ece9f7;border-radius:11px;padding:7px 11px;}
+      .cj-saldo label{font-size:13px;color:#8a8f9c;}
+      .cj-money{display:inline-flex;align-items:center;border:1px solid #e6e3f2;border-radius:9px;overflow:hidden;background:#fff;}
+      .cj-money:focus-within{border-color:#6D5BD0;}
+      .cj-money-sign{padding:0 3px 0 11px;color:#9398a6;font-weight:600;}
+      .cj-money-in{border:none;outline:none;padding:8px 11px 8px 4px;font-size:14px;text-align:right;width:110px;background:transparent;}
+      .cj-money.full{width:100%;}
+      .cj-money.full .cj-money-in{flex:1;width:auto;}
+
+      .cj-page{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:24px;align-items:start;}
+      .cj-main{min-width:0;}
+      .cj-side{display:flex;flex-direction:column;gap:18px;}
+
+      .cj-sec-lbl{font-size:14px;color:#6b6880;margin:0 0 13px;display:flex;align-items:center;gap:7px;font-weight:600;}
+      .cj-mapa{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:13px;margin-bottom:34px;}
+      .cj-mcard{border:1px solid transparent;border-radius:13px;padding:14px 16px;}
+      .cj-mcard-top{display:flex;align-items:center;gap:8px;font-size:13px;}
+      .cj-mcard-ico{display:flex;}
       .cj-mcard-val{font-size:20px;font-weight:700;margin-top:6px;}
-      .cj-mcard.total .cj-mcard-val{color:#5d4cc0;}
-      .cj-mcard-ops{font-size:12px;color:#a7abb6;margin-top:1px;}
-      .cj-tabla-wrap{border:1px solid #ece9f7;border-radius:13px;overflow:auto;margin-bottom:38px;background:#fff;}
+      .cj-mcard-ops{font-size:12px;margin-top:1px;}
+
+      .cj-tabla-wrap{border:1px solid #ece9f7;border-radius:13px;overflow:auto;margin-bottom:34px;background:#fff;}
       .cj-tabla{width:100%;border-collapse:collapse;font-size:13.5px;min-width:560px;}
       .cj-tabla th{background:#faf9fe;font-weight:600;color:#6b6880;padding:11px 12px;text-align:right;white-space:nowrap;}
       .cj-tabla th.l{text-align:left;}
@@ -125,7 +136,8 @@ async function renderCaja(cont) {
       .cj-tr-tot{border-top:2px solid #ece9f7;background:#faf9fe;}
       .cj-tr-tot td{font-weight:700;padding:12px;}
       .cj-tabla-vacia{padding:26px;text-align:center;color:#a7abb6;font-size:13px;}
-      .cj-cols{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:38px;}
+
+      .cj-cols{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:34px;}
       .cj-card{background:#fff;border:1px solid #ece9f7;border-radius:14px;padding:15px 17px;}
       .cj-card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
       .cj-card-tit{font-weight:700;display:flex;align-items:center;gap:8px;color:#2b2b3a;}
@@ -141,26 +153,39 @@ async function renderCaja(cont) {
       .cj-mov-x:hover{background:#ffe1e1;color:#d35;}
       .cj-vacio{padding:14px 0;color:#b3b7c0;font-size:13px;border-top:1px solid #f1eefb;}
       .cj-hint{font-size:12px;color:#a7abb6;margin-top:9px;}
-      .cj-cierre{background:#fff;border:1px solid #ece9f7;border-radius:14px;padding:16px 19px;max-width:420px;}
-      .cj-cierre-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;font-size:14px;}
+
+      .cj-cierre{background:#fff;border:1px solid #ece9f7;border-radius:14px;padding:18px 20px;display:grid;grid-template-columns:1fr 230px;gap:24px;align-items:center;}
+      .cj-cierre-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;font-size:14px;}
       .cj-cierre-row.sep{border-top:1px solid #f1eefb;}
       .cj-cierre-row .lbl{color:#6b6880;}
-      .cj-cierre-fin{display:flex;justify-content:space-between;align-items:center;padding:13px 0 2px;border-top:2px solid #ece9f7;margin-top:4px;}
-      .cj-cierre-fin .t{font-weight:700;font-size:15px;}
-      .cj-cierre-fin .v{font-weight:800;font-size:20px;color:#6D5BD0;}
-      /* calculadora de billetes */
-      .cj-calc-row{display:grid;grid-template-columns:90px 70px 1fr;gap:10px;align-items:center;font-size:14px;margin-bottom:8px;}
-      .cj-calc-row input{height:34px;text-align:center;border:1px solid #e6e3f2;border-radius:8px;outline:none;font-size:14px;}
-      .cj-calc-row input:focus{border-color:#6D5BD0;}
-      .cj-calc-sub{text-align:right;color:#6b6880;}
-      .cj-calc-total{display:flex;justify-content:space-between;align-items:center;background:#f3f0fb;border-radius:11px;padding:12px 15px;margin-top:6px;}
-      .cj-calc-total .v{font-weight:800;font-size:20px;color:#6D5BD0;}
-      .cj-dt{width:100%;border-collapse:collapse;font-size:13.5px;}
-      .cj-dt th{background:#faf9fe;color:#6b6880;font-weight:600;padding:9px 10px;text-align:left;}
-      .cj-dt th.n,.cj-dt td.n{text-align:right;white-space:nowrap;}
-      .cj-dt td{padding:9px 10px;border-top:1px solid #f1eefb;vertical-align:top;}
-      .cj-dt tr.tot td{border-top:2px solid #ece9f7;font-weight:700;background:#faf9fe;}
-      @media (max-width:820px){ .cj-cols{grid-template-columns:1fr;} }
+      .cj-cierre-card{background:#e9f9f0;border-radius:13px;padding:18px 20px;}
+      .cj-cierre-card .l{font-size:13px;color:#1f9d57;display:flex;align-items:center;gap:7px;font-weight:600;}
+      .cj-cierre-card .v{font-size:26px;font-weight:800;color:#1f9d57;margin-top:8px;}
+
+      .cj-panel{background:#fff;border:1px solid #ece9f7;border-radius:14px;padding:16px 17px;}
+      .cj-panel-tit{font-weight:700;font-size:14px;margin-bottom:13px;color:#2b2b3a;}
+      .cj-qa{display:flex;align-items:center;gap:11px;width:100%;background:none;border:none;padding:9px 6px;border-radius:9px;cursor:pointer;text-align:left;}
+      .cj-qa:hover{background:#f6f5fb;}
+      .cj-qa-ico{width:34px;height:34px;border-radius:9px;background:#efeafe;color:#6D5BD0;display:flex;align-items:center;justify-content:center;flex:none;}
+      .cj-qa-txt b{display:block;font-size:13.5px;color:#2b2b3a;font-weight:600;}
+      .cj-qa-txt small{font-size:12px;color:#9398a6;}
+      .cj-donut{width:150px;height:150px;border-radius:50%;margin:2px auto 16px;position:relative;}
+      .cj-donut-hole{position:absolute;inset:22px;background:#fff;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+      .cj-donut-val{font-weight:800;font-size:16px;color:#2b2b3a;}
+      .cj-donut-lbl{font-size:11px;color:#9398a6;}
+      .cj-leg-row{display:flex;align-items:center;gap:8px;font-size:13px;padding:4px 0;}
+      .cj-leg-dot{width:9px;height:9px;border-radius:50%;flex:none;}
+      .cj-leg-nom{flex:1;color:#4a4a58;}
+      .cj-leg-pct{color:#8a8f9c;}
+      .cj-donut-empty{text-align:center;color:#a7abb6;font-size:12px;}
+      .cj-rs{display:flex;align-items:center;gap:11px;padding:10px 0;}
+      .cj-rs+.cj-rs{border-top:1px solid #f1eefb;}
+      .cj-rs-ico{width:34px;height:34px;border-radius:9px;background:#f2f1f7;color:#6b6880;display:flex;align-items:center;justify-content:center;flex:none;}
+      .cj-rs-num{font-weight:800;font-size:18px;color:#2b2b3a;line-height:1;}
+      .cj-rs-lbl{font-size:12px;color:#9398a6;margin-top:2px;}
+
+      @media (max-width:1080px){ .cj-page{grid-template-columns:1fr;} }
+      @media (max-width:720px){ .cj-cols,.cj-cierre{grid-template-columns:1fr;} }
     </style>
     <div class="caja-wrap" id="caja-wrap"><div class="cj-loading">Cargando caja…</div></div>`;
 
@@ -181,8 +206,6 @@ async function cajaCargar(fechaStr) {
   ]);
 
   const pagos = pagosR.data || [];
-
-  // Cobros y turnos de esos pagos (para saber el profesional/paciente de cada uno)
   const cobroIds = [...new Set(pagos.map(p => p.cobro_id).filter(Boolean))];
   let cobros = [], turnos = [];
   if (cobroIds.length) {
@@ -213,8 +236,8 @@ async function cajaCargar(fechaStr) {
   const mapa = {};
   metodos.forEach(m => { mapa[m.nombre] = { nombre: m.nombre, icono: m.icono || 'generico', count: 0, monto: 0 }; });
   const cols = metodos.map(m => m.nombre);
-  const matriz = {};            // profId -> { nombre, porMetodo:{}, total }
-  const pagosPorCobro = {};     // cobroId -> [{metodo, monto}]
+  const matriz = {};
+  const pagosPorCobro = {};
   let totalCobrado = 0, totalOps = 0, efectivoCobrado = 0;
 
   pagos.forEach(p => {
@@ -252,9 +275,27 @@ async function cajaCargar(fechaStr) {
   window._caja = {
     fecha: fechaStr, dia, movimientos: movR.data || [], metodos, efNames,
     mapa, cols, matriz, profArr, cobrosArr,
-    totalCobrado, totalOps, efectivoCobrado
+    totalCobrado, totalOps, efectivoCobrado,
+    pacientes: cobrosArr.length, profesionales: profArr.length
   };
   cajaRender();
+}
+
+function _cjDonut(st) {
+  const segs = Object.values(st.mapa).filter(m => m.monto > 0).sort((a, b) => b.monto - a.monto);
+  const total = st.totalCobrado;
+  if (!total || !segs.length) {
+    return `<div class="cj-donut" style="background:#ece9f7;"><div class="cj-donut-hole"><div class="cj-donut-val">${formatearPrecio(0)}</div><div class="cj-donut-lbl">Total cobrado</div></div></div><div class="cj-donut-empty">Sin cobros todavía</div>`;
+  }
+  let acc = 0; const stops = [];
+  segs.forEach((m, i) => {
+    const pct = m.monto / total * 100;
+    const end = i === segs.length - 1 ? 100 : acc + pct;
+    stops.push(`${_cjColorMetodo(m.icono).fg} ${acc.toFixed(3)}% ${end.toFixed(3)}%`);
+    acc = end;
+  });
+  const leg = segs.map(m => `<div class="cj-leg-row"><span class="cj-leg-dot" style="background:${_cjColorMetodo(m.icono).fg}"></span><span class="cj-leg-nom">${_cjEsc(m.nombre)}</span><span class="cj-leg-pct">${(m.monto / total * 100).toFixed(1)}%</span></div>`).join('');
+  return `<div class="cj-donut" style="background:conic-gradient(${stops.join(',')})"><div class="cj-donut-hole"><div class="cj-donut-val">${formatearPrecio(total)}</div><div class="cj-donut-lbl">Total cobrado</div></div></div>${leg}`;
 }
 
 function cajaRender() {
@@ -263,30 +304,29 @@ function cajaRender() {
   if (!wrap) return;
 
   const mapIco = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>';
-  const tablaIco = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/></svg>';
+  const tablaIco = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M12 3v18"/></svg>';
   const cashIco = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>';
 
-  // --- mapa (estadísticas) ---
-  const mapaCards = Object.values(st.mapa).map(m => {
+  // estadísticas
+  const totalCol = { bg: '#efeafe', fg: '#6D5BD0' };
+  let mapaCards = Object.values(st.mapa).map(m => {
     const c = _cjColorMetodo(m.icono);
-    return `
-    <div class="cj-mcard" style="background:${c.bg};">
-      <div class="cj-mcard-top" style="color:${c.fg};"><span class="cj-mcard-ico" style="color:${c.fg};">${_cjIco(m.icono, 17)}</span> ${_cjEsc(m.nombre)}</div>
+    return `<div class="cj-mcard" style="background:${c.bg};">
+      <div class="cj-mcard-top" style="color:${c.fg};"><span class="cj-mcard-ico">${_cjIco(m.icono, 17)}</span> ${_cjEsc(m.nombre)}</div>
       <div class="cj-mcard-val" style="color:${c.fg};">${formatearPrecio(m.monto)}</div>
       <div class="cj-mcard-ops" style="color:${c.fg};opacity:.72;">${m.count} ${m.count === 1 ? 'operación' : 'operaciones'}</div>
     </div>`;
   }).join('');
-  const totalCard = `
-    <div class="cj-mcard total">
-      <div class="cj-mcard-top">Total cobrado</div>
-      <div class="cj-mcard-val">${formatearPrecio(st.totalCobrado)}</div>
-      <div class="cj-mcard-ops">${st.totalOps} ${st.totalOps === 1 ? 'operación' : 'operaciones'}</div>
+  mapaCards += `<div class="cj-mcard" style="background:${totalCol.bg};">
+      <div class="cj-mcard-top" style="color:${totalCol.fg};">Total cobrado</div>
+      <div class="cj-mcard-val" style="color:${totalCol.fg};">${formatearPrecio(st.totalCobrado)}</div>
+      <div class="cj-mcard-ops" style="color:${totalCol.fg};opacity:.72;">${st.totalOps} ${st.totalOps === 1 ? 'operación' : 'operaciones'}</div>
     </div>`;
 
-  // --- matriz profesional × método ---
+  // matriz
   let tabla;
   if (!st.profArr.length) {
-    tabla = '<div class="cj-tabla-vacia">Todavía no hay cobros registrados en este día.</div>';
+    tabla = '<div class="cj-tabla-wrap"><div class="cj-tabla-vacia">Todavía no hay cobros registrados en este día.</div></div>';
   } else {
     const head = `<tr><th class="l">Profesional</th>${st.cols.map(c => `<th>${_cjEsc(c)}</th>`).join('')}<th>Total</th><th></th></tr>`;
     const totByCol = {}; st.cols.forEach(c => totByCol[c] = 0); let granTotal = 0;
@@ -302,7 +342,7 @@ function cajaRender() {
     tabla = `<div class="cj-tabla-wrap"><table class="cj-tabla"><thead>${head}</thead><tbody>${rows}${totRow}</tbody></table></div>`;
   }
 
-  // --- gastos / retiros ---
+  // gastos / retiros
   const gastos = st.movimientos.filter(m => m.tipo === 'gasto');
   const retiros = st.movimientos.filter(m => m.tipo === 'retiro');
   const filaMov = (m, mostrarMet) => `
@@ -311,19 +351,56 @@ function cajaRender() {
       <div class="cj-mov-r"><span class="cj-mov-monto">${formatearPrecio(m.monto)}</span><button class="cj-mov-x" title="Quitar" onclick="cajaBorrarMov('${m.id}')">&times;</button></div>
     </div>`;
 
-  // --- efectivo en caja ---
+  // efectivo en caja
   const saldo = Number(st.dia.saldo_anterior) || 0;
   const gastosEf = gastos.filter(m => st.efNames.has((m.metodo || '').toLowerCase())).reduce((s, m) => s + (Number(m.monto) || 0), 0);
   const totRetiros = retiros.reduce((s, m) => s + (Number(m.monto) || 0), 0);
   const efectivoCaja = saldo + st.efectivoCobrado - gastosEf - totRetiros;
 
+  // panel: acciones rápidas
+  const qaIco = {
+    contar: cashIco,
+    gasto: '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M8 7h8"/><path d="M8 11h8"/></svg>',
+    retiro: '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><rect width="18" height="6" x="3" y="17" rx="2"/></svg>',
+    hist: '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg>'
+  };
+  const acciones = `
+    <div class="cj-panel">
+      <div class="cj-panel-tit">Acciones rápidas</div>
+      <button class="cj-qa" onclick="cajaContarBilletes()"><span class="cj-qa-ico">${qaIco.contar}</span><span class="cj-qa-txt"><b>Contar billetes</b><small>Contá y registrá el efectivo</small></span></button>
+      <button class="cj-qa" onclick="cajaNuevoMov('gasto')"><span class="cj-qa-ico">${qaIco.gasto}</span><span class="cj-qa-txt"><b>Nuevo gasto</b><small>Agregá un gasto del día</small></span></button>
+      <button class="cj-qa" onclick="cajaNuevoMov('retiro')"><span class="cj-qa-ico">${qaIco.retiro}</span><span class="cj-qa-txt"><b>Nuevo retiro</b><small>Registrá un retiro a banco</small></span></button>
+      <button class="cj-qa" onclick="cajaHistorial()"><span class="cj-qa-ico">${qaIco.hist}</span><span class="cj-qa-txt"><b>Historial de caja</b><small>Otros días cargados</small></span></button>
+    </div>`;
+
+  // panel: dona
+  const donut = `
+    <div class="cj-panel">
+      <div class="cj-panel-tit">Métodos de pago</div>
+      ${_cjDonut(st)}
+    </div>`;
+
+  // panel: resumen del día
+  const rsIco = {
+    op: '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M8 3H3v5"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/><path d="M16 21h5v-5"/><path d="M8 21H3v-5"/></svg>',
+    pac: '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg>',
+    prof: '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 18a4 4 0 0 0-8 0"/><circle cx="12" cy="11" r="3"/><rect width="18" height="18" x="3" y="3" rx="2"/></svg>'
+  };
+  const resumen = `
+    <div class="cj-panel">
+      <div class="cj-panel-tit">Resumen del día</div>
+      <div class="cj-rs"><span class="cj-rs-ico">${rsIco.op}</span><div><div class="cj-rs-num">${st.totalOps}</div><div class="cj-rs-lbl">Operaciones realizadas</div></div></div>
+      <div class="cj-rs"><span class="cj-rs-ico">${rsIco.pac}</span><div><div class="cj-rs-num">${st.pacientes}</div><div class="cj-rs-lbl">Pacientes atendidos</div></div></div>
+      <div class="cj-rs"><span class="cj-rs-ico">${rsIco.prof}</span><div><div class="cj-rs-num">${st.profesionales}</div><div class="cj-rs-lbl">${st.profesionales === 1 ? 'Profesional' : 'Profesionales'}</div></div></div>
+    </div>`;
+
   wrap.innerHTML = `
-    <div class="cj-top">
+    <div class="cj-head">
       <div>
         <div class="cj-titulo">Caja</div>
-        <button class="cj-dia-hoy" onclick="cajaHoy()">Ir a hoy</button>
+        <div class="cj-bc"><a onclick="navegar('dashboard')">Inicio</a> / Caja</div>
       </div>
-      <div class="cj-top-r">
+      <div class="cj-head-act">
         <button class="cj-btn-tool" onclick="cajaContarBilletes()">${cashIco} Contar billetes</button>
         <div class="cj-dia">
           <button class="cj-dia-nav" title="Día anterior" onclick="cajaCambiarDia(-1)">‹</button>
@@ -332,42 +409,57 @@ function cajaRender() {
         </div>
         <div class="cj-saldo">
           <label>Saldo anterior</label>
-          <input type="text" id="cj-saldo" value="${formatearPrecio(saldo)}" onchange="cajaSaldo(this.value)">
+          ${_cjMoney('cj-saldo', saldo, 'onchange="cajaSaldo()"')}
         </div>
       </div>
     </div>
 
-    <div class="cj-sec-lbl">${mapIco} Operaciones del día</div>
-    <div class="cj-mapa">${mapaCards}${totalCard}</div>
+    <div class="cj-page">
+      <div class="cj-main">
+        <div class="cj-sec-lbl">${mapIco} Operaciones del día</div>
+        <div class="cj-mapa">${mapaCards}</div>
 
-    <div class="cj-sec-lbl">${tablaIco} Detalle por profesional y método</div>
-    ${tabla}
+        <div class="cj-sec-lbl">${tablaIco} Detalle por profesional y método</div>
+        ${tabla}
 
-    <div class="cj-cols">
-      <div class="cj-card">
-        <div class="cj-card-head">
-          <div class="cj-card-tit"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M8 7h8"/><path d="M8 11h8"/></svg> Gastos</div>
-          <button class="cj-add" onclick="cajaNuevoMov('gasto')">+ Gasto</button>
+        <div class="cj-cols">
+          <div class="cj-card">
+            <div class="cj-card-head">
+              <div class="cj-card-tit"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M8 7h8"/><path d="M8 11h8"/></svg> Gastos</div>
+              <button class="cj-add" onclick="cajaNuevoMov('gasto')">+ Gasto</button>
+            </div>
+            ${gastos.length ? gastos.map(m => filaMov(m, true)).join('') : '<div class="cj-vacio">Sin gastos cargados.</div>'}
+          </div>
+          <div class="cj-card">
+            <div class="cj-card-head">
+              <div class="cj-card-tit"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><rect width="18" height="6" x="3" y="17" rx="2"/></svg> Retiros a banco</div>
+              <button class="cj-add" onclick="cajaNuevoMov('retiro')">+ Retiro</button>
+            </div>
+            ${retiros.length ? retiros.map(m => filaMov(m, false)).join('') : '<div class="cj-vacio">Sin retiros cargados.</div>'}
+            <div class="cj-hint">Tip: usá "Contar billetes" para contar un retiro y cargarlo acá.</div>
+          </div>
         </div>
-        ${gastos.length ? gastos.map(m => filaMov(m, true)).join('') : '<div class="cj-vacio">Sin gastos cargados.</div>'}
-      </div>
-      <div class="cj-card">
-        <div class="cj-card-head">
-          <div class="cj-card-tit"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><rect width="18" height="6" x="3" y="17" rx="2"/></svg> Retiros a banco</div>
-          <button class="cj-add" onclick="cajaNuevoMov('retiro')">+ Retiro</button>
-        </div>
-        ${retiros.length ? retiros.map(m => filaMov(m, false)).join('') : '<div class="cj-vacio">Sin retiros cargados.</div>'}
-        <div class="cj-hint">Tip: usá "Contar billetes" para contar un retiro y cargarlo acá.</div>
-      </div>
-    </div>
 
-    <div class="cj-sec-lbl">${cashIco} Efectivo en caja</div>
-    <div class="cj-cierre">
-      <div class="cj-cierre-row"><span class="lbl">Saldo anterior</span><span>${formatearPrecio(saldo)}</span></div>
-      <div class="cj-cierre-row sep"><span class="lbl">Efectivo cobrado</span><span>+ ${formatearPrecio(st.efectivoCobrado)}</span></div>
-      <div class="cj-cierre-row sep"><span class="lbl">Gastos en efectivo</span><span>− ${formatearPrecio(gastosEf)}</span></div>
-      <div class="cj-cierre-row sep"><span class="lbl">Retiros a banco</span><span>− ${formatearPrecio(totRetiros)}</span></div>
-      <div class="cj-cierre-fin"><span class="t">Efectivo en caja</span><span class="v">${formatearPrecio(efectivoCaja)}</span></div>
+        <div class="cj-sec-lbl">${cashIco} Efectivo en caja</div>
+        <div class="cj-cierre">
+          <div>
+            <div class="cj-cierre-row"><span class="lbl">Saldo anterior</span><span>${formatearPrecio(saldo)}</span></div>
+            <div class="cj-cierre-row sep"><span class="lbl">Efectivo cobrado</span><span>+ ${formatearPrecio(st.efectivoCobrado)}</span></div>
+            <div class="cj-cierre-row sep"><span class="lbl">Gastos en efectivo</span><span>− ${formatearPrecio(gastosEf)}</span></div>
+            <div class="cj-cierre-row sep"><span class="lbl">Retiros a banco</span><span>− ${formatearPrecio(totRetiros)}</span></div>
+          </div>
+          <div class="cj-cierre-card">
+            <div class="l">${cashIco} Efectivo en caja</div>
+            <div class="v">${formatearPrecio(efectivoCaja)}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="cj-side">
+        ${acciones}
+        ${donut}
+        ${resumen}
+      </div>
     </div>`;
 }
 
@@ -388,8 +480,8 @@ async function _cjUpsertDia(patch) {
   window._caja.dia = r.data;
   return r.data;
 }
-async function cajaSaldo(val) {
-  const n = _cjParse(val);
+async function cajaSaldo() {
+  const n = _cjMoneyVal('cj-saldo');
   window._caja.dia.saldo_anterior = n;
   await _cjUpsertDia({ saldo_anterior: n });
   cajaRender();
@@ -415,12 +507,10 @@ async function cajaVerProfesional(profId) {
   const catP = {}; (catPR.data || []).forEach(p => catP[p.id] = p.nombre);
   const atPorTurno = {}, prPorTurno = {};
   (atR.data || []).forEach(a => {
-    const txt = `${catA[a.tipo_atencion_id] || 'Atención'}${a.cantidad > 1 ? ' ×' + a.cantidad : ''}`;
-    (atPorTurno[a.turno_id] = atPorTurno[a.turno_id] || []).push(txt);
+    (atPorTurno[a.turno_id] = atPorTurno[a.turno_id] || []).push(`${catA[a.tipo_atencion_id] || 'Atención'}${a.cantidad > 1 ? ' ×' + a.cantidad : ''}`);
   });
   (prR.data || []).forEach(p => {
-    const txt = `${catP[p.producto_id] || 'Producto'}${p.cantidad > 1 ? ' ×' + p.cantidad : ''}`;
-    (prPorTurno[p.turno_id] = prPorTurno[p.turno_id] || []).push(txt);
+    (prPorTurno[p.turno_id] = prPorTurno[p.turno_id] || []).push(`${catP[p.producto_id] || 'Producto'}${p.cantidad > 1 ? ' ×' + p.cantidad : ''}`);
   });
 
   const metIco = {}; st.metodos.forEach(m => { metIco[m.nombre] = m.icono || 'generico'; });
@@ -434,11 +524,7 @@ async function cajaVerProfesional(profId) {
     const pagos = (it.pagos.length ? it.pagos : [{ metodo: '—', monto: it.total }]).map(pg => {
       const slug = metIco[pg.metodo] || 'generico';
       const col = _cjColorMetodo(slug);
-      return `<div class="cjm-pago">
-        <span class="cjm-pago-ico" style="background:${col.bg};color:${col.fg};">${_cjIco(slug, 14)}</span>
-        <span class="cjm-pago-nom">${_cjEsc(pg.metodo)}</span>
-        <span class="cjm-pago-monto">${formatearPrecio(pg.monto)}</span>
-      </div>`;
+      return `<div class="cjm-pago"><span class="cjm-pago-ico" style="background:${col.bg};color:${col.fg};">${_cjIco(slug, 14)}</span><span class="cjm-pago-nom">${_cjEsc(pg.metodo)}</span><span class="cjm-pago-monto">${formatearPrecio(pg.monto)}</span></div>`;
     }).join('');
     return `<tr>
       <td><div class="cjm-pac"><span class="cjm-av" style="background:${av.bg};color:${av.fg};">${av.ini}</span><span class="cjm-pac-nom">${_cjEsc(it.pacienteNombre)}</span></div></td>
@@ -494,11 +580,7 @@ async function cajaVerProfesional(profId) {
       </table>
     </div>
     <div class="modal-footer cjm-foot">
-      <div class="cjm-foot-tot">
-        <span class="l">Total cobrado</span>
-        <span class="v">${formatearPrecio(totalGen)}</span>
-        <span class="cjm-badge">${ops} ${ops === 1 ? 'operación' : 'operaciones'}</span>
-      </div>
+      <div class="cjm-foot-tot"><span class="l">Total cobrado</span><span class="v">${formatearPrecio(totalGen)}</span><span class="cjm-badge">${ops} ${ops === 1 ? 'operación' : 'operaciones'}</span></div>
       <button class="btn" onclick="cerrarModal()">Cerrar</button>
     </div>`);
 }
@@ -511,27 +593,25 @@ function cajaNuevoMov(tipo, prefillMonto) {
   const esGasto = tipo === 'gasto';
   const metOpts = st.metodos.map(m => `<option value="${_cjEsc(m.nombre)}">${_cjEsc(m.nombre)}</option>`).join('');
   abrirModal(`
+    <style>
+      .cjmv-body{padding:20px 24px;display:flex;flex-direction:column;gap:16px;}
+      .cjmv-f label{font-size:13px;color:#8a8f9c;display:block;margin-bottom:6px;font-weight:600;}
+      .cjmv-f input[type=text],.cjmv-f select{width:100%;box-sizing:border-box;padding:11px 12px;border:1px solid #e6e3f2;border-radius:10px;outline:none;font-size:14px;background:#fff;}
+      .cjmv-f input:focus,.cjmv-f select:focus{border-color:#6D5BD0;}
+    </style>
     <div class="modal-header">
       <div class="modal-titulo">${esGasto ? 'Nuevo gasto' : 'Nuevo retiro a banco'}</div>
       <button class="modal-cerrar" onclick="cerrarModal()">&times;</button>
     </div>
-    <div class="modal-body" style="display:flex;flex-direction:column;gap:14px;">
-      <div>
-        <label style="font-size:13px;color:#8a8f9c;display:block;margin-bottom:5px;">Concepto</label>
-        <input type="text" id="cj-mov-con" placeholder="${esGasto ? 'Ej. insumos, librería…' : 'Ej. depósito mediodía'}"
-          style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #e6e3f2;border-radius:9px;outline:none;">
+    <div class="modal-body cjmv-body">
+      <div class="cjmv-f">
+        <label>Concepto</label>
+        <input type="text" id="cj-mov-con" placeholder="${esGasto ? 'Ej. insumos, librería…' : 'Ej. depósito mediodía'}">
       </div>
-      ${esGasto ? `
-      <div>
-        <label style="font-size:13px;color:#8a8f9c;display:block;margin-bottom:5px;">Pagado con</label>
-        <select id="cj-mov-met" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #e6e3f2;border-radius:9px;outline:none;background:#fff;">
-          ${metOpts || '<option value="">—</option>'}
-        </select>
-      </div>` : ''}
-      <div>
-        <label style="font-size:13px;color:#8a8f9c;display:block;margin-bottom:5px;">Importe</label>
-        <input type="number" id="cj-mov-monto" min="0" step="0.01" placeholder="0" value="${prefillMonto ? prefillMonto : ''}"
-          style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #e6e3f2;border-radius:9px;outline:none;text-align:right;">
+      ${esGasto ? `<div class="cjmv-f"><label>Pagado con</label><select id="cj-mov-met">${metOpts || '<option value="">—</option>'}</select></div>` : ''}
+      <div class="cjmv-f">
+        <label>Importe</label>
+        ${_cjMoney('cj-mov-monto', prefillMonto || 0, '')}
       </div>
     </div>
     <div class="modal-footer">
@@ -543,7 +623,7 @@ function cajaNuevoMov(tipo, prefillMonto) {
 
 async function cajaGuardarMov(tipo) {
   const concepto = (document.getElementById('cj-mov-con')?.value || '').trim();
-  const monto = _cjParse(document.getElementById('cj-mov-monto')?.value);
+  const monto = _cjMoneyVal('cj-mov-monto');
   const metodo = tipo === 'gasto' ? (document.getElementById('cj-mov-met')?.value || null) : 'Efectivo';
   if (monto <= 0) { mostrarMensaje('Poné un importe mayor a cero', 'advertencia'); return; }
 
@@ -577,24 +657,37 @@ async function cajaReloadMovs() {
 }
 
 // ------------------------------------------------------------
-// Herramienta: contar billetes (calculadora)
+// Herramienta: contar billetes
 // ------------------------------------------------------------
 function cajaContarBilletes() {
   const rows = _CJ_DENOMS.map(d => `
-    <div class="cj-calc-row">
-      <span>${formatearPrecio(d)}</span>
-      <input type="number" min="0" step="1" value="" data-denom="${d}" oninput="_cjCalcRecalc()">
-      <span class="cj-calc-sub" id="cj-calc-sub-${d}">${formatearPrecio(0)}</span>
+    <div class="cjc-row">
+      <span class="cjc-den">${formatearPrecio(d)}</span>
+      <input type="text" inputmode="numeric" class="cjc-in" data-denom="${d}" placeholder="0" oninput="_cjCalcRecalc()">
+      <span class="cjc-sub" id="cjc-sub-${d}">${formatearPrecio(0)}</span>
     </div>`).join('');
   abrirModal(`
+    <style>
+      .modal{max-width:560px;}
+      .cjc-body{padding:18px 24px;}
+      .cjc-intro{font-size:13px;color:#8a8f9c;margin-bottom:16px;}
+      .cjc-row{display:grid;grid-template-columns:100px 1fr 110px;gap:12px;align-items:center;margin-bottom:9px;}
+      .cjc-den{font-size:14px;color:#2b2b3a;font-weight:600;}
+      .cjc-in{height:38px;text-align:center;border:1px solid #e6e3f2;border-radius:9px;outline:none;font-size:14px;}
+      .cjc-in:focus{border-color:#6D5BD0;}
+      .cjc-sub{text-align:right;color:#6b6880;font-size:14px;}
+      .cjc-total{display:flex;justify-content:space-between;align-items:center;background:#f3f0fb;border-radius:12px;padding:14px 16px;margin-top:14px;}
+      .cjc-total .l{color:#5d4cc0;font-weight:600;}
+      .cjc-total .v{font-weight:800;font-size:21px;color:#6D5BD0;}
+    </style>
     <div class="modal-header">
       <div class="modal-titulo">Contar billetes</div>
       <button class="modal-cerrar" onclick="cerrarModal()">&times;</button>
     </div>
-    <div class="modal-body">
-      <div style="font-size:13px;color:#8a8f9c;margin-bottom:12px;">Cargá la cantidad de cada billete. Sirve para contar un retiro y después plasmarlo en Retiros.</div>
+    <div class="modal-body cjc-body">
+      <div class="cjc-intro">Cargá la cantidad de cada billete. Sirve para contar un retiro y después cargarlo en Retiros.</div>
       ${rows}
-      <div class="cj-calc-total"><span>Total contado</span><span class="v" id="cj-calc-total">${formatearPrecio(0)}</span></div>
+      <div class="cjc-total"><span class="l">Total contado</span><span class="v" id="cjc-total">${formatearPrecio(0)}</span></div>
     </div>
     <div class="modal-footer">
       <button class="btn" onclick="cerrarModal()">Cerrar</button>
@@ -603,19 +696,22 @@ function cajaContarBilletes() {
 }
 function _cjCalcTotal() {
   let total = 0;
-  document.querySelectorAll('.cj-calc-row input[data-denom]').forEach(inp => {
+  document.querySelectorAll('.cjc-in[data-denom]').forEach(inp => {
     const d = Number(inp.getAttribute('data-denom'));
-    total += (Math.max(0, Math.floor(Number(inp.value) || 0))) * d;
+    const q = parseInt(inp.value.replace(/[^\d]/g, ''), 10) || 0;
+    total += q * d;
   });
   return total;
 }
 function _cjCalcRecalc() {
-  document.querySelectorAll('.cj-calc-row input[data-denom]').forEach(inp => {
+  document.querySelectorAll('.cjc-in[data-denom]').forEach(inp => {
+    inp.value = inp.value.replace(/[^\d]/g, '');
     const d = Number(inp.getAttribute('data-denom'));
-    const sub = document.getElementById('cj-calc-sub-' + d);
-    if (sub) sub.textContent = formatearPrecio((Math.max(0, Math.floor(Number(inp.value) || 0))) * d);
+    const q = parseInt(inp.value, 10) || 0;
+    const sub = document.getElementById('cjc-sub-' + d);
+    if (sub) sub.textContent = formatearPrecio(q * d);
   });
-  const t = document.getElementById('cj-calc-total');
+  const t = document.getElementById('cjc-total');
   if (t) t.textContent = formatearPrecio(_cjCalcTotal());
 }
 function cajaCalcUsarRetiro() {
@@ -624,3 +720,32 @@ function cajaCalcUsarRetiro() {
   cerrarModal();
   cajaNuevoMov('retiro', total);
 }
+
+// ------------------------------------------------------------
+// Historial de caja (otros días cargados)
+// ------------------------------------------------------------
+async function cajaHistorial() {
+  const { data } = await sb.from('caja_dia').select('fecha, saldo_anterior')
+    .eq('negocio_id', usuarioActual.negocio_id).order('fecha', { ascending: false }).limit(30);
+  const dias = data || [];
+  const filas = dias.length
+    ? dias.map(d => `<button class="cjh-row" onclick="cajaIrDia('${d.fecha}')"><span>${_cjFechaLarga(d.fecha)}</span><span class="cjh-saldo">Saldo: ${formatearPrecio(d.saldo_anterior || 0)}</span></button>`).join('')
+    : '<div class="cjh-vacio">Todavía no hay días cargados.</div>';
+  abrirModal(`
+    <style>
+      .modal{max-width:460px;}
+      .cjh-body{padding:14px 18px;max-height:60vh;overflow:auto;}
+      .cjh-row{display:flex;justify-content:space-between;align-items:center;width:100%;background:none;border:none;border-top:1px solid #f1eefb;padding:12px 6px;cursor:pointer;font-size:14px;text-align:left;}
+      .cjh-row:first-child{border-top:none;}
+      .cjh-row:hover{background:#f6f5fb;}
+      .cjh-saldo{color:#8a8f9c;font-size:13px;}
+      .cjh-vacio{padding:22px;text-align:center;color:#a7abb6;font-size:13px;}
+    </style>
+    <div class="modal-header">
+      <div class="modal-titulo">Historial de caja</div>
+      <button class="modal-cerrar" onclick="cerrarModal()">&times;</button>
+    </div>
+    <div class="modal-body cjh-body">${filas}</div>
+    <div class="modal-footer"><button class="btn" onclick="cerrarModal()">Cerrar</button></div>`);
+}
+function cajaIrDia(fecha) { cerrarModal(); cajaCargar(fecha); }
