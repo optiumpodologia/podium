@@ -237,7 +237,8 @@ async function abrirCobro(turnoId) {
       .cb-hero-total-lbl { font-size:12px; color:#1F9D6B; }
       .cb-hero-total-val { font-size:26px; font-weight:700; color:#1F9D6B; line-height:1.1; }
 
-      .cb-grid { display:grid; grid-template-columns:1fr 1fr; gap:20px 24px; }
+      .cb-grid { display:grid; grid-template-columns:1fr 1fr; gap:20px 24px; align-items:start; }
+      .cb-cell { min-width:0; }
       .cb-sec-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
       .cb-sec-lbl { display:flex; align-items:center; gap:8px; font-size:13.5px; font-weight:600; }
       .cb-sec-lbl svg { color:var(--primario); }
@@ -332,22 +333,25 @@ async function abrirCobro(turnoId) {
       </div>
 
       <div class="cb-grid">
-        <div>
+        <div class="cb-cell">
           <div class="cb-sec-head">
             <div class="cb-sec-lbl">${I.at} Atenciones</div>
             <button type="button" class="cb-add" onclick="_cobro.abrirPicker('at')">+ Agregar atención</button>
           </div>
           <div class="cb-card" id="cobro-list-at"></div>
+        </div>
 
+        <div class="cb-cell">
           <div class="cb-sec-head">
             <div class="cb-sec-lbl">${I.prod} Productos</div>
             <button type="button" class="cb-add verde" onclick="_cobro.abrirPicker('prod')">+ Agregar producto</button>
           </div>
           <div class="cb-card" id="cobro-list-prod"></div>
-          <div id="cobro-prox"></div>
         </div>
 
-        <div>
+        <div class="cb-cell" id="cobro-prox"></div>
+
+        <div class="cb-cell">
           <div class="cb-resumen">
             <div class="cb-resumen-tit">Resumen del cobro</div>
             <div class="cb-resumen-fila"><span>Subtotal por atenciones</span><span id="cobro-sub-at">${formatearPrecio(0)}</span></div>
