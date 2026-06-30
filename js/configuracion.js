@@ -642,17 +642,24 @@ async function guardarComisiones(e) {
 // TARJETA: Caja — medios de pago
 // ============================================================
 function _cfgCajaFila(m) {
+  const pide = !!m?.pide_referencia;
   return `
     <div class="cja-met" data-id="${m?.id || ''}">
-      <input class="cja-nom" type="text" value="${cfgEsc(m?.nombre || '')}" placeholder="Nombre del medio (ej. Efectivo)">
-      <label class="cja-chk"><input type="checkbox" class="cja-efvo"${m?.afecta_caja ? ' checked' : ''}> Es efectivo</label>
-      <button type="button" class="cja-del" title="Quitar" onclick="this.closest('.cja-met').remove()">×</button>
+      <div class="cja-met-top">
+        <input class="cja-nom" type="text" value="${cfgEsc(m?.nombre || '')}" placeholder="Nombre del medio (ej. Efectivo)">
+        <label class="cja-chk"><input type="checkbox" class="cja-efvo"${m?.afecta_caja ? ' checked' : ''}> Es efectivo</label>
+        <label class="cja-chk"><input type="checkbox" class="cja-ref"${pide ? ' checked' : ''} onchange="cfgCajaToggleRef(this)"> Pide referencia</label>
+        <button type="button" class="cja-del" title="Quitar" onclick="this.closest('.cja-met').remove()">×</button>
+      </div>
+      <div class="cja-met-ref"${pide ? '' : ' style="display:none;"'}>
+        <input class="cja-ref-lbl" type="text" value="${cfgEsc(m?.etiqueta_referencia || '')}" placeholder="Cómo se llama el dato (ej. N° de operación, N° de cupón)">
+      </div>
     </div>`;
 }
 
 async function abrirCfgCaja() {
   const { data: metodos } = await sb.from('metodos_pago')
-    .select('id, nombre, afecta_caja, orden, creado_en')
+    .select('id, nombre, afecta_caja, pide_referencia, etiqueta_referencia, orden, creado_en')
     .eq('negocio_id', usuarioActual.negocio_id)
     .order('orden').order('creado_en');
 
@@ -664,9 +671,11 @@ async function abrirCfgCaja() {
     <style>
       .com-sec-tit{font-size:13px;font-weight:700;color:#6D5BD0;text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;}
       .cja-lista{display:flex;flex-direction:column;gap:8px;}
-      .cja-met{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;padding:8px 10px;border:1px solid #ece9f7;border-radius:10px;background:#faf9fe;}
+      .cja-met{display:flex;flex-direction:column;gap:8px;padding:9px 10px;border:1px solid #ece9f7;border-radius:10px;background:#faf9fe;}
+      .cja-met-top{display:grid;grid-template-columns:1fr auto auto auto;gap:12px;align-items:center;}
       .cja-nom{width:100%;}
       .cja-chk{display:flex;align-items:center;gap:6px;font-size:13px;color:#555;white-space:nowrap;cursor:pointer;}
+      .cja-met-ref .cja-ref-lbl{width:100%;}
       .cja-del{border:none;background:#f1eefb;color:#9398a6;width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:18px;line-height:1;}
       .cja-del:hover{background:#ffe1e1;color:#d35;}
     </style>
@@ -699,6 +708,13 @@ function cfgCajaAgregarMetodo() {
   cont.appendChild(tmp.firstElementChild);
 }
 
+function cfgCajaToggleRef(chk) {
+  const row = chk.closest('.cja-met');
+  if (!row) return;
+  const ref = row.querySelector('.cja-met-ref');
+  if (ref) ref.style.display = chk.checked ? '' : 'none';
+}
+
 async function guardarCaja(e) {
   e.preventDefault();
   const form = e.target;
@@ -711,14 +727,17 @@ async function guardarCaja(e) {
     const id = f.getAttribute('data-id') || '';
     const nombre = f.querySelector('.cja-nom').value.trim();
     const efvo = f.querySelector('.cja-efvo').checked;
+    const pideRef = f.querySelector('.cja-ref').checked;
+    const etiqueta = pideRef ? (f.querySelector('.cja-ref-lbl').value.trim() || 'Referencia') : null;
     if (!nombre) continue;
     orden++;
+    const fila = { nombre, afecta_caja: efvo, pide_referencia: pideRef, etiqueta_referencia: etiqueta, orden };
     if (id) {
       vistos.push(id);
-      const r = await sb.from('metodos_pago').update({ nombre, afecta_caja: efvo, orden }).eq('id', id);
+      const r = await sb.from('metodos_pago').update(fila).eq('id', id);
       if (r.error) { mostrarMensaje('Error: ' + r.error.message, 'error'); return; }
     } else {
-      const r = await sb.from('metodos_pago').insert({ negocio_id: usuarioActual.negocio_id, nombre, afecta_caja: efvo, orden });
+      const r = await sb.from('metodos_pago').insert({ negocio_id: usuarioActual.negocio_id, ...fila });
       if (r.error) { mostrarMensaje('Error: ' + r.error.message, 'error'); return; }
     }
   }
