@@ -405,10 +405,7 @@ async function abrirModalPago(turnoId) {
     return;
   }
 
-  window._pago = {
-    turnoId, total, metodos,
-    filas: [{ metodoId: metodos[0].id, monto: total, ref: '' }]
-  };
+  window._pago = { turnoId, total, metodos, agregados: [] };
 
   const ov = document.createElement('div');
   ov.id = 'pago-ov';
@@ -417,53 +414,82 @@ async function abrirModalPago(turnoId) {
   ov.innerHTML = `
     <style>
       .pg-ov{position:fixed;inset:0;background:rgba(20,18,40,.45);display:flex;align-items:center;justify-content:center;z-index:200;padding:20px;}
-      .pg-modal{background:#fff;border-radius:18px;width:min(560px,95vw);max-height:90vh;overflow:auto;box-shadow:0 24px 70px rgba(0,0,0,.32);}
+      .pg-modal{background:#fff;border-radius:18px;width:min(620px,96vw);max-height:92vh;overflow:auto;box-shadow:0 24px 70px rgba(0,0,0,.32);}
       .pg-head{display:flex;justify-content:space-between;align-items:center;padding:18px 20px;border-bottom:1px solid #f1eefb;}
       .pg-head .t{font-weight:700;font-size:17px;color:#2b2b3a;}
       .pg-head .x{border:none;background:transparent;font-size:24px;color:#9398a6;cursor:pointer;line-height:1;}
       .pg-body{padding:18px 20px;}
-      .pg-total{display:flex;justify-content:space-between;align-items:center;background:#f3f0fb;border-radius:12px;padding:13px 16px;margin-bottom:16px;}
-      .pg-total .l{color:#6b6880;font-size:14px;}
-      .pg-total .v{font-weight:800;font-size:22px;color:#6D5BD0;}
-      .pg-filas{display:flex;flex-direction:column;gap:12px;}
-      .pg-fila{display:grid;grid-template-columns:1fr 140px auto;gap:9px;align-items:center;}
-      .pg-fila .pg-ref{grid-column:1 / -1;width:100%;box-sizing:border-box;}
-      .pg-met,.pg-ref{padding:9px 11px;border:1px solid #e6e3f2;border-radius:10px;font-size:14px;outline:none;background:#fff;}
+      .pg-carga{display:grid;grid-template-columns:1fr 170px;gap:12px;align-items:end;}
+      .pg-f{display:flex;flex-direction:column;gap:5px;}
+      .pg-f label{font-size:12px;font-weight:600;color:#8a8f9c;}
+      .pg-met,.pg-ref,.pg-imp-in{padding:10px 11px;border:1px solid #e6e3f2;border-radius:10px;font-size:14px;outline:none;background:#fff;width:100%;box-sizing:border-box;}
       .pg-met:focus,.pg-ref:focus{border-color:#6D5BD0;}
-      .pg-monto{display:flex;align-items:center;gap:5px;border:1px solid #e6e3f2;border-radius:10px;padding:0 10px;}
-      .pg-monto:focus-within{border-color:#6D5BD0;}
-      .pg-monto>span{color:#9398a6;font-weight:600;}
-      .pg-monto-in{border:none;padding:9px 0;width:100%;text-align:right;font-size:14px;outline:none;}
-      .pg-del{border:none;background:#f6f5fb;color:#9398a6;width:34px;height:34px;border-radius:9px;cursor:pointer;font-size:18px;line-height:1;}
-      .pg-del:hover{background:#ffe1e1;color:#d35;}
-      .pg-del-sp{width:34px;}
-      .pg-dividir{margin-top:12px;background:none;border:1px dashed #c9c2e8;color:#6D5BD0;border-radius:10px;padding:9px;width:100%;cursor:pointer;font-weight:600;font-size:13px;}
-      .pg-dividir:hover{background:#faf9fe;}
+      .pg-imp{display:flex;align-items:center;gap:5px;border:1px solid #e6e3f2;border-radius:10px;padding:0 10px;}
+      .pg-imp:focus-within{border-color:#6D5BD0;}
+      .pg-imp>span{color:#9398a6;font-weight:600;}
+      .pg-imp-in{border:none;padding:10px 0;text-align:right;}
+      .pg-ref-row{margin-top:12px;}
+      .pg-agregar{margin-top:12px;background:#6D5BD0;color:#fff;border:none;border-radius:10px;padding:10px 18px;font-weight:600;cursor:pointer;}
+      .pg-agregar:hover{background:#5d4cc0;}
+      .pg-lista{margin-top:18px;border:1px solid #ece9f7;border-radius:12px;overflow:hidden;}
+      .pg-lista-head,.pg-lista-row{display:grid;grid-template-columns:1fr 130px 34px;gap:10px;align-items:center;padding:10px 14px;}
+      .pg-lista-head{background:#f3f0fb;font-size:11px;font-weight:700;color:#6b6880;text-transform:uppercase;letter-spacing:.03em;}
+      .pg-lista-row{border-top:1px solid #f1eefb;}
+      .pg-lista-row .met{font-weight:600;color:#2b2b3a;}
+      .pg-lista-row .met small{display:block;font-weight:400;color:#9398a6;font-size:12px;}
+      .pg-lista-row .imp{text-align:right;font-weight:600;color:#2b2b3a;}
+      .pg-lista-row .x{border:none;background:#f6f5fb;color:#9398a6;width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:16px;}
+      .pg-lista-row .x:hover{background:#ffe1e1;color:#d35;}
+      .pg-lista-vacio{padding:18px 14px;text-align:center;color:#a7abb6;font-size:13px;}
       .pg-cont{display:flex;justify-content:space-between;align-items:center;margin-top:16px;padding:12px 14px;border-radius:11px;font-size:14px;}
       .pg-cont.ok{background:#e6f7ee;color:#1f9d57;}
       .pg-cont.warn{background:#fff4e0;color:#c98a13;}
       .pg-cont.over{background:#fdeaea;color:#d35;}
       .pg-cont .v{font-weight:800;}
-      .pg-foot{display:flex;justify-content:flex-end;gap:9px;padding:16px 20px;border-top:1px solid #f1eefb;}
+      .pg-foot{display:flex;justify-content:space-between;align-items:center;gap:9px;padding:16px 20px;border-top:1px solid #f1eefb;}
+      .pg-foot-total{font-size:13px;color:#8a8f9c;}
+      .pg-foot-total b{display:block;font-size:20px;color:#2b2b3a;}
+      .pg-foot-acc{display:flex;gap:9px;}
     </style>
     <div class="pg-modal">
       <div class="pg-head">
-        <span class="t">Cobrar</span>
+        <span class="t">Cobrar · Método de pago</span>
         <button type="button" class="x" onclick="_pagoCerrar()">×</button>
       </div>
       <div class="pg-body">
-        <div class="pg-total"><span class="l">Total a cobrar</span><span class="v">${formatearPrecio(total)}</span></div>
-        <div class="pg-filas" id="pago-filas"></div>
-        <button type="button" class="pg-dividir" onclick="_pagoAddFila()">+ Dividir en otro medio de pago</button>
+        <div class="pg-carga">
+          <div class="pg-f">
+            <label>Forma de pago</label>
+            <select class="pg-met" id="pago-met">${metodos.map(m => `<option value="${m.id}">${_pagoEsc(m.nombre)}</option>`).join('')}</select>
+          </div>
+          <div class="pg-f">
+            <label>Importe</label>
+            <div class="pg-imp"><span>$</span><input type="number" class="pg-imp-in" id="pago-imp" min="0" step="0.01" value="${total}"></div>
+          </div>
+        </div>
+        <div class="pg-ref-row">
+          <input type="text" class="pg-ref" id="pago-ref" placeholder="Cupón / N° de operación (opcional)">
+        </div>
+        <button type="button" class="pg-agregar" onclick="_pagoAgregar()">+ Agregar</button>
+
+        <div class="pg-lista">
+          <div class="pg-lista-head"><span>Forma de pago</span><span style="text-align:right;">Importe</span><span></span></div>
+          <div id="pago-lista"></div>
+        </div>
+
         <div class="pg-cont" id="pago-cont"></div>
       </div>
       <div class="pg-foot">
-        <button type="button" class="btn" onclick="_pagoCerrar()">Cancelar</button>
-        <button type="button" id="pago-confirmar" class="btn btn-primary-sm" onclick="finalizarCobro()">Confirmar cobro</button>
+        <div class="pg-foot-total">Total a cobrar<b>${formatearPrecio(total)}</b></div>
+        <div class="pg-foot-acc">
+          <button type="button" class="btn" onclick="_pagoCerrar()">Cancelar</button>
+          <button type="button" id="pago-confirmar" class="btn btn-primary-sm" onclick="finalizarCobro()">Confirmar cobro</button>
+        </div>
       </div>
     </div>`;
   document.body.appendChild(ov);
-  _pagoRender();
+  _pagoRenderLista();
+  _pagoRecompute();
 }
 
 function _pagoCerrar() {
@@ -473,64 +499,67 @@ function _pagoCerrar() {
 
 function _pagoEsc(s) { return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
-function _pagoFila(f, i, varias) {
+function _pagoResto() {
   const st = window._pago;
-  const opts = st.metodos.map(m => `<option value="${m.id}"${m.id === f.metodoId ? ' selected' : ''}>${_pagoEsc(m.nombre)}</option>`).join('');
-  return `
-    <div class="pg-fila" data-i="${i}">
-      <select class="pg-met" onchange="_pagoRecompute()">${opts}</select>
-      <div class="pg-monto"><span>$</span><input type="number" class="pg-monto-in" min="0" step="0.01" value="${f.monto}" oninput="_pagoRecompute()"></div>
-      ${varias ? `<button type="button" class="pg-del" title="Quitar" onclick="_pagoDelFila(${i})">×</button>` : '<span class="pg-del-sp"></span>'}
-      <input type="text" class="pg-ref" placeholder="Cupón / N° de operación (opcional)" value="${_pagoEsc(f.ref || '')}">
-    </div>`;
+  const asignado = st.agregados.reduce((s, p) => s + p.monto, 0);
+  return Math.max(0, Math.round((st.total - asignado) * 100) / 100);
 }
 
-function _pagoLeerDOM() {
+function _pagoAgregar() {
   const st = window._pago;
   if (!st) return;
-  const filas = Array.from(document.querySelectorAll('#pago-filas .pg-fila'));
-  st.filas = filas.map(row => ({
-    metodoId: row.querySelector('.pg-met').value,
-    monto: parseFloat(row.querySelector('.pg-monto-in').value) || 0,
-    ref: row.querySelector('.pg-ref').value
-  }));
-}
+  const metId = document.getElementById('pago-met').value;
+  const imp = Math.round((parseFloat(document.getElementById('pago-imp').value) || 0) * 100) / 100;
+  const ref = (document.getElementById('pago-ref').value || '').trim();
+  if (imp <= 0) { mostrarMensaje('Poné un importe mayor a cero', 'advertencia'); return; }
+  const m = st.metodos.find(x => x.id === metId) || {};
+  st.agregados.push({ metodoId: metId, metodo_nombre: m.nombre || 'Pago', monto: imp, ref: ref || null });
 
-function _pagoRender() {
-  const st = window._pago;
-  const cont = document.getElementById('pago-filas');
-  if (!cont) return;
-  const varias = st.filas.length > 1;
-  cont.innerHTML = st.filas.map((f, i) => _pagoFila(f, i, varias)).join('');
+  document.getElementById('pago-ref').value = '';
+  _pagoRenderLista();
   _pagoRecompute();
+  const resto = _pagoResto();
+  document.getElementById('pago-imp').value = resto > 0 ? resto : '';
 }
 
-function _pagoAddFila() {
+function _pagoQuitar(i) {
   const st = window._pago;
-  _pagoLeerDOM();
-  const asignado = st.filas.reduce((s, f) => s + (Number(f.monto) || 0), 0);
-  const resto = Math.max(0, Math.round((st.total - asignado) * 100) / 100);
-  st.filas.push({ metodoId: st.metodos[0].id, monto: resto, ref: '' });
-  _pagoRender();
+  st.agregados.splice(i, 1);
+  _pagoRenderLista();
+  _pagoRecompute();
+  const resto = _pagoResto();
+  const imp = document.getElementById('pago-imp');
+  if (imp) imp.value = resto > 0 ? resto : '';
 }
 
-function _pagoDelFila(i) {
+function _pagoRenderLista() {
   const st = window._pago;
-  _pagoLeerDOM();
-  st.filas.splice(i, 1);
-  _pagoRender();
+  const cont = document.getElementById('pago-lista');
+  if (!cont) return;
+  if (!st.agregados.length) {
+    cont.innerHTML = '<div class="pg-lista-vacio">Todavía no agregaste pagos. Elegí forma de pago e importe y tocá Agregar.</div>';
+    return;
+  }
+  cont.innerHTML = st.agregados.map((p, i) => `
+    <div class="pg-lista-row">
+      <div class="met">${_pagoEsc(p.metodo_nombre)}${p.ref ? `<small>${_pagoEsc(p.ref)}</small>` : ''}</div>
+      <div class="imp">${formatearPrecio(p.monto)}</div>
+      <button type="button" class="x" title="Quitar" onclick="_pagoQuitar(${i})">×</button>
+    </div>`).join('');
 }
 
 function _pagoRecompute() {
   const st = window._pago;
   if (!st) return;
-  const montos = Array.from(document.querySelectorAll('#pago-filas .pg-monto-in'));
-  const asignado = montos.reduce((s, el) => s + (parseFloat(el.value) || 0), 0);
+  const asignado = st.agregados.reduce((s, p) => s + p.monto, 0);
   const dif = Math.round((st.total - asignado) * 100) / 100;
   const cont = document.getElementById('pago-cont');
   const btn = document.getElementById('pago-confirmar');
   if (cont) {
-    if (Math.abs(dif) < 0.5) {
+    if (!st.agregados.length) {
+      cont.className = 'pg-cont warn';
+      cont.innerHTML = `<span>Sin pagos cargados</span><span class="v">Falta ${formatearPrecio(st.total)}</span>`;
+    } else if (Math.abs(dif) < 0.5) {
       cont.className = 'pg-cont ok';
       cont.innerHTML = `<span>Asignado ${formatearPrecio(asignado)}</span><span class="v">✓ Listo</span>`;
     } else if (dif > 0) {
@@ -541,23 +570,22 @@ function _pagoRecompute() {
       cont.innerHTML = `<span>Asignado ${formatearPrecio(asignado)}</span><span class="v">Te pasaste ${formatearPrecio(-dif)}</span>`;
     }
   }
-  if (btn) btn.disabled = Math.abs(dif) >= 0.5;
+  if (btn) btn.disabled = (!st.agregados.length) || Math.abs(dif) >= 0.5;
 }
 
 async function finalizarCobro() {
   const st = window._pago;
   if (!st) return;
-  _pagoLeerDOM();
-  const asignado = st.filas.reduce((s, f) => s + (Number(f.monto) || 0), 0);
+  const asignado = st.agregados.reduce((s, p) => s + p.monto, 0);
+  if (!st.agregados.length) { mostrarMensaje('Agregá al menos un medio de pago', 'advertencia'); return; }
   if (Math.abs(st.total - asignado) > 0.5) { mostrarMensaje('El pago tiene que sumar el total', 'advertencia'); return; }
 
-  const pagos = st.filas
-    .filter(f => (Number(f.monto) || 0) > 0)
-    .map(f => {
-      const m = st.metodos.find(x => x.id === f.metodoId) || {};
-      return { metodo_id: f.metodoId || null, metodo_nombre: m.nombre || 'Pago', monto: Number(f.monto) || 0, referencia: (f.ref || '').trim() || null };
-    });
-  if (!pagos.length) { mostrarMensaje('Cargá al menos un medio de pago', 'advertencia'); return; }
+  const pagos = st.agregados.map(p => ({
+    metodo_id: p.metodoId || null,
+    metodo_nombre: p.metodo_nombre,
+    monto: p.monto,
+    referencia: p.ref || null
+  }));
 
   const btn = document.getElementById('pago-confirmar');
   if (btn) { btn.disabled = true; btn.textContent = 'Cobrando…'; }
