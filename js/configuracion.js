@@ -666,20 +666,20 @@ async function abrirCfgCaja() {
       .cja-card-ico{width:40px;height:40px;border-radius:10px;background:#f3f0fb;color:#6D5BD0;display:flex;align-items:center;justify-content:center;flex:none;}
       .cja-card-info{flex:1;min-width:0;display:flex;align-items:center;gap:8px;}
       .cja-card-nom{font-weight:600;color:#2b2b3a;}
-      .cja-card-badge{font-size:11px;font-weight:700;color:#1f9d57;background:#e6f7ee;border-radius:999px;padding:2px 9px;}
       .cja-card-btn{border:none;background:#f6f5fb;color:#8a8f9c;width:34px;height:34px;border-radius:9px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
       .cja-card-btn:hover{background:#efeafe;color:#6D5BD0;}
       .cja-card-btn.del:hover{background:#ffe1e1;color:#d35;}
       .cja-vacio{padding:22px;text-align:center;color:#8a8f9c;}
-      .cja-form{border:1px solid #d9d2f3;background:#faf9fe;border-radius:12px;padding:14px;margin-bottom:14px;}
-      .cja-form-tit{font-weight:700;color:#6D5BD0;margin-bottom:10px;}
-      .cja-f-nom{width:100%;margin-bottom:12px;box-sizing:border-box;}
-      .cja-ico-pick{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
+      .cja-editor-ov{position:fixed;inset:0;background:rgba(20,18,40,.4);display:flex;align-items:center;justify-content:center;z-index:1000;padding:20px;}
+      .cja-editor{background:#fff;border-radius:16px;padding:20px;width:min(440px,92vw);box-shadow:0 24px 70px rgba(0,0,0,.32);}
+      .cja-editor-head{display:flex;justify-content:space-between;align-items:center;font-weight:700;color:#2b2b3a;font-size:16px;margin-bottom:14px;}
+      .cja-editor-head button{border:none;background:transparent;font-size:22px;color:#9398a6;cursor:pointer;line-height:1;}
+      .cja-f-nom{width:100%;margin-bottom:14px;box-sizing:border-box;}
+      .cja-ico-pick{display:flex;gap:8px;flex-wrap:wrap;}
       .cja-ico-op{width:42px;height:42px;border-radius:10px;border:1px solid #e6e3f2;background:#fff;color:#8a8f9c;cursor:pointer;display:flex;align-items:center;justify-content:center;}
       .cja-ico-op:hover{border-color:#b9a9ee;}
       .cja-ico-op.sel{border-color:#6D5BD0;background:#efeafe;color:#6D5BD0;}
-      .cja-chk{display:flex;align-items:center;gap:7px;font-size:13px;color:#555;cursor:pointer;}
-      .cja-form-acc{display:flex;justify-content:flex-end;gap:8px;margin-top:14px;}
+      .cja-editor-acc{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;}
     </style>
     <div class="modal-header">
       <div class="modal-titulo">Caja · Medios de pago</div>
@@ -693,7 +693,6 @@ async function abrirCfgCaja() {
         </div>
         <button type="button" class="btn btn-primary-sm" onclick="cfgCajaNuevo()">+ Nuevo medio</button>
       </div>
-      <div id="cja-form" style="display:none;"></div>
       <div id="cja-lista" class="cja-lista"><div class="cja-vacio">Cargando…</div></div>
     </div>
     <div class="modal-footer">
@@ -739,7 +738,6 @@ function cfgCajaRenderLista() {
       <div class="cja-card-ico">${_cajaSvg(m.icono || 'generico', 22)}</div>
       <div class="cja-card-info">
         <div class="cja-card-nom">${cfgEsc(m.nombre)}</div>
-        ${m.afecta_caja ? '<span class="cja-card-badge">Efectivo</span>' : ''}
       </div>
       <button type="button" class="cja-card-btn" title="Editar" onclick="cfgCajaEditar('${m.id}')">${pencil}</button>
       <button type="button" class="cja-card-btn del" title="Quitar" onclick="cfgCajaBorrar('${m.id}')">${trash}</button>
@@ -754,25 +752,31 @@ function cfgCajaEditar(id) {
 }
 
 function cfgCajaForm(m) {
+  cfgCajaCerrarEditor();
   window._cajaEditId = m?.id || null;
   window._cajaIcoSel = m?.icono || 'generico';
-  const cont = document.getElementById('cja-form');
-  if (!cont) return;
   const icos = Object.keys(_CAJA_ICOS).map(slug =>
     `<button type="button" class="cja-ico-op${slug === window._cajaIcoSel ? ' sel' : ''}" data-ico="${slug}" onclick="cfgCajaIconoSel('${slug}')">${_cajaSvg(slug, 20)}</button>`
   ).join('');
-  cont.innerHTML = `
-    <div class="cja-form">
-      <div class="cja-form-tit">${m ? 'Editar medio' : 'Nuevo medio'}</div>
+
+  const ov = document.createElement('div');
+  ov.id = 'cja-editor-ov';
+  ov.className = 'cja-editor-ov';
+  ov.onclick = (e) => { if (e.target === ov) cfgCajaCerrarEditor(); };
+  ov.innerHTML = `
+    <div class="cja-editor">
+      <div class="cja-editor-head">
+        <span>${m ? 'Editar medio' : 'Nuevo medio'}</span>
+        <button type="button" onclick="cfgCajaCerrarEditor()">×</button>
+      </div>
       <input id="cja-f-nom" type="text" class="cja-f-nom" placeholder="Nombre del medio (ej. Efectivo)" value="${cfgEsc(m?.nombre || '')}">
       <div class="cja-ico-pick">${icos}</div>
-      <label class="cja-chk"><input type="checkbox" id="cja-f-efvo"${m?.afecta_caja ? ' checked' : ''}> Es efectivo (cuenta para el arqueo)</label>
-      <div class="cja-form-acc">
-        <button type="button" class="btn" onclick="cfgCajaCancelarForm()">Cancelar</button>
+      <div class="cja-editor-acc">
+        <button type="button" class="btn" onclick="cfgCajaCerrarEditor()">Cancelar</button>
         <button type="button" class="btn btn-primary-sm" onclick="cfgCajaGuardarMetodo()">Guardar</button>
       </div>
     </div>`;
-  cont.style.display = 'block';
+  document.body.appendChild(ov);
   const inp = document.getElementById('cja-f-nom');
   if (inp) inp.focus();
 }
@@ -782,28 +786,27 @@ function cfgCajaIconoSel(slug) {
   document.querySelectorAll('.cja-ico-op').forEach(b => b.classList.toggle('sel', b.getAttribute('data-ico') === slug));
 }
 
-function cfgCajaCancelarForm() {
-  const cont = document.getElementById('cja-form');
-  if (cont) { cont.style.display = 'none'; cont.innerHTML = ''; }
+function cfgCajaCerrarEditor() {
+  const ov = document.getElementById('cja-editor-ov');
+  if (ov) ov.remove();
 }
 
 async function cfgCajaGuardarMetodo() {
   const nombre = (document.getElementById('cja-f-nom')?.value || '').trim();
   if (!nombre) { mostrarMensaje('Poné un nombre para el medio de pago', 'advertencia'); return; }
-  const efvo = !!document.getElementById('cja-f-efvo')?.checked;
   const icono = window._cajaIcoSel || 'generico';
   const id = window._cajaEditId;
 
   if (id) {
-    const r = await sb.from('metodos_pago').update({ nombre, icono, afecta_caja: efvo }).eq('id', id);
+    const r = await sb.from('metodos_pago').update({ nombre, icono }).eq('id', id);
     if (r.error) { mostrarMensaje('Error: ' + r.error.message, 'error'); return; }
   } else {
     const orden = (window._cajaMet || []).length;
-    const r = await sb.from('metodos_pago').insert({ negocio_id: usuarioActual.negocio_id, nombre, icono, afecta_caja: efvo, orden });
+    const r = await sb.from('metodos_pago').insert({ negocio_id: usuarioActual.negocio_id, nombre, icono, orden });
     if (r.error) { mostrarMensaje('Error: ' + r.error.message, 'error'); return; }
   }
 
-  cfgCajaCancelarForm();
+  cfgCajaCerrarEditor();
   await cfgCajaCargar();
 }
 
