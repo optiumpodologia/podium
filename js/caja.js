@@ -142,8 +142,8 @@ async function renderCaja(cont) {
       .cj-card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
       .cj-card-tit{font-weight:700;display:flex;align-items:center;gap:8px;color:#2b2b3a;}
       .cj-card-tit svg{color:#8a8f9c;}
-      .cj-add{background:#6D5BD0;color:#fff;border:none;border-radius:9px;padding:7px 13px;font-size:13px;font-weight:600;cursor:pointer;}
-      .cj-add:hover{background:#5d4cc0;}
+      .cj-add{background:#f3f0fb;color:#6D5BD0;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:500;cursor:pointer;}
+      .cj-add:hover{background:#e9e3fa;}
       .cj-mov{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-top:1px solid #f1eefb;font-size:14px;}
       .cj-mov-con{color:#2b2b3a;}
       .cj-mov-met{color:#a7abb6;font-size:12px;}
@@ -162,16 +162,16 @@ async function renderCaja(cont) {
       .cj-cierre-card .l{font-size:13px;color:#1f9d57;display:flex;align-items:center;gap:7px;font-weight:600;}
       .cj-cierre-card .v{font-size:26px;font-weight:800;color:#1f9d57;margin-top:8px;}
       .cj-cierre-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:32px;}
-      .cj-card-tit2{font-weight:700;color:#2b2b3a;margin-bottom:14px;display:flex;align-items:center;gap:8px;}
+      .cj-card-tit2{font-weight:600;color:#2b2b3a;margin-bottom:14px;display:flex;align-items:center;gap:8px;}
       .cj-card-tit2 svg{color:#8a8f9c;}
       .cj-ef-fin{display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding:12px 15px;background:#efeafe;border-radius:11px;}
       .cj-ef-fin .t{font-weight:600;color:#5d4cc0;}
-      .cj-ef-fin b{font-size:19px;color:#6D5BD0;}
+      .cj-ef-fin b{font-size:16px;color:#6D5BD0;}
       .cj-arq-esp{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:#6b6880;margin-bottom:13px;padding-bottom:13px;border-bottom:1px solid #f1eefb;}
       .cj-arq-esp b{color:#2b2b3a;font-size:15px;}
       .cj-arq-add{display:flex;gap:8px;margin-bottom:12px;}
-      .cj-arq-add .cj-money{flex:1;}
-      .cj-arq-add .cj-add{padding:0 16px;}
+      .cj-arq-add .cj-money{width:150px;}
+      .cj-arq-add .cj-money-in{width:auto;flex:1;}
       .cj-arq-lista{display:flex;flex-direction:column;gap:6px;margin-bottom:13px;max-height:132px;overflow:auto;}
       .cj-arq-row{display:flex;justify-content:space-between;align-items:center;font-size:13.5px;background:#faf9fe;border-radius:8px;padding:7px 11px;}
       .cj-arq-row .r{display:flex;align-items:center;gap:8px;font-weight:600;}
@@ -179,15 +179,16 @@ async function renderCaja(cont) {
       .cj-arq-res{border-radius:12px;padding:13px 15px;margin-bottom:14px;text-align:center;}
       .cj-arq-res.ok{background:#e9f9f0;} .cj-arq-res.warn{background:#fff3ea;} .cj-arq-res.over{background:#fdeaea;}
       .cj-arq-res-l{font-size:12px;color:#6b6880;}
-      .cj-arq-res-big{font-size:22px;font-weight:800;margin-top:2px;}
+      .cj-arq-res-big{font-size:17px;font-weight:600;margin-top:3px;}
       .cj-arq-res.ok .cj-arq-res-big{color:#1f9d57;}
       .cj-arq-res.warn .cj-arq-res-big{color:#e07b2e;}
       .cj-arq-res.over .cj-arq-res-big{color:#d35;}
-      .cj-cerrar-btn{width:100%;background:#6D5BD0;color:#fff;border:none;border-radius:10px;padding:11px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;}
+      .cj-arq-foot{display:flex;justify-content:flex-end;}
+      .cj-cerrar-btn{background:#6D5BD0;color:#fff;border:none;border-radius:8px;padding:8px 15px;font-weight:500;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:7px;}
       .cj-cerrar-btn:hover{background:#5d4cc0;}
       .cj-cerrada-box{background:#e9f9f0;border-radius:12px;padding:20px;text-align:center;margin-bottom:14px;}
       .cj-cerrada-box .lbl{font-size:13px;color:#1f9d57;font-weight:600;}
-      .cj-cerrada-box .big{font-size:28px;font-weight:800;color:#1f9d57;margin:7px 0;}
+      .cj-cerrada-box .big{font-size:23px;font-weight:700;color:#1f9d57;margin:7px 0;}
       .cj-cerrada-box .dif{font-size:13px;color:#6b6880;}
 
       .cj-panel{background:#fff;border:1px solid #ece9f7;border-radius:14px;padding:16px 17px;}
@@ -409,11 +410,11 @@ function cajaRender() {
     cierreHTML = `
       <div class="cj-card-tit2">${lockIco} Caja cerrada</div>
       <div class="cj-cerrada-box"><div class="lbl">Quedan en caja</div><div class="big">${formatearPrecio(cont)}</div><div class="dif">${difTxt}</div></div>
-      <button class="btn" style="width:100%;" onclick="cajaReabrir()">Reabrir caja</button>`;
+      <div class="cj-arq-foot"><button class="btn" onclick="cajaReabrir()">Reabrir caja</button></div>`;
   } else {
     let cls, big;
     if (!st.parciales.length) { cls = 'warn'; big = 'Restante ' + formatearPrecio(efectivoCaja); }
-    else if (Math.abs(restante) < 0.5) { cls = 'ok'; big = '¡Cuadra! ✓'; }
+    else if (Math.abs(restante) < 0.5) { cls = 'ok'; big = 'Sin diferencias'; }
     else if (restante > 0) { cls = 'warn'; big = 'Restante ' + formatearPrecio(restante); }
     else { cls = 'over'; big = 'Sobra ' + formatearPrecio(-restante); }
     const lista = st.parciales.length
@@ -425,7 +426,7 @@ function cajaRender() {
       <div class="cj-arq-add">${_cjMoney('cj-parcial', 0, 'onkeyup="if(event.key===\'Enter\')cajaAgregarParcial()"')}<button class="cj-add" onclick="cajaAgregarParcial()">Agregar</button></div>
       <div class="cj-arq-lista">${lista}</div>
       <div class="cj-arq-res ${cls}"><div class="cj-arq-res-l">Contado ${formatearPrecio(contado)}</div><div class="cj-arq-res-big">${big}</div></div>
-      <button class="cj-cerrar-btn" onclick="cajaCerrarCajaConfirm()">${lockIco} Cerrar caja del día</button>`;
+      <div class="cj-arq-foot"><button class="cj-cerrar-btn" onclick="cajaCerrarCajaConfirm()">${lockIco} Cerrar caja del día</button></div>`;
   }
 
   // panel: acciones rápidas
