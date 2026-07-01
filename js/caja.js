@@ -68,7 +68,7 @@ function _cjMoney(id, valor, extra) {
   const v = valor ? Number(valor).toLocaleString('es-AR') : '';
   return `<div class="cj-money">
     <span class="cj-money-sign">$</span>
-    <input type="text" inputmode="numeric" id="${id}" class="cj-money-in" value="${v}" oninput="_cjMoneyFmt(this)" ${extra || ''}>
+    <input type="text" inputmode="numeric" autocomplete="off" autocorrect="off" spellcheck="false" id="${id}" class="cj-money-in" value="${v}" oninput="_cjMoneyFmt(this)" ${extra || ''}>
   </div>`;
 }
 function _cjMoneyFmt(inp) {
@@ -850,7 +850,7 @@ function cajaContarBilletes() {
   const rows = _CJ_DENOMS.map(d => `
     <div class="cjc-row">
       <span class="cjc-den">${formatearPrecio(d)}</span>
-      <input type="text" inputmode="numeric" class="cjc-in" data-denom="${d}" placeholder="0" oninput="_cjCalcRecalc()">
+      <input type="text" inputmode="numeric" autocomplete="off" class="cjc-in" data-denom="${d}" placeholder="0" oninput="_cjCalcRecalc()">
       <span class="cjc-sub" id="cjc-sub-${d}">${formatearPrecio(0)}</span>
     </div>`).join('');
   abrirModal(`
