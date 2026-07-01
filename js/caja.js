@@ -161,6 +161,34 @@ async function renderCaja(cont) {
       .cj-cierre-card{background:#e9f9f0;border-radius:13px;padding:18px 20px;}
       .cj-cierre-card .l{font-size:13px;color:#1f9d57;display:flex;align-items:center;gap:7px;font-weight:600;}
       .cj-cierre-card .v{font-size:26px;font-weight:800;color:#1f9d57;margin-top:8px;}
+      .cj-cierre-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:32px;}
+      .cj-card-tit2{font-weight:700;color:#2b2b3a;margin-bottom:14px;display:flex;align-items:center;gap:8px;}
+      .cj-card-tit2 svg{color:#8a8f9c;}
+      .cj-ef-fin{display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding:12px 15px;background:#efeafe;border-radius:11px;}
+      .cj-ef-fin .t{font-weight:600;color:#5d4cc0;}
+      .cj-ef-fin b{font-size:19px;color:#6D5BD0;}
+      .cj-arq-esp{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:#6b6880;margin-bottom:13px;padding-bottom:13px;border-bottom:1px solid #f1eefb;}
+      .cj-arq-esp b{color:#2b2b3a;font-size:15px;}
+      .cj-arq-add{display:flex;gap:8px;margin-bottom:12px;}
+      .cj-arq-add .cj-money{flex:1;}
+      .cj-arq-add .cj-add{padding:0 16px;}
+      .cj-arq-lista{display:flex;flex-direction:column;gap:6px;margin-bottom:13px;max-height:132px;overflow:auto;}
+      .cj-arq-row{display:flex;justify-content:space-between;align-items:center;font-size:13.5px;background:#faf9fe;border-radius:8px;padding:7px 11px;}
+      .cj-arq-row .r{display:flex;align-items:center;gap:8px;font-weight:600;}
+      .cj-arq-vacio{font-size:13px;color:#b3b7c0;padding:10px 0;text-align:center;}
+      .cj-arq-res{border-radius:12px;padding:13px 15px;margin-bottom:14px;text-align:center;}
+      .cj-arq-res.ok{background:#e9f9f0;} .cj-arq-res.warn{background:#fff3ea;} .cj-arq-res.over{background:#fdeaea;}
+      .cj-arq-res-l{font-size:12px;color:#6b6880;}
+      .cj-arq-res-big{font-size:22px;font-weight:800;margin-top:2px;}
+      .cj-arq-res.ok .cj-arq-res-big{color:#1f9d57;}
+      .cj-arq-res.warn .cj-arq-res-big{color:#e07b2e;}
+      .cj-arq-res.over .cj-arq-res-big{color:#d35;}
+      .cj-cerrar-btn{width:100%;background:#6D5BD0;color:#fff;border:none;border-radius:10px;padding:11px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;}
+      .cj-cerrar-btn:hover{background:#5d4cc0;}
+      .cj-cerrada-box{background:#e9f9f0;border-radius:12px;padding:20px;text-align:center;margin-bottom:14px;}
+      .cj-cerrada-box .lbl{font-size:13px;color:#1f9d57;font-weight:600;}
+      .cj-cerrada-box .big{font-size:28px;font-weight:800;color:#1f9d57;margin:7px 0;}
+      .cj-cerrada-box .dif{font-size:13px;color:#6b6880;}
 
       .cj-panel{background:#fff;border:1px solid #ece9f7;border-radius:14px;padding:16px 17px;}
       .cj-panel-tit{font-weight:700;font-size:14px;margin-bottom:13px;color:#2b2b3a;}
@@ -276,7 +304,8 @@ async function cajaCargar(fechaStr) {
     fecha: fechaStr, dia, movimientos: movR.data || [], metodos, efNames,
     mapa, cols, matriz, profArr, cobrosArr,
     totalCobrado, totalOps, efectivoCobrado,
-    pacientes: cobrosArr.length, profesionales: profArr.length
+    pacientes: cobrosArr.length, profesionales: profArr.length,
+    parciales: Array.isArray(dia.arqueo_parciales) ? dia.arqueo_parciales.slice() : []
   };
   cajaRender();
 }
@@ -296,6 +325,14 @@ function _cjDonut(st) {
   });
   const leg = segs.map(m => `<div class="cj-leg-row"><span class="cj-leg-dot" style="background:${_cjColorMetodo(m.icono).fg}"></span><span class="cj-leg-nom">${_cjEsc(m.nombre)}</span><span class="cj-leg-pct">${(m.monto / total * 100).toFixed(1)}%</span></div>`).join('');
   return `<div class="cj-donut" style="background:conic-gradient(${stops.join(',')})"><div class="cj-donut-hole"><div class="cj-donut-val">${formatearPrecio(total)}</div><div class="cj-donut-lbl">Total cobrado</div></div></div>${leg}`;
+}
+
+function _cjTeorico() {
+  const st = window._caja;
+  const saldo = Number(st.dia.saldo_anterior) || 0;
+  const gastosEf = st.movimientos.filter(m => m.tipo === 'gasto' && st.efNames.has((m.metodo || '').toLowerCase())).reduce((s, m) => s + (Number(m.monto) || 0), 0);
+  const retiros = st.movimientos.filter(m => m.tipo === 'retiro').reduce((s, m) => s + (Number(m.monto) || 0), 0);
+  return saldo + st.efectivoCobrado - gastosEf - retiros;
 }
 
 function cajaRender() {
@@ -356,6 +393,40 @@ function cajaRender() {
   const gastosEf = gastos.filter(m => st.efNames.has((m.metodo || '').toLowerCase())).reduce((s, m) => s + (Number(m.monto) || 0), 0);
   const totRetiros = retiros.reduce((s, m) => s + (Number(m.monto) || 0), 0);
   const efectivoCaja = saldo + st.efectivoCobrado - gastosEf - totRetiros;
+
+  // cierre por parciales (arqueo)
+  const cerrada = !!st.dia.cerrada;
+  const lockIco = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>';
+  const contado = st.parciales.reduce((s, p) => s + (Number(p) || 0), 0);
+  const restante = Math.round((efectivoCaja - contado) * 100) / 100;
+  const saldoCell = cerrada ? `<span>${formatearPrecio(saldo)}</span>` : _cjMoney('cj-saldo', saldo, 'onchange="cajaSaldo()"');
+
+  let cierreHTML;
+  if (cerrada) {
+    const cont = st.dia.arqueo_contado != null ? st.dia.arqueo_contado : contado;
+    const dif = st.dia.arqueo_diferencia != null ? st.dia.arqueo_diferencia : (contado - efectivoCaja);
+    const difTxt = Math.abs(dif) < 0.5 ? 'Cerró sin diferencias' : (dif > 0 ? 'Sobró ' + formatearPrecio(dif) : 'Faltó ' + formatearPrecio(-dif));
+    cierreHTML = `
+      <div class="cj-card-tit2">${lockIco} Caja cerrada</div>
+      <div class="cj-cerrada-box"><div class="lbl">Quedan en caja</div><div class="big">${formatearPrecio(cont)}</div><div class="dif">${difTxt}</div></div>
+      <button class="btn" style="width:100%;" onclick="cajaReabrir()">Reabrir caja</button>`;
+  } else {
+    let cls, big;
+    if (!st.parciales.length) { cls = 'warn'; big = 'Restante ' + formatearPrecio(efectivoCaja); }
+    else if (Math.abs(restante) < 0.5) { cls = 'ok'; big = '¡Cuadra! ✓'; }
+    else if (restante > 0) { cls = 'warn'; big = 'Restante ' + formatearPrecio(restante); }
+    else { cls = 'over'; big = 'Sobra ' + formatearPrecio(-restante); }
+    const lista = st.parciales.length
+      ? st.parciales.map((p, i) => `<div class="cj-arq-row"><span>Parcial ${i + 1}</span><span class="r">${formatearPrecio(p)} <button class="cj-mov-x" title="Quitar" onclick="cajaQuitarParcial(${i})">&times;</button></span></div>`).join('')
+      : '<div class="cj-arq-vacio">Cargá lo que vas contando…</div>';
+    cierreHTML = `
+      <div class="cj-card-tit2">${lockIco} Cierre de caja</div>
+      <div class="cj-arq-esp"><span>Efectivo esperado</span><b>${formatearPrecio(efectivoCaja)}</b></div>
+      <div class="cj-arq-add">${_cjMoney('cj-parcial', 0, 'onkeyup="if(event.key===\'Enter\')cajaAgregarParcial()"')}<button class="cj-add" onclick="cajaAgregarParcial()">Agregar</button></div>
+      <div class="cj-arq-lista">${lista}</div>
+      <div class="cj-arq-res ${cls}"><div class="cj-arq-res-l">Contado ${formatearPrecio(contado)}</div><div class="cj-arq-res-big">${big}</div></div>
+      <button class="cj-cerrar-btn" onclick="cajaCerrarCajaConfirm()">${lockIco} Cerrar caja del día</button>`;
+  }
 
   // panel: acciones rápidas
   const qaIco = {
@@ -433,18 +504,17 @@ function cajaRender() {
           </div>
         </div>
 
-        <div class="cj-sec-lbl">${cashIco} Efectivo en caja</div>
-        <div class="cj-cierre">
-          <div>
-            <div class="cj-cierre-row"><span class="lbl">Saldo anterior</span>${_cjMoney('cj-saldo', saldo, 'onchange="cajaSaldo()"')}</div>
+        <div class="cj-sec-lbl">${cashIco} Cierre de caja</div>
+        <div class="cj-cierre-grid">
+          <div class="cj-card">
+            <div class="cj-card-tit2">${cashIco} Efectivo en caja</div>
+            <div class="cj-cierre-row"><span class="lbl">Saldo anterior</span>${saldoCell}</div>
             <div class="cj-cierre-row sep"><span class="lbl">Efectivo cobrado</span><span>+ ${formatearPrecio(st.efectivoCobrado)}</span></div>
             <div class="cj-cierre-row sep"><span class="lbl">Gastos en efectivo</span><span>− ${formatearPrecio(gastosEf)}</span></div>
             <div class="cj-cierre-row sep"><span class="lbl">Retiros a banco</span><span>− ${formatearPrecio(totRetiros)}</span></div>
+            <div class="cj-ef-fin"><span class="t">Efectivo en caja</span><b>${formatearPrecio(efectivoCaja)}</b></div>
           </div>
-          <div class="cj-cierre-card">
-            <div class="l">${cashIco} Efectivo en caja</div>
-            <div class="v">${formatearPrecio(efectivoCaja)}</div>
-          </div>
+          <div class="cj-card">${cierreHTML}</div>
         </div>
       </div>
 
@@ -474,9 +544,59 @@ async function _cjUpsertDia(patch) {
   return r.data;
 }
 async function cajaSaldo() {
+  if (window._caja?.dia?.cerrada) return;
   const n = _cjMoneyVal('cj-saldo');
   window._caja.dia.saldo_anterior = n;
   await _cjUpsertDia({ saldo_anterior: n });
+  cajaRender();
+}
+
+// --- Arqueo por parciales + cierre ---
+async function cajaAgregarParcial() {
+  const st = window._caja;
+  if (st.dia.cerrada) { mostrarMensaje('La caja está cerrada', 'advertencia'); return; }
+  const v = _cjMoneyVal('cj-parcial');
+  if (v <= 0) { mostrarMensaje('Cargá un importe', 'advertencia'); return; }
+  st.parciales.push(v);
+  await _cjUpsertDia({ arqueo_parciales: st.parciales });
+  cajaRender();
+  setTimeout(() => document.getElementById('cj-parcial')?.focus(), 20);
+}
+async function cajaQuitarParcial(i) {
+  const st = window._caja;
+  if (st.dia.cerrada) return;
+  st.parciales.splice(i, 1);
+  await _cjUpsertDia({ arqueo_parciales: st.parciales });
+  cajaRender();
+}
+async function cajaCerrarCajaConfirm() {
+  const st = window._caja;
+  const teorico = _cjTeorico();
+  const contado = st.parciales.reduce((s, p) => s + (Number(p) || 0), 0);
+  const dif = Math.round((contado - teorico) * 100) / 100;
+  const difTxt = Math.abs(dif) < 0.5 ? 'sin diferencias' : (dif > 0 ? 'con un sobrante de ' + formatearPrecio(dif) : 'con un faltante de ' + formatearPrecio(-dif));
+  const ok = await confirmarModal({
+    titulo: 'Cerrar caja del día',
+    texto: `Contaste ${formatearPrecio(contado)} sobre un esperado de ${formatearPrecio(teorico)} (${difTxt}). Quedan ${formatearPrecio(contado)} en caja. Esto bloquea el día. ¿Confirmás?`,
+    textoSi: 'Cerrar caja', textoNo: 'Cancelar'
+  });
+  if (!ok) return;
+  await _cjUpsertDia({
+    arqueo_parciales: st.parciales, arqueo_contado: contado,
+    arqueo_teorico: teorico, arqueo_diferencia: dif,
+    cerrada: true, cerrada_en: new Date().toISOString()
+  });
+  mostrarMensaje('Caja cerrada', 'exito');
+  cajaRender();
+}
+async function cajaReabrir() {
+  const ok = await confirmarModal({
+    titulo: 'Reabrir caja', texto: 'Vas a reabrir la caja de este día para poder editarla. ¿Seguís?',
+    textoSi: 'Reabrir', textoNo: 'Cancelar'
+  });
+  if (!ok) return;
+  await _cjUpsertDia({ cerrada: false, cerrada_en: null });
+  mostrarMensaje('Caja reabierta', 'info');
   cajaRender();
 }
 
@@ -583,6 +703,7 @@ async function cajaVerProfesional(profId) {
 // ------------------------------------------------------------
 function cajaNuevoMov(tipo, prefillMonto) {
   const st = window._caja;
+  if (st?.dia?.cerrada) { mostrarMensaje('La caja está cerrada. Reabrila para editar.', 'advertencia'); return; }
   const esGasto = tipo === 'gasto';
   const metOpts = st.metodos.map(m => `<option value="${_cjEsc(m.nombre)}">${_cjEsc(m.nombre)}</option>`).join('');
   abrirModal(`
@@ -631,6 +752,7 @@ async function cajaGuardarMov(tipo) {
 }
 
 async function cajaBorrarMov(id) {
+  if (window._caja?.dia?.cerrada) { mostrarMensaje('La caja está cerrada. Reabrila para editar.', 'advertencia'); return; }
   const ok = await confirmarModal({
     titulo: 'Quitar movimiento', texto: '¿Querés quitar este movimiento de la caja?',
     textoSi: 'Quitar', textoNo: 'Cancelar', peligro: true
