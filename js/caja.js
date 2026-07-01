@@ -117,7 +117,7 @@ async function renderCaja(cont) {
       .cj-money{display:inline-flex;align-items:center;border:1px solid #e6e3f2;border-radius:9px;overflow:hidden;background:#fff;}
       .cj-money:focus-within{border-color:#6D5BD0;}
       .cj-money-sign{padding:0 3px 0 11px;color:#9398a6;font-weight:600;}
-      .cj-money-in{border:none;outline:none;padding:8px 11px 8px 4px;font-size:14px;text-align:right;width:110px;background:transparent;}
+      .cj-money-in{border:none;outline:none;padding:8px 11px 8px 6px;font-size:14px;text-align:left;width:110px;background:transparent;}
       .cj-money.full{width:100%;}
       .cj-money.full .cj-money-in{flex:1;width:auto;}
 
