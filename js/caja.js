@@ -72,8 +72,19 @@ function _cjMoney(id, valor, extra) {
   </div>`;
 }
 function _cjMoneyFmt(inp) {
-  const raw = inp.value.replace(/[^\d]/g, '');
-  inp.value = raw === '' ? '' : Number(raw).toLocaleString('es-AR');
+  const sel = inp.selectionStart || 0;
+  const antes = inp.value;
+  const digitosAntes = antes.slice(0, sel).replace(/[^\d]/g, '').length;
+  const raw = antes.replace(/[^\d]/g, '');
+  const fmt = raw === '' ? '' : Number(raw).toLocaleString('es-AR');
+  inp.value = fmt;
+  // reubicar el cursor después de la misma cantidad de dígitos
+  let pos = 0, cuenta = 0;
+  while (pos < fmt.length && cuenta < digitosAntes) {
+    if (fmt.charCodeAt(pos) >= 48 && fmt.charCodeAt(pos) <= 57) cuenta++;
+    pos++;
+  }
+  try { inp.setSelectionRange(pos, pos); } catch (e) {}
 }
 function _cjMoneyVal(id) { const e = document.getElementById(id); return e ? _cjParse(e.value) : 0; }
 
@@ -570,23 +581,83 @@ async function cajaQuitarParcial(i) {
   await _cjUpsertDia({ arqueo_parciales: st.parciales });
   cajaRender();
 }
-async function cajaCerrarCajaConfirm() {
+function cajaCerrarCajaConfirm() {
   const st = window._caja;
   const teorico = _cjTeorico();
   const contado = st.parciales.reduce((s, p) => s + (Number(p) || 0), 0);
   const dif = Math.round((contado - teorico) * 100) / 100;
-  const difTxt = Math.abs(dif) < 0.5 ? 'sin diferencias' : (dif > 0 ? 'con un sobrante de ' + formatearPrecio(dif) : 'con un faltante de ' + formatearPrecio(-dif));
-  const ok = await confirmarModal({
-    titulo: 'Cerrar caja del día',
-    texto: `Contaste ${formatearPrecio(contado)} sobre un esperado de ${formatearPrecio(teorico)} (${difTxt}). Quedan ${formatearPrecio(contado)} en caja. Esto bloquea el día. ¿Confirmás?`,
-    textoSi: 'Cerrar caja', textoNo: 'Cancelar'
-  });
-  if (!ok) return;
+
+  let difLabel, difVal, difColor, difFrase;
+  if (Math.abs(dif) < 0.5) { difLabel = 'Diferencia'; difVal = formatearPrecio(0); difColor = '#1f9d57'; difFrase = 'sin diferencias'; }
+  else if (dif > 0) { difLabel = 'Sobrante'; difVal = '+ ' + formatearPrecio(dif); difColor = '#1f9d57'; difFrase = 'con un sobrante de ' + formatearPrecio(dif); }
+  else { difLabel = 'Faltante'; difVal = '− ' + formatearPrecio(-dif); difColor = '#d35400'; difFrase = 'con un faltante de ' + formatearPrecio(-dif); }
+
+  const lockBig = '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>';
+  const lockSm = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>';
+  const wallet = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M19 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0 0 4h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5"/><path d="M16 14h.01"/></svg>';
+  const shield = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>';
+
+  abrirModal(`
+    <style>
+      .modal{max-width:480px;}
+      .cjcl-wrap{position:relative;}
+      .cjcl-x{position:absolute;top:16px;right:16px;border:none;background:#f6f5fb;width:32px;height:32px;border-radius:9px;font-size:18px;color:#9398a6;cursor:pointer;z-index:1;}
+      .cjcl-x:hover{background:#eee;}
+      .cjcl-body{padding:30px 28px 20px;text-align:center;}
+      .cjcl-ico{width:64px;height:64px;border-radius:50%;background:#efeafe;color:#6D5BD0;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;}
+      .cjcl-tit{font-size:19px;font-weight:700;color:#2b2b3a;margin-bottom:9px;}
+      .cjcl-txt{font-size:14px;color:#6b6880;line-height:1.55;margin-bottom:20px;}
+      .cjcl-card{background:#faf9ff;border:1px solid #ece9f7;border-radius:14px;padding:15px 16px;display:flex;align-items:center;gap:13px;text-align:left;margin-bottom:13px;}
+      .cjcl-card-ico{width:44px;height:44px;border-radius:12px;background:#fff;border:1px solid #ece9f7;color:#6D5BD0;display:flex;align-items:center;justify-content:center;flex:none;}
+      .cjcl-card-tit{font-size:12px;font-weight:700;color:#6D5BD0;margin-bottom:9px;}
+      .cjcl-cols{display:flex;}
+      .cjcl-col{flex:1;}
+      .cjcl-col+.cjcl-col{border-left:1px solid #ece9f7;padding-left:13px;}
+      .cjcl-col .l{font-size:11px;color:#9398a6;}
+      .cjcl-col .v{font-weight:700;font-size:15px;color:#2b2b3a;margin-top:3px;}
+      .cjcl-aviso{display:flex;align-items:center;gap:11px;background:#f4f2fb;border-radius:11px;padding:13px 15px;text-align:left;font-size:13px;color:#6b6880;line-height:1.4;}
+      .cjcl-aviso-ico{color:#9b93c9;flex:none;}
+      .cjcl-foot{display:flex;justify-content:space-between;align-items:center;padding:16px 24px;border-top:1px solid #f1eefb;}
+      .cjcl-cerrar{background:#6D5BD0;color:#fff;border:none;border-radius:9px;padding:9px 18px;font-weight:500;font-size:14px;cursor:pointer;display:inline-flex;align-items:center;gap:7px;}
+      .cjcl-cerrar:hover{background:#5d4cc0;}
+    </style>
+    <div class="cjcl-wrap">
+      <button class="cjcl-x" onclick="cerrarModal()">&times;</button>
+      <div class="cjcl-body">
+        <div class="cjcl-ico">${lockBig}</div>
+        <div class="cjcl-tit">Cerrar caja del día</div>
+        <div class="cjcl-txt">Contaste ${formatearPrecio(contado)} sobre un esperado de ${formatearPrecio(teorico)} (${difFrase}). Quedan ${formatearPrecio(contado)} en caja. Esto bloquea el día.</div>
+        <div class="cjcl-card">
+          <div class="cjcl-card-ico">${wallet}</div>
+          <div style="flex:1;">
+            <div class="cjcl-card-tit">Resumen del cierre</div>
+            <div class="cjcl-cols">
+              <div class="cjcl-col"><div class="l">Esperado en caja</div><div class="v">${formatearPrecio(teorico)}</div></div>
+              <div class="cjcl-col"><div class="l">Contado</div><div class="v">${formatearPrecio(contado)}</div></div>
+              <div class="cjcl-col"><div class="l" style="color:${difColor};">${difLabel}</div><div class="v" style="color:${difColor};">${difVal}</div></div>
+            </div>
+          </div>
+        </div>
+        <div class="cjcl-aviso"><span class="cjcl-aviso-ico">${shield}</span><span>Al cerrar la caja no vas a poder cargar más movimientos en el día de hoy.</span></div>
+      </div>
+      <div class="cjcl-foot">
+        <button class="btn" onclick="cerrarModal()">Cancelar</button>
+        <button class="cjcl-cerrar" onclick="cajaCerrarCajaEjecutar()">${lockSm} Cerrar caja</button>
+      </div>
+    </div>`);
+}
+
+async function cajaCerrarCajaEjecutar() {
+  const st = window._caja;
+  const teorico = _cjTeorico();
+  const contado = st.parciales.reduce((s, p) => s + (Number(p) || 0), 0);
+  const dif = Math.round((contado - teorico) * 100) / 100;
   await _cjUpsertDia({
     arqueo_parciales: st.parciales, arqueo_contado: contado,
     arqueo_teorico: teorico, arqueo_diferencia: dif,
     cerrada: true, cerrada_en: new Date().toISOString()
   });
+  cerrarModal();
   mostrarMensaje('Caja cerrada', 'exito');
   cajaRender();
 }
