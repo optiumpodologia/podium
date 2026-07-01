@@ -8,6 +8,17 @@
 <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
+<div id="app-splash" style="position:fixed;inset:0;z-index:100000;background:#f4f2fb;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;transition:opacity .3s ease;">
+  <div style="width:54px;height:54px;border-radius:16px;background:#6D5BD0;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(109,91,208,.35);">
+    <svg viewBox="0 0 24 24" width="27" height="27" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16v-2.38C4 11.5 2.97 10.5 3 8c.03-2.72 1.49-6 4.5-6C9.37 2 10 3.8 10 5.5c0 3.11-2 5.66-2 8.68V16a2 2 0 1 1-4 0Z"/><path d="M20 20v-2.38c0-2.12 1.03-3.12 1-5.62-.03-2.72-1.49-6-4.5-6C14.63 6 14 7.8 14 9.5c0 3.11 2 5.66 2 8.68V20a2 2 0 1 0 4 0Z"/><path d="M16 17h4"/><path d="M4 13h4"/></svg>
+  </div>
+  <svg width="28" height="28" viewBox="0 0 50 50" aria-label="Cargando">
+    <circle cx="25" cy="25" r="20" fill="none" stroke="#E0DBF3" stroke-width="5"/>
+    <circle cx="25" cy="25" r="20" fill="none" stroke="#6D5BD0" stroke-width="5" stroke-linecap="round" stroke-dasharray="90 150">
+      <animateTransform attributeName="transform" type="rotate" from="0 25 25" to="360 25 25" dur="0.9s" repeatCount="indefinite"/>
+    </circle>
+  </svg>
+</div>
 <div class="app">
 
 <aside class="sidebar">
@@ -191,7 +202,18 @@ const MODULOS = [
     ? guardado
     : (MODULOS.find(m => puedeVerModulo(usuarioActual, m.id))?.id || 'dashboard');
   navegar(moduloInicial);
+  ocultarSplash();
 })();
+
+// Red de seguridad: si algo se colgara, no dejamos el splash para siempre.
+setTimeout(ocultarSplash, 10000);
+
+function ocultarSplash() {
+  const s = document.getElementById('app-splash');
+  if (!s) return;
+  s.style.opacity = '0';
+  setTimeout(() => { if (s.parentNode) s.parentNode.removeChild(s); }, 320);
+}
 
 function renderNav() {
   const nav = document.getElementById('nav');
